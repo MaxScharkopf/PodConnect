@@ -2,13 +2,33 @@
 //  MapView.swift
 //  PodConnect
 //
-//  Created by Kassidy Barbara-Rose Saffa on 3/9/26.
+//
 //
 import SwiftUI
 import MapKit
 
 struct MapView: View {
-    var body: some View {
-        Text("Map coming soon")
-    }
-}
+    
+    //csuci coordinates
+    @State private var position: MapCameraPosition = .region(
+           MKCoordinateRegion(
+               center: CLLocationCoordinate2D(
+                   latitude: 34.1637,
+                   longitude: -119.0429
+               ),
+               span: MKCoordinateSpan(
+                   latitudeDelta: 0.005,
+                   longitudeDelta: 0.005
+               )
+           )
+       )
+
+       var body: some View {
+           Map(position: $position)
+               .ignoresSafeArea()
+       }
+   }
+
+   #Preview {
+       MapView()
+   }
