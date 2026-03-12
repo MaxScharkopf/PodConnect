@@ -14,7 +14,7 @@ struct ContentView: View {
     var body: some View {
         
         TabView(selection: $selectedTab) {
-          
+            
             Text("Search")
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")}
@@ -25,7 +25,7 @@ struct ContentView: View {
                     Label("Map", systemImage: "map")}
                 .tag(1)
             
-            Text("Home")
+            HomeView()
                 .tabItem {
                     Label("Home", systemImage: "house.fill")}
                 .tag(2)
