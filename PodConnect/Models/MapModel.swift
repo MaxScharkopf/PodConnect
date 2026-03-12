@@ -1,23 +1,30 @@
 //
-//  DataModel.swift
+//  MapModel.swift
 //  PodConnect
 //
 //  Created by Noah Hester on 3/9/26.
 //
 
-import FirebaseFirestore
+import Foundation
 
-struct MapData: Codable {
-    let campus_center: GeoPoint
+typealias MapResponse = [MapCategory]
+
+struct MapCategory: Decodable {
+    let name: String?
+    let catId: Int?
+    let children: Children?
 }
 
-class Location: Codable {
-    @DocumentID var id: String?
+struct Children: Decodable {
+    let locations: [Location]?
+    let categories: [MapCategory]?
+}
+
+struct Location: Decodable, Identifiable {
+    let id: Int
     let name: String
-    let type: String
-    let location: GeoPoint
-    let restrooms: Bool?
-    let food: Bool?
-    let description: String?
+    let lat: Double
+    let lng: Double
+    let catId: Int?
+    let mapId: Int?
 }
-
