@@ -8,10 +8,12 @@
 import SwiftUI
 
 @main
-struct PodConnectApp: App {
+struct YourApp: App {
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
+    WindowGroup {
+      NavigationView {
+        ContentView()
+      }
     }
+  }
 }
