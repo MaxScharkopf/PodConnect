@@ -184,6 +184,19 @@ struct sBar: View {
                 // Filter chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
+                        // Clear button — only shows when filters are active
+                        if !activeCategories.isEmpty {
+                            Button(action: { activeCategories.removeAll() }) {
+                                Text("Clear")
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.red.opacity(0.15))
+                                    .foregroundColor(.red)
+                                    .clipShape(Capsule())
+                            }
+                        }
+
                         ForEach(availableCategories, id: \.self) { category in
                             let isActive = activeCategories.contains(category)
                             Button(action: {
