@@ -167,10 +167,12 @@ struct sBar: View {
     @Binding var activeCategories: Set<String>
     @Binding var selectedLocation: MapLocation?
 
+    // Unique category names for filter chips
     private var availableCategories: [String] {
         Array(Set(categories.values)).filter { $0 != "Classrooms" }.sorted()
     }
 
+    // Locations filtered by search text
     private var searchResults: [MapLocation] {
         guard !sText.isEmpty else { return [] }
         return locations.filter { $0.name.localizedCaseInsensitiveContains(sText) }
@@ -207,6 +209,7 @@ struct sBar: View {
 
                 Divider()
 
+                // Search results
                 if sText.isEmpty {
                     Spacer()
                     Text("Search for a campus location")
