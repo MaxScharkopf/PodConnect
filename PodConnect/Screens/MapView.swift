@@ -12,14 +12,17 @@ struct MapView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var pauseUntil: Date? = nil
     @State private var isAutoCentering: Bool = false
-    
+    @State private var showSearch = false
+    @State private var activeCategories: Set<String> = []
+    @State private var selectedLocation: MapLocation? = nil
+
     @State private var mapPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 34.1647, longitude: -119.0426),
             span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
         )
     )
-    
+
     // CSUCI coordinates for default centering
     private let defaultRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(
@@ -32,93 +35,235 @@ struct MapView: View {
         )
     )
 
+    // Locations filtered by active categories (empty = show all)
+    private var filteredLocations: [MapLocation] {
+        guard !activeCategories.isEmpty else { return mapViewModel.mapLocations }
+        return mapViewModel.mapLocations.filter { location in
+            guard let catId = location.catId,
+                  let category = mapViewModel.locationCategories[catId] else { return false }
+            return activeCategories.contains(category)
+        }
+    }
+
     var body: some View {
-        // Load until retrieval done or failure
         if mapViewModel.isLoading {
             Text("Loading campus locations...")
-        }else {
-            Map(position: $mapPosition) {
-                // Add user location dot
-                UserAnnotation()
-                
-                ForEach(mapViewModel.mapLocations) { location in
-                    if let category = mapViewModel.locationCategories[location.catId ?? 0] {
-                        
-                        let style = markerStyle(for: category)
-                        
-                        if category != "Classrooms" {
-                            Marker(
-                                location.name,
-                                systemImage: style.icon,
-                                coordinate: CLLocationCoordinate2D(
-                                    latitude: location.lat,
-                                    longitude: location.lng
+        } else {
+            ZStack {
+                Map(position: $mapPosition) {
+                    UserAnnotation()
+
+                    ForEach(filteredLocations) { location in
+                        if let category = mapViewModel.locationCategories[location.catId ?? 0] {
+                            let style = markerStyle(for: category)
+                            if category != "Classrooms" {
+                                Marker(
+                                    location.name,
+                                    systemImage: style.icon,
+                                    coordinate: CLLocationCoordinate2D(
+                                        latitude: location.lat,
+                                        longitude: location.lng
+                                    )
                                 )
-                            )
-                            .tint(style.color)
+                                .tint(style.color)
+                            }
                         }
                     }
                 }
-            }
-            // Add delay if user scrolls the map
-            .onMapCameraChange(frequency: .continuous) { _ in
-                guard !isAutoCentering else { return }
-                pauseUntil = Date().addingTimeInterval(3)
-            }
-            // Continuously center map around user
-            .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
-                guard let coord = locationManager.userLocation else { return }
-                
-                guard pauseUntil == nil || Date() >= pauseUntil! else { return }
-                
-                isAutoCentering = true
-                
-                // Animate the recentering for a smoother effect
-                withAnimation(.smooth(duration: 1.0)) {
-                    mapPosition = .region(MKCoordinateRegion(center: coord, span: defaultRegion.span))
+                .onMapCameraChange(frequency: .continuous) { _ in
+                    guard !isAutoCentering else { return }
+                    pauseUntil = Date().addingTimeInterval(3)
                 }
-               
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    isAutoCentering = false
+                .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
+                    guard let coord = locationManager.userLocation else { return }
+                    guard pauseUntil == nil || Date() >= pauseUntil! else { return }
+
+                    isAutoCentering = true
+                    withAnimation(.smooth(duration: 1.0)) {
+                        mapPosition = .region(MKCoordinateRegion(center: coord, span: defaultRegion.span))
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        isAutoCentering = false
+                    }
                 }
-           }
-            .ignoresSafeArea()
-            // Show an error prompt if there is an error loading locations
-            .alert("Error",
-                isPresented: Binding(
-                    get: { mapViewModel.errorMessage != nil },
-                        // Clear the error on dismissal
-                    set: { _ in mapViewModel.errorMessage = nil }
-                )
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                // Print the error message
-                Text("\(mapViewModel.errorMessage ?? "") Cannot load map locations.")
+                // Fly to location when selected from search
+                .onChange(of: selectedLocation?.id) { _, _ in
+                    guard let location = selectedLocation else { return }
+                    isAutoCentering = true
+                    withAnimation(.smooth(duration: 1.0)) {
+                        mapPosition = .region(MKCoordinateRegion(
+                            center: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
+                            span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+                        ))
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        isAutoCentering = false
+                    }
+                }
+                .ignoresSafeArea()
+                .alert("Error",
+                    isPresented: Binding(
+                        get: { mapViewModel.errorMessage != nil },
+                        set: { _ in mapViewModel.errorMessage = nil }
+                    )
+                ) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("\(mapViewModel.errorMessage ?? "") Cannot load map locations.")
+                }
+
+                // Search button overlay
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: { showSearch = true }) {
+                            Image(systemName: "magnifyingglass")
+                                .padding(10)
+                                .font(.system(size: 25))
+                                .background(Color.white.opacity(0.6))
+                                .clipShape(Circle())
+                                .shadow(radius: 5)
+                        }
+                        .padding(20)
+                        .sheet(isPresented: $showSearch) {
+                            sBar(
+                                locations: mapViewModel.mapLocations,
+                                categories: mapViewModel.locationCategories,
+                                activeCategories: $activeCategories,
+                                selectedLocation: $selectedLocation
+                            )
+                        }
+                        .padding(5)
+                    }
+                }
             }
         }
     }
-    
+
     func markerStyle(for category: String) -> (icon: String, color: Color) {
         switch category {
         case "Recreation Areas":
             return ("american.football.fill", .green)
-            
         case "Open Areas":
             return ("person.2.fill", .green)
-            
         case "Buildings and Spaces":
             return ("building.2.fill", .blue)
-            
         case "Gardens":
             return ("leaf.fill", .green)
-            
         case "Bell Tower", "Bell Tower East", "Bell Tower West":
             return ("building.2.fill", .red)
-            
         default:
             return ("mappin", .gray)
         }
+    }
+}
+
+struct sBar: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var sText = ""
+    let locations: [MapLocation]
+    let categories: [Int: String]
+    @Binding var activeCategories: Set<String>
+    @Binding var selectedLocation: MapLocation?
+
+    // Unique category names for filter chips
+    private var availableCategories: [String] {
+        Array(Set(categories.values)).filter { $0 != "Classrooms" }.sorted()
+    }
+
+    // Locations filtered by search text
+    private var searchResults: [MapLocation] {
+        guard !sText.isEmpty else { return [] }
+        return locations.filter { $0.name.localizedCaseInsensitiveContains(sText) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 0) {
+                // Filter chips
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        // Clear button — only shows when filters are active
+                        if !activeCategories.isEmpty {
+                            Button(action: { activeCategories.removeAll() }) {
+                                Text("Clear")
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.red.opacity(0.15))
+                                    .foregroundColor(.red)
+                                    .clipShape(Capsule())
+                            }
+                        }
+
+                        ForEach(availableCategories, id: \.self) { category in
+                            let isActive = activeCategories.contains(category)
+                            Button(action: {
+                                if isActive {
+                                    activeCategories.remove(category)
+                                } else {
+                                    activeCategories.insert(category)
+                                }
+                            }) {
+                                Text(category)
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(isActive ? Color.blue : Color(.systemGray5))
+                                    .foregroundColor(isActive ? .white : .primary)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+
+                Divider()
+
+                // Search results
+                if sText.isEmpty {
+                    Spacer()
+                    Text("Search for a campus location")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    Spacer()
+                } else if searchResults.isEmpty {
+                    Spacer()
+                    Text("No results for \"\(sText)\"")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    Spacer()
+                } else {
+                    List(searchResults) { location in
+                        Button(action: {
+                            selectedLocation = location
+                            dismiss()
+                        }) {
+                            VStack(alignment: .leading) {
+                                Text(location.name)
+                                    .foregroundColor(.primary)
+                                if let catId = location.catId, let category = categories[catId] {
+                                    Text(category)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .toolbar {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .searchable(text: $sText, prompt: "Search campus locations")
+        .presentationDetents([.medium, .large])
     }
 }
 
