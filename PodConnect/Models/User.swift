@@ -6,9 +6,11 @@
 //
 
 // Simple user structure
+import FirebaseAuth
 import FirebaseFirestore
 
-struct User: Codable, Identifiable {
+// Database user data structure
+struct UserInfo: Codable, Identifiable {
     @DocumentID var id: String?
     var username: String
     var friends: [String]

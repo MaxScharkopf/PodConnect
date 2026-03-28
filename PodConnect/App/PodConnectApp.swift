@@ -9,6 +9,12 @@ import SwiftUI
 
 @main
 struct YourApp: App {
+    let firestore = FirestoreService()
+    let auth = AuthService()
+    
+    lazy var messageRepository = MessageRepository(firestoreService: firestore, authService: auth)
+    lazy var messageViewModel = MessageViewModel(messageRepository: messageRepository)
+    
     var body: some Scene {
     WindowGroup {
       NavigationView {

@@ -10,8 +10,15 @@ import Foundation
 
 @MainActor
 class MessageViewModel: ObservableObject {
-    @Published var participants: [User] = []
+    private var messageRepository: MessageRepository
+    
     @Published var messages: [Message] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    
+    init(messageRepository: MessageRepository) {
+        self.messageRepository = messageRepository
+    }
+    
+    
 }

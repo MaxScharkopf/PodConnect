@@ -8,6 +8,17 @@
 import SwiftUI
 import FirebaseFirestore
 
+/*
+ 
+ Firestore message thread collection structure:
+ 
+ /messages/[messageThreadID]/messages/[messageID]
+ 
+ As for documents, each message thread ID indexes a document that contains the name and participants in the message thread.
+ The message ID documents contain the actual content of the message as wel as the sender ID and timestamp.
+ 
+ */
+
 struct MessageThread: Codable, Identifiable {
     @DocumentID var id: String?
     var participants: [String]
