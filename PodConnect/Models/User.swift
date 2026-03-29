@@ -13,5 +13,9 @@ import FirebaseFirestore
 struct UserInfo: Codable, Identifiable {
     @DocumentID var id: String?
     var username: String
-    var friends: [String]
+    var classes: [String]
+    var clubs: [String]
+    var email: String
+    var uid: String
+    var bio: String
 }
