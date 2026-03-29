@@ -1,0 +1,158 @@
+//
+//  AccountSettingsView.swift
+//  PodConnect
+//
+//  Created by Kassidy Barbara-Rose Saffa on 3/28/26.
+//
+
+import Foundation
+import SwiftUI
+import FirebaseAuth
+
+struct AccountSettingsView: View {
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmNewPassword = ""
+
+    @State private var errorMessage = ""
+    @State private var successMessage = ""
+
+    @FocusState private var currentPasswordFocused: Bool
+    @FocusState private var newPasswordFocused: Bool
+    @FocusState private var confirmNewPasswordFocused: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .font(.footnote)
+                }
+
+                if !successMessage.isEmpty {
+                    Text(successMessage)
+                        .foregroundColor(.green)
+                        .font(.footnote)
+                }
+
+                VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Change Password")
+                            .font(.headline)
+
+                        SecureField("Current Password", text: $currentPassword)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($currentPasswordFocused)
+
+                        SecureField("New Password", text: $newPassword)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($newPasswordFocused)
+
+                        SecureField("Confirm New Password", text: $confirmNewPassword)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($confirmNewPasswordFocused)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(16)
+
+                    VStack(spacing: 0) {
+                        Button("Update Password") {
+                            dismissKeyboard()
+                            Task {
+                                await updatePassword()
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                    }
+                    .background(Color(.systemGray6))
+                    .cornerRadius(16)
+                }
+            }
+            .padding()
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismissKeyboard()
+            }
+        }
+        .navigationTitle("Account Settings")
+    }
+
+    private func dismissKeyboard() {
+        currentPasswordFocused = false
+        newPasswordFocused = false
+        confirmNewPasswordFocused = false
+    }
+
+    private func friendlyAuthMessage(from error: Error) -> String {
+        let nsError = error as NSError
+
+        guard nsError.domain == AuthErrorDomain,
+              let code = AuthErrorCode(rawValue: nsError.code) else {
+            return "Something went wrong. Please try again."
+        }
+
+        switch code {
+        case .wrongPassword, .invalidCredential:
+            return "Incorrect password."
+        case .requiresRecentLogin:
+            return "Please sign out and sign back in, then try again."
+        case .tooManyRequests:
+            return "Too many attempts. Try again later."
+        case .networkError:
+            return "Network error. Please try again."
+        default:
+            return "Something went wrong. Please try again."
+        }
+    }
+
+    private func updatePassword() async {
+        errorMessage = ""
+        successMessage = ""
+
+        guard let user = Auth.auth().currentUser,
+              let email = user.email else {
+            errorMessage = "No signed-in user found."
+            return
+        }
+
+        if currentPassword.isEmpty || newPassword.isEmpty || confirmNewPassword.isEmpty {
+            errorMessage = "Please fill in all password fields."
+            return
+        }
+
+        if newPassword != confirmNewPassword {
+            errorMessage = "Passwords do not match."
+            return
+        }
+
+        do {
+            let credential = EmailAuthProvider.credential(
+                withEmail: email,
+                password: currentPassword
+            )
+
+            try await user.reauthenticate(with: credential)
+            try await user.updatePassword(to: newPassword)
+
+            errorMessage = ""
+            successMessage = "Password updated."
+
+            currentPassword = ""
+            newPassword = ""
+            confirmNewPassword = ""
+        } catch {
+            successMessage = ""
+            errorMessage = friendlyAuthMessage(from: error)
+        }
+    }
+}
+
+#Preview {
+    NavigationView {
+        AccountSettingsView()
+    }
+}

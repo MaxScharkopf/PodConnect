@@ -6,15 +6,23 @@
 //
 
 import SwiftUI
+import FirebaseCore
 
 @main
 struct YourApp: App {
-    var body: some Scene {
-    WindowGroup {
-      NavigationView {
-        // ContentView() UNCOMMENT AFTER FIRST SPRINT DEMO
-          MapView()
-      }
+    init() {
+        FirebaseApp.configure()
     }
-  }
+
+    var body: some Scene {
+        WindowGroup {
+            NavigationView {
+                 ContentView() //UNCOMMENT AFTER FIRST SPRINT DEMO
+               // AuthView(onAuthenticated: {
+               //     print("User logged in")
+               // })
+                // MapView() COMMENTING OUT TO TEST SIGN UP
+            }
+        }
+    }
 }
