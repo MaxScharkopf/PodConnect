@@ -6,12 +6,16 @@
 //
 
 import Foundation
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
 
-final class AuthService {
+final class AuthService: ObservableObject {
+    @Published var currentUser: User?
+
     private let db = Firestore.firestore()
 
+    // Creates a new Firebase Auth user and corresponding Firestore profile.
     func signUp(email: String, password: String, username: String?) async throws {
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let cleanUsername = username?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -33,27 +37,30 @@ final class AuthService {
                 password: password
             )
             let user = result.user
+            currentUser = user
 
-            var data: [String: Any] = [
-                "uid": user.uid,
-                "email": cleanEmail,
-                "bio": "",
-                "clubs": [],
-                "classes": [],
-                "profileImageURL": ""
-            ]
-
-            if let cleanUsername, !cleanUsername.isEmpty {
-                data["username"] = cleanUsername
-                data["username_lowercase"] = cleanUsername.lowercased()
-            } else {
-                data["username"] = ""
-                data["username_lowercase"] = ""
-            }
+            let profile = UserInfo(
+                id: user.uid,
+                username: cleanUsername ?? "",
+                classes: [],
+                clubs: [],
+                email: cleanEmail,
+                uid: user.uid,
+                bio: ""
+            )
 
             try await db.collection("users")
                 .document(user.uid)
-                .setData(data)
+                .setData([
+                    "uid": profile.uid,
+                    "email": profile.email,
+                    "username": profile.username,
+                    "username_lowercase": profile.username.lowercased(),
+                    "bio": profile.bio,
+                    "clubs": profile.clubs,
+                    "classes": profile.classes,
+                    "profileImageURL": ""
+                ])
 
         } catch {
             let nsError = error as NSError
@@ -63,6 +70,8 @@ final class AuthService {
                 switch code {
                 case .emailAlreadyInUse:
                     throw AuthError.emailAlreadyInUse
+                case .invalidEmail:
+                    throw AuthError.invalidEmail
                 default:
                     throw AuthError.generic
                 }
@@ -71,11 +80,11 @@ final class AuthService {
             throw AuthError.generic
         }
     }
-    
+
+    // Signs in using either email or username.
     func signIn(identifier: String, password: String) async throws {
         let cleanIdentifier = identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        // EMAIL LOGIN
         if cleanIdentifier.contains("@") {
             let emailSnapshot = try await db.collection("users")
                 .whereField("email", isEqualTo: cleanIdentifier)
@@ -87,10 +96,11 @@ final class AuthService {
             }
 
             do {
-                _ = try await Auth.auth().signIn(
+                let result = try await Auth.auth().signIn(
                     withEmail: cleanIdentifier,
                     password: password
                 )
+                currentUser = result.user
             } catch {
                 let nsError = error as NSError
 
@@ -113,7 +123,6 @@ final class AuthService {
             return
         }
 
-        // USERNAME LOGIN
         let usernameSnapshot = try await db.collection("users")
             .whereField("username_lowercase", isEqualTo: cleanIdentifier)
             .limit(to: 1)
@@ -125,7 +134,8 @@ final class AuthService {
         }
 
         do {
-            _ = try await Auth.auth().signIn(withEmail: email, password: password)
+            let result = try await Auth.auth().signIn(withEmail: email, password: password)
+            currentUser = result.user
         } catch {
             let nsError = error as NSError
 
@@ -148,10 +158,57 @@ final class AuthService {
 
     func signOut() throws {
         try Auth.auth().signOut()
+        currentUser = nil
     }
 
-    func currentUser() -> User? {
+    func currentAuthenticatedUser() -> User? {
         Auth.auth().currentUser
+    }
+
+    // Loads the signed-in user's Firestore profile.
+    func fetchUserProfile() async throws -> UserInfo {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            throw AuthError.generic
+        }
+
+        let snapshot = try await db.collection("users").document(uid).getDocument()
+
+        guard let data = snapshot.data() else {
+            throw AuthError.generic
+        }
+
+        return UserInfo(
+            id: snapshot.documentID,
+            username: data["username"] as? String ?? "",
+            classes: data["classes"] as? [String] ?? [],
+            clubs: data["clubs"] as? [String] ?? [],
+            email: data["email"] as? String ?? "",
+            uid: data["uid"] as? String ?? uid,
+            bio: data["bio"] as? String ?? ""
+        )
+    }
+
+    // Saves profile changes while preserving case-insensitive username lookup.
+    func updateUserProfile(_ profile: UserInfo) async throws {
+        let trimmedUsername = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let snapshot = try await db.collection("users")
+            .whereField("username_lowercase", isEqualTo: trimmedUsername.lowercased())
+            .getDocuments()
+
+        let isTaken = snapshot.documents.contains { $0.documentID != profile.uid }
+
+        if isTaken {
+            throw AuthError.usernameAlreadyTaken
+        }
+
+        try await db.collection("users").document(profile.uid).updateData([
+            "username": trimmedUsername,
+            "username_lowercase": trimmedUsername.lowercased(),
+            "bio": profile.bio,
+            "clubs": profile.clubs,
+            "classes": profile.classes
+        ])
     }
 }
 

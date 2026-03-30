@@ -1,3 +1,4 @@
+
 //
 //  AuthView.swift
 //  PodConnect
@@ -43,7 +44,7 @@ struct AuthView: View {
                 VStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 16) {
                         if isSignUp {
-                            TextField("Username", text: $username)
+                            TextField("Username (optional)", text: $username)
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
@@ -124,7 +125,7 @@ struct AuthView: View {
         }
 
         if isSignUp {
-            return trimmedUsername.isEmpty || passwordsDoNotMatch || confirmPassword.isEmpty
+            return passwordsDoNotMatch || confirmPassword.isEmpty
         }
 
         return false
@@ -134,11 +135,6 @@ struct AuthView: View {
         errorMessage = ""
 
         if isSignUp {
-            if trimmedUsername.isEmpty {
-                errorMessage = "Please enter a username."
-                return
-            }
-
             if password != confirmPassword {
                 errorMessage = "Passwords do not match"
                 return
