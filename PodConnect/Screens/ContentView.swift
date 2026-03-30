@@ -17,19 +17,19 @@ struct ContentView: View {
         Group {
             if isAuthenticated {
                 TabView(selection: $selectedTab) {
-                    
+
                     Text("Search")
                         .tabItem {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         .tag(0)
-                    
+
                     MapView()
                         .tabItem {
                             Label("Map", systemImage: "map")
                         }
                         .tag(1)
-                    
+
                     HomeView(onSignOut: {
                         isAuthenticated = false
                         selectedTab = 2
@@ -38,14 +38,14 @@ struct ContentView: View {
                         Label("Home", systemImage: "house.fill")
                     }
                     .tag(2)
-                    
+
                     Text("Messages")
                         .tabItem {
                             Label("Messages", systemImage: "message")
                         }
                         .tag(3)
-                    
-                    Text("Calendar")
+
+                    CalendarView()
                         .tabItem {
                             Label("Calendar", systemImage: "calendar")
                         }
