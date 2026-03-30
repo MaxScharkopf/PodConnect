@@ -98,6 +98,7 @@ struct MapView: View {
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         isAutoCentering = false
+                        selectedLocation = nil
                     }
                 }
                 .ignoresSafeArea()
