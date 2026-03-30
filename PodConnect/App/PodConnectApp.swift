@@ -27,10 +27,10 @@ struct YourApp: App {
     lazy var messageViewModel = MessageViewModel(messageRepository: messageRepository)
     
     var body: some Scene {
-    WindowGroup {
-      NavigationView {
-        ContentView()
-      }
+        WindowGroup {
+            NavigationView {
+                ContentView()
+            }
+        }
     }
-  }
 }
