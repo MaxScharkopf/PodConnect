@@ -12,8 +12,7 @@ struct YourApp: App {
     var body: some Scene {
     WindowGroup {
       NavigationView {
-        // ContentView() UNCOMMENT AFTER FIRST SPRINT DEMO
-          MapView()
+          ContentView()
       }
     }
   }

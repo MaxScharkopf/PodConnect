@@ -10,8 +10,10 @@ import MapKit
 struct MapView: View {
     @StateObject private var mapViewModel = MapViewModel()
     @StateObject private var locationManager = LocationManager()
-    @State private var pauseUntil: Date? = nil
-    @State private var isAutoCentering: Bool = false
+    // @State private var pauseUntil: Date? = nil Uncomment if we want to use timed pause when user scrolls
+    @State private var autoCenterEnabled: Bool = false
+    @State private var isMovingCamera: Bool = false
+    @State private var ignoreNextCameraChange = false
     @State private var showSearch = false
     @State private var activeCategories: Set<String> = []
     @State private var selectedLocation: MapLocation? = nil
@@ -70,34 +72,32 @@ struct MapView: View {
                         }
                     }
                 }
-                .onMapCameraChange(frequency: .continuous) { _ in
-                    guard !isAutoCentering else { return }
-                    pauseUntil = Date().addingTimeInterval(3)
+                // Toggle auto center off when user scrolls
+                .onMapCameraChange(frequency: .onEnd) { _ in
+                    if ignoreNextCameraChange {
+                        ignoreNextCameraChange = false
+                        return
+                    }
+                    // pauseUntil = Date().addingTimeInterval(3) Time delay if user scrolls map
+                    autoCenterEnabled = false
                 }
                 .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
                     guard let coord = locationManager.userLocation else { return }
-                    guard pauseUntil == nil || Date() >= pauseUntil! else { return }
-
-                    isAutoCentering = true
-                    withAnimation(.smooth(duration: 1.0)) {
-                        mapPosition = .region(MKCoordinateRegion(center: coord, span: defaultRegion.span))
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        isAutoCentering = false
-                    }
+                    guard autoCenterEnabled else { return }
+                    centerMap(on: coord)
                 }
                 // Fly to location when selected from search
                 .onChange(of: selectedLocation?.id) { _, _ in
                     guard let location = selectedLocation else { return }
-                    isAutoCentering = true
-                    withAnimation(.smooth(duration: 1.0)) {
-                        mapPosition = .region(MKCoordinateRegion(
-                            center: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
-                            span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
-                        ))
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        isAutoCentering = false
+                    
+                    autoCenterEnabled = false
+                    
+                    centerMap(
+                        on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
+                        span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+                    )
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        isMovingCamera = false
                         selectedLocation = nil
                     }
                 }
@@ -118,30 +118,70 @@ struct MapView: View {
                     Spacer()
                     HStack {
                         Spacer()
-                        Button(action: { showSearch = true }) {
-                            Image(systemName: "magnifyingglass")
-                                .padding(10)
-                                .font(.system(size: 25))
-                                .background(Color.white.opacity(0.6))
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
+                        VStack {
+                            // Toggle auto center
+                            Button(action: {
+                                if autoCenterEnabled {
+                                    autoCenterEnabled = false
+                                } else {
+                                    autoCenterEnabled = true
+
+                                    if let coord = locationManager.userLocation {
+                                        centerMap(on: coord)
+                                    }
+                                }
+                            }) {
+                                Image(systemName: autoCenterEnabled ? "location.fill" : "location")
+                                    .padding(10)
+                                    .font(.system(size: 25))
+                                    .background(Color.white.opacity(0.6))
+                                    .clipShape(Circle())
+                                    .shadow(radius: 5)
+                            }
+                            
+                            Button(action: { showSearch = true }) {
+                                Image(systemName: "magnifyingglass")
+                                    .padding(10)
+                                    .font(.system(size: 25))
+                                    .background(Color.white.opacity(0.6))
+                                    .clipShape(Circle())
+                                    .shadow(radius: 5)
+                            }
+                            .sheet(isPresented: $showSearch) {
+                                sBar(
+                                    locations: mapViewModel.mapLocations,
+                                    categories: mapViewModel.locationCategories,
+                                    activeCategories: $activeCategories,
+                                    selectedLocation: $selectedLocation
+                                )
+                            }
+                            .padding(20)
                         }
-                        .padding(20)
-                        .sheet(isPresented: $showSearch) {
-                            sBar(
-                                locations: mapViewModel.mapLocations,
-                                categories: mapViewModel.locationCategories,
-                                activeCategories: $activeCategories,
-                                selectedLocation: $selectedLocation
-                            )
-                        }
-                        .padding(5)
                     }
                 }
             }
         }
     }
 
+    // Auto center helper
+    func centerMap(on coord: CLLocationCoordinate2D, span: MKCoordinateSpan? = nil) {
+        ignoreNextCameraChange = true
+        isMovingCamera = true
+        
+        withAnimation(.smooth(duration: 1.0)) {
+            mapPosition = .region(
+                MKCoordinateRegion(
+                    center: coord,
+                    span: span ?? defaultRegion.span
+                )
+            )
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            isMovingCamera = false
+        }
+    }
+    
     func markerStyle(for category: String) -> (icon: String, color: Color) {
         switch category {
         case "Recreation Areas":
