@@ -10,8 +10,8 @@ import MapKit
 struct MapView: View {
     @StateObject private var mapViewModel = MapViewModel()
     @StateObject private var locationManager = LocationManager()
-    @State private var pauseUntil: Date? = nil
-    @State private var isAutoCentering: Bool = false
+    @State private var autoCenterEnabled: Bool = false
+    @State private var userMovingMap = false
     @State private var showSearch = false
     @State private var activeCategories: Set<String> = []
     @State private var selectedLocation: MapLocation? = nil
@@ -46,78 +46,87 @@ struct MapView: View {
     }
 
     var body: some View {
-        if mapViewModel.isLoading {
-            Text("Loading campus locations...")
-        } else {
-            ZStack {
-                Map(position: $mapPosition) {
-                    UserAnnotation()
+        ZStack {
+            Map(position: $mapPosition) {
+                UserAnnotation()
 
-                    ForEach(filteredLocations) { location in
-                        if let category = mapViewModel.locationCategories[location.catId ?? 0] {
-                            let style = markerStyle(for: category)
-                            if category != "Classrooms" {
-                                Marker(
-                                    location.name,
-                                    systemImage: style.icon,
-                                    coordinate: CLLocationCoordinate2D(
-                                        latitude: location.lat,
-                                        longitude: location.lng
-                                    )
+                ForEach(filteredLocations) { location in
+                    if let category = mapViewModel.locationCategories[location.catId ?? 0] {
+                        let style = markerStyle(for: category)
+                        if category != "Classrooms" {
+                            Marker(
+                                location.name,
+                                systemImage: style.icon,
+                                coordinate: CLLocationCoordinate2D(
+                                    latitude: location.lat,
+                                    longitude: location.lng
                                 )
-                                .tint(style.color)
-                            }
+                            )
+                            .tint(style.color)
                         }
                     }
                 }
-                .onMapCameraChange(frequency: .continuous) { _ in
-                    guard !isAutoCentering else { return }
-                    pauseUntil = Date().addingTimeInterval(3)
+            }
+            // Toggle auto center off when user scrolls
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        if !userMovingMap {
+                            userMovingMap = true
+                            autoCenterEnabled = false
+                        }
+                    }
+                    .onEnded { _ in
+                        userMovingMap = false
+                    }
+            )
+            // Auto centering map if toggled
+            .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
+                guard autoCenterEnabled else { return }
+                guard let coord = locationManager.userLocation else { return }
+                centerMap(on: coord)
+            }
+            // Fly to location when selected from search
+            .onChange(of: selectedLocation?.id) { _, _ in
+                guard let location = selectedLocation else { return }
+                
+                autoCenterEnabled = false
+                
+                centerMap(
+                    on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
+                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+                )
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    selectedLocation = nil
                 }
-                .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
-                    guard let coord = locationManager.userLocation else { return }
-                    guard pauseUntil == nil || Date() >= pauseUntil! else { return }
+            }
 
-                    isAutoCentering = true
-                    withAnimation(.smooth(duration: 1.0)) {
-                        mapPosition = .region(MKCoordinateRegion(center: coord, span: defaultRegion.span))
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        isAutoCentering = false
-                    }
-                }
-                // Fly to location when selected from search
-                .onChange(of: selectedLocation?.id) { _, _ in
-                    guard let location = selectedLocation else { return }
-                    isAutoCentering = true
-                    withAnimation(.smooth(duration: 1.0)) {
-                        mapPosition = .region(MKCoordinateRegion(
-                            center: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
-                            span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
-                        ))
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        isAutoCentering = false
-                        selectedLocation = nil
-                    }
-                }
-                .ignoresSafeArea()
-                .alert("Error",
-                    isPresented: Binding(
-                        get: { mapViewModel.errorMessage != nil },
-                        set: { _ in mapViewModel.errorMessage = nil }
-                    )
-                ) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text("\(mapViewModel.errorMessage ?? "") Cannot load map locations.")
-                }
-
-                // Search button overlay
-                VStack {
+            // Search button and autocenter overlay
+            VStack {
+                Spacer()
+                HStack {
                     Spacer()
-                    HStack {
-                        Spacer()
+                    VStack {
+                        // Toggle auto center
+                        Button(action: {
+                            if autoCenterEnabled {
+                                autoCenterEnabled = false
+                            } else {
+                                autoCenterEnabled = true
+
+                                if let coord = locationManager.userLocation {
+                                    centerMap(on: coord)
+                                }
+                            }
+                        }) {
+                            Image(systemName: autoCenterEnabled ? "location.fill" : "location")
+                                .padding(10)
+                                .font(.system(size: 25))
+                                .background(Color.white.opacity(0.6))
+                                .clipShape(Circle())
+                                .shadow(radius: 5)
+                        }
+                        
                         Button(action: { showSearch = true }) {
                             Image(systemName: "magnifyingglass")
                                 .padding(10)
@@ -126,7 +135,6 @@ struct MapView: View {
                                 .clipShape(Circle())
                                 .shadow(radius: 5)
                         }
-                        .padding(20)
                         .sheet(isPresented: $showSearch) {
                             sBar(
                                 locations: mapViewModel.mapLocations,
@@ -135,13 +143,41 @@ struct MapView: View {
                                 selectedLocation: $selectedLocation
                             )
                         }
-                        .padding(5)
+                        .padding(20)
                     }
                 }
             }
+            if mapViewModel.isLoading {
+                Text("Loading campus locations...")
+                    .padding()
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .alert("Error",
+            isPresented: Binding(
+                get: { mapViewModel.errorMessage != nil },
+                set: { _ in mapViewModel.errorMessage = nil }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("\(mapViewModel.errorMessage ?? "") Cannot load map locations.")
         }
     }
 
+    // Auto center helper
+    func centerMap(on coord: CLLocationCoordinate2D, span: MKCoordinateSpan? = nil) {
+        withAnimation(.smooth(duration: 1.0)) {
+            mapPosition = .region(
+                MKCoordinateRegion(
+                    center: coord,
+                    span: span ?? defaultRegion.span
+                )
+            )
+        }
+    }
+    
     func markerStyle(for category: String) -> (icon: String, color: Color) {
         switch category {
         case "Recreation Areas":
