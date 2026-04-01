@@ -20,16 +20,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct YourApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     
-    lazy var firestore = FirestoreService()
-    lazy var auth = AuthService()
-    lazy var messageRepository = MessageRepository(firestoreService: firestore, authService: auth)
-    lazy var messageViewModel = MessageViewModel(messageRepository: messageRepository)
+    private let firestore = FirestoreService()
+    private let auth = AuthService()
     
     var body: some Scene {
     WindowGroup {
-      NavigationView {
-        ContentView()
-      }
+      ContentView(authService: auth, firestoreService: firestore)
     }
   }
 }

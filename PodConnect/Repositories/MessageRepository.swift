@@ -21,7 +21,7 @@ final class MessageRepository {
         // We want to fetch the message threads pertaining to this specific user
         
         // Check if the user is logged in
-        guard let userId = authService.currentUser?.uid else {
+        guard let userId = authService.currentUser?.id else {
             return []
         }
         
@@ -33,7 +33,31 @@ final class MessageRepository {
         return messageThreads
     }
     
-    func sendMessage(threadId: String, message: Message) {
+    func fetchMessages(threadId: String) async throws -> [Message] {
+        // We want to fetch the message threads pertaining to this specific user
         
+        // Check if the user is logged in
+        guard let user = authService.currentUser else {
+            return []
+        }
+        
+        // Filter for the message threads that have the current user in them
+        let messages: [Message] = try await firestoreService.fetchCollection(path: "messages/\(threadId)/messages")
+        
+        return messages
+    }
+    
+    func sendMessage(threadId: String, messageContent: String) async throws {
+        // We want to fetch the message threads pertaining to this specific user
+        
+        // Check if the user is logged in
+        guard let userId = authService.currentUser?.id else {
+            return
+        }
+        
+        let message = Message(content: messageContent, sender: userId, timestamp: Date())
+        
+        // Filter for the message threads that have the current user in them
+        try await firestoreService.saveDocument(path: "messages/\(threadId)/messages", data: message)
     }
 }

@@ -23,6 +23,7 @@ struct MessageThread: Codable, Identifiable {
     @DocumentID var id: String?
     var participants: [String]
     var threadName: String
+    var unread: Int
 }
 
 struct Message: Codable, Identifiable {

@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct ContentView: View {
+    let authService: AuthService
+    let firestoreService: FirestoreService
     
     @State private var selectedTab = 2
     
@@ -30,7 +32,7 @@ struct ContentView: View {
                     Label("Home", systemImage: "house.fill")}
                 .tag(2)
             
-            Text("Messages")
+            MessageView(authService: authService, firestoreService: firestoreService)
                 .tabItem {
                     Label("Messages", systemImage: "message")}
                 .tag(3)
@@ -45,5 +47,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(authService: AuthService(), firestoreService: FirestoreService())
 }
