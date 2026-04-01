@@ -30,14 +30,18 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
-                    HomeView(onSignOut: {
-                        isAuthenticated = false
-                        selectedTab = 2
-                    })
+                    NavigationStack {
+                        HomeView(onSignOut: {
+                            isAuthenticated = false
+                            selectedTab = 2
+                        })
+                    }
+                    
                     .tabItem {
                         Label("Home", systemImage: "house.fill")
                     }
                     .tag(2)
+                        
                     
                     Text("Messages")
                         .tabItem {
