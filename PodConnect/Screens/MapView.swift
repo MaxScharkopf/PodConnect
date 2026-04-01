@@ -10,10 +10,8 @@ import MapKit
 struct MapView: View {
     @StateObject private var mapViewModel = MapViewModel()
     @StateObject private var locationManager = LocationManager()
-    // @State private var pauseUntil: Date? = nil Uncomment if we want to use timed pause when user scrolls
     @State private var autoCenterEnabled: Bool = false
-    @State private var isMovingCamera: Bool = false
-    @State private var ignoreNextCameraChange = false
+    @State private var userMovingMap = false
     @State private var showSearch = false
     @State private var activeCategories: Set<String> = []
     @State private var selectedLocation: MapLocation? = nil
@@ -73,17 +71,22 @@ struct MapView: View {
                     }
                 }
                 // Toggle auto center off when user scrolls
-                .onMapCameraChange(frequency: .onEnd) { _ in
-                    if ignoreNextCameraChange {
-                        ignoreNextCameraChange = false
-                        return
-                    }
-                    // pauseUntil = Date().addingTimeInterval(3) Time delay if user scrolls map
-                    autoCenterEnabled = false
-                }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if !userMovingMap {
+                                userMovingMap = true
+                                autoCenterEnabled = false
+                            }
+                        }
+                        .onEnded { _ in
+                            userMovingMap = false
+                        }
+                )
+                // Auto centering map if toggled
                 .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
-                    guard let coord = locationManager.userLocation else { return }
                     guard autoCenterEnabled else { return }
+                    guard let coord = locationManager.userLocation else { return }
                     centerMap(on: coord)
                 }
                 // Fly to location when selected from search
@@ -97,7 +100,6 @@ struct MapView: View {
                         span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
                     )
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        isMovingCamera = false
                         selectedLocation = nil
                     }
                 }
@@ -113,7 +115,7 @@ struct MapView: View {
                     Text("\(mapViewModel.errorMessage ?? "") Cannot load map locations.")
                 }
 
-                // Search button overlay
+                // Search button and autocenter overlay
                 VStack {
                     Spacer()
                     HStack {
@@ -165,9 +167,6 @@ struct MapView: View {
 
     // Auto center helper
     func centerMap(on coord: CLLocationCoordinate2D, span: MKCoordinateSpan? = nil) {
-        ignoreNextCameraChange = true
-        isMovingCamera = true
-        
         withAnimation(.smooth(duration: 1.0)) {
             mapPosition = .region(
                 MKCoordinateRegion(
@@ -175,10 +174,6 @@ struct MapView: View {
                     span: span ?? defaultRegion.span
                 )
             )
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            isMovingCamera = false
         }
     }
     
