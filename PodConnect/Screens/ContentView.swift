@@ -34,12 +34,10 @@ struct ContentView: View {
                         isAuthenticated = false
                         selectedTab = 2
                     })
-                    
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    .tag(2)
-                        
+                        .tabItem {
+                            Label("Home", systemImage: "house.fill")
+                        }
+                        .tag(2)
                     
                     Text("Messages")
                         .tabItem {
