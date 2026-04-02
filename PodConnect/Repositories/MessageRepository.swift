@@ -47,6 +47,19 @@ final class MessageRepository {
         return messages
     }
     
+    func messageFetchStream(threadId: String) -> AsyncThrowingStream<[Message], Error> {
+        guard authService.isAuthenticated else {
+            return AsyncThrowingStream { continuation in
+                continuation.yield([])
+                continuation.finish()
+            }
+        }
+        
+        return firestoreService.createCollectionListener(path: "messages/\(threadId)/messages") { query in
+            query.order(by: "timestamp", descending: false)
+        }
+    }
+    
     func sendMessage(threadId: String, messageContent: String) async throws {
         // We want to fetch the message threads pertaining to this specific user
         

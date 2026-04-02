@@ -287,7 +287,7 @@ struct ProfileView: View {
 
     // Saves profile changes through AuthService.
     func saveProfile() async {
-        guard let uid = authService.currentAuthenticatedUser()?.uid else { return }
+        guard let uid = authService.currentUser?.uid else { return }
 
         let profile = UserInfo(
             id: uid,

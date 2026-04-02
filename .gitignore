@@ -9,4 +9,4 @@ build/
 DerivedData/
 
 # Firebase local config
-GoogleService-Info.plist
+**/GoogleService-Info.plist

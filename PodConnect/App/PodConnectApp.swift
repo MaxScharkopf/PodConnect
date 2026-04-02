@@ -34,6 +34,6 @@ struct PodConnectApp: App {
                 .onAppear {
                     auth.startAuthListener()
                 }
-        }
+            }
     }
 }

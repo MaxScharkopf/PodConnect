@@ -40,18 +40,19 @@ struct HomeView: View {
                 .padding(.horizontal)
                 
                 Spacer()
-
+                
                 Text("More features coming soon")
                     .font(.footnote)
                     .foregroundColor(.gray)
                 
                 Spacer()
             }
-            .padding(.top)
+            .padding()
             .navigationTitle("Home")
         }
     }
 }
+
 
 struct FeedRow: View {
     let icon: String
@@ -73,6 +74,7 @@ struct FeedRow: View {
             }
             Spacer()
         }
+        .navigationTitle("Home")
         .padding(.horizontal)
         .padding(.vertical, 4)
     }

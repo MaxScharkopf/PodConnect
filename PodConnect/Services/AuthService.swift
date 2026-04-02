@@ -22,18 +22,20 @@ final class AuthService: ObservableObject {
         self.firestoreService = firestoreService
     }
     
+    // This creates a listener that will wait for any auth changes and adjust thigns accordingly as it happens
     func startAuthListener() {
+        // Check if the auth handle exists
         guard authHandle == nil else { return }
 
         authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self else { return }
+            
             self.currentUser = user
             self.isAuthenticated = (user != nil)
             
-            // If we have a user, automatically fetch their profile from Firestore
+            // If we have a user, fetch their profile from Firestore
             if let user = user {
                 Task {
-                    // Assuming  FirestoreService has a fetchDocument method
                     do {
                         let profile: UserInfo? = try await self.firestoreService.fetchDocument(path: "users", documentId: user.uid)
                         
@@ -56,6 +58,7 @@ final class AuthService: ObservableObject {
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let cleanUsername = username?.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Check for users that already have that name
         if let cleanUsername, !cleanUsername.isEmpty {
             let matchingUsers: [UserInfo] = try await firestoreService.fetchCollection(path: "users") { document in
                 document
@@ -67,14 +70,12 @@ final class AuthService: ObservableObject {
                 throw AuthError.usernameAlreadyTaken
             }
         }
-
+        
         do {
             let result = try await Auth.auth().createUser(
                 withEmail: cleanEmail,
                 password: password
             )
-            let user = result.user
-            currentUser = user
 
             let profile = UserInfo(
                 id: nil,
@@ -82,11 +83,11 @@ final class AuthService: ObservableObject {
                 classes: [],
                 clubs: [],
                 email: cleanEmail,
-                uid: user.uid,
+                uid: result.user.uid,
                 bio: ""
             )
 
-            try await firestoreService.saveDocument(path: "users", documentId: user.uid, data: profile)
+            try await firestoreService.saveDocument(path: "users", documentId: result.user.uid, data: profile)
             
             self.userInfo = profile
 
@@ -155,11 +156,7 @@ final class AuthService: ObservableObject {
     func signOut() throws {
         try Auth.auth().signOut()
     }
-
-    func currentAuthenticatedUser() -> User? {
-        return Auth.auth().currentUser
-    }
-
+    
     // Saves profile changes while preserving case-insensitive username lookup.
     func updateUserProfile(_ profile: UserInfo) async throws {
         let trimmedUsername = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -18,13 +18,13 @@ struct ContentView: View {
         Group {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
-                    
+
                     Text("Search")
                         .tabItem {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         .tag(0)
-                    
+
                     MapView()
                         .tabItem {
                             Label("Map", systemImage: "map")
@@ -42,8 +42,8 @@ struct ContentView: View {
                             Label("Messages", systemImage: "message")
                         }
                         .tag(3)
-                    
-                    Text("Calendar")
+
+                    CalendarView()
                         .tabItem {
                             Label("Calendar", systemImage: "calendar")
                         }

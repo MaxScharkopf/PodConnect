@@ -88,10 +88,10 @@ struct ChatView: View {
                 
                 Button(action: {
                     Task {
-                        // Send the message and reload
-                        await viewModel.sendMessage(messageContent: currentMessage)
-                        currentMessage = ""
-                        await viewModel.fetchMessages()
+                        if !currentMessage.isEmpty {
+                            await viewModel.sendMessage(messageContent: currentMessage)
+                            currentMessage = ""
+                        }
                     }
                 }) {
                     Image(systemName: "arrow.up")

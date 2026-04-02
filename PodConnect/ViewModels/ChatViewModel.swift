@@ -20,30 +20,41 @@ class ChatViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
+    private var messageListenerTask: Task<Void, Never>?
+    
     init(messageRepository: MessageRepository, messageThreadId: String) {
         self.messageRepository = messageRepository
         self.messageThreadId = messageThreadId
         
-        Task { await fetchMessages() }
+        listenForMessages()
     }
     
-    func fetchMessages() async {
+    deinit {
+        messageListenerTask?.cancel()
+    }
+    
+    private func listenForMessages() {
         // Set loading flag
         self.isLoading = true
         
-        do {
-            // Retrieve user message threads
-            let messages = try await messageRepository.fetchMessages(threadId: self.messageThreadId)
-            
-            // Set the message threads for view access
-            self.messages = messages
-            
-            // Set loading and error
-            self.isLoading = false
-            self.errorMessage = nil
-        }catch {
-            // Set error message
-            errorMessage = error.localizedDescription
+        messageListenerTask = Task {
+            do {
+                // Retrieve user message threads
+                let stream = messageRepository.messageFetchStream(threadId: self.messageThreadId)
+                
+                for try await messages in stream {
+                    // Set the message threads for view access
+                    self.messages = messages
+                    
+                    // Set loading and error
+                    self.isLoading = false
+                    self.errorMessage = nil
+                }
+            } catch {
+                // Set error message
+                errorMessage = error.localizedDescription
+                self.isLoading = false
+            }
         }
     }
     
@@ -61,6 +72,7 @@ class ChatViewModel: ObservableObject {
         }catch {
             // Set error message
             self.errorMessage = error.localizedDescription
+            self.isLoading = false
         }
     }
 }

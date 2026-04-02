@@ -18,18 +18,12 @@ final class FirestoreService {
     // Create database reference
     private lazy var db = Firestore.firestore()
     
-    // Fetch firestore documents and put them into decodable data types for app usage
-    func fetchCollection<T: Decodable>(path: String) async throws -> [T] {
-        let snapshot = try await db.collection(path).getDocuments()
-        
-        // Format into data structures
-        return try snapshot.documents.map { try $0.data(as:T.self) }
-    }
-    
     // Fetch filtered selection of documents from a collection
-    func fetchCollection<T: Decodable>(path: String, configure: (CollectionReference) -> Query) async throws -> [T] {
+    func fetchCollection<T: Decodable>(path: String, configure: ((CollectionReference) -> Query)? = nil) async throws -> [T] {
+        let collectionReference = db.collection(path)
+        
         // Construct the firestore query based on the configuration function
-        let query = configure(db.collection(path))
+        let query = configure?(collectionReference) ?? collectionReference
         
         let snapshot = try await query.getDocuments()
         
@@ -38,9 +32,43 @@ final class FirestoreService {
     }
     
     // Fetch documents and listen for changes
-    func createCollectionListener<T: Decodable>(path: String, configure: (CollectionReference) -> Query) async throws -> [T] {
-       // TODO: Add snapshot listener
-        return []
+    func createCollectionListener<T: Decodable>(path: String, configure: ((CollectionReference) -> Query)? = nil) -> AsyncThrowingStream<[T], Error> {
+        // Create a stream for listening to updates
+        AsyncThrowingStream { continuation in
+            let collectionReference = db.collection(path)
+            
+            // Construct the firestore query based on the configuration function
+            let query = configure?(collectionReference) ?? collectionReference
+            
+            // Construct a listener for the query to check for updates
+            let listener = query.addSnapshotListener { snapshot, error in
+                if let error = error {
+                    // End the stream and throw an error
+                    continuation.finish(throwing: error)
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    // Return empty if no documents
+                    continuation.yield([])
+                    return
+                }
+                
+                // Yield the documents if found
+                do {
+                    let items = try documents.map { try $0.data(as: T.self) }
+                    
+                    continuation.yield(items)
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            
+            // Remove the listener when terminating the stream
+            continuation.onTermination = { @Sendable _ in
+                listener.remove()
+            }
+        }
     }
     
     // Fetch one specific document
