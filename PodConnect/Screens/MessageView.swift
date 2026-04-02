@@ -9,10 +9,10 @@ import SwiftUI
 
 struct MessageView: View {
     // Recieve necessary services
-    private let authService: AuthService
-    private let firestoreService: FirestoreService
+    @ObservedObject var authService: AuthService
+    private var firestoreService: FirestoreService
     // Holds messaging database interaction repository
-    private let messageRepository: MessageRepository
+    private var messageRepository: MessageRepository
     // View model for state updates
     @StateObject private var viewModel: MessageViewModel
     
@@ -89,5 +89,5 @@ struct MessageView: View {
 
 
 #Preview {
-    MessageView(authService: AuthService(), firestoreService: FirestoreService())
+    MessageView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
 }

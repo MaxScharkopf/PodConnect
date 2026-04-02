@@ -17,15 +17,23 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 @main
-struct YourApp: App {
+struct PodConnectApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     
     private let firestore = FirestoreService()
-    private let auth = AuthService()
+    private let auth: AuthService
+    
+    init() {
+        auth = AuthService(firestoreService: firestore)
+    }
+    
     
     var body: some Scene {
-    WindowGroup {
-      ContentView(authService: auth, firestoreService: firestore)
+        WindowGroup {
+            ContentView(authService: auth, firestoreService: firestore)
+                .onAppear {
+                    auth.startAuthListener()
+                }
+        }
     }
-  }
 }

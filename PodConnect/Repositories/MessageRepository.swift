@@ -9,8 +9,8 @@ import FirebaseAuth
 internal import FirebaseFirestoreInternal
 
 final class MessageRepository {
-    private let firestoreService: FirestoreService
-    private let authService: AuthService
+    private var firestoreService: FirestoreService
+    private var authService: AuthService
     
     init(firestoreService: FirestoreService, authService: AuthService) {
         self.firestoreService = firestoreService
@@ -21,7 +21,7 @@ final class MessageRepository {
         // We want to fetch the message threads pertaining to this specific user
         
         // Check if the user is logged in
-        guard let userId = authService.currentUser?.id else {
+        guard let userId = authService.userInfo?.id else {
             return []
         }
         
@@ -37,7 +37,7 @@ final class MessageRepository {
         // We want to fetch the message threads pertaining to this specific user
         
         // Check if the user is logged in
-        guard let user = authService.currentUser else {
+        guard authService.isAuthenticated else {
             return []
         }
         
@@ -51,7 +51,7 @@ final class MessageRepository {
         // We want to fetch the message threads pertaining to this specific user
         
         // Check if the user is logged in
-        guard let userId = authService.currentUser?.id else {
+        guard let userId = authService.userInfo?.id else {
             return
         }
         

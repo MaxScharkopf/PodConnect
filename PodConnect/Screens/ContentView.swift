@@ -6,46 +6,64 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct ContentView: View {
-    let authService: AuthService
+    @ObservedObject var authService: AuthService
     let firestoreService: FirestoreService
     
     @State private var selectedTab = 2
     
     var body: some View {
-        
-        TabView(selection: $selectedTab) {
-            
-            Text("Search")
-                .tabItem {
-                    Label("Search", systemImage: "magnifyingglass")}
-                .tag(0)
-            
-            MapView()
-                .tabItem {
-                    Label("Map", systemImage: "map")}
-                .tag(1)
-            
-            HomeView()
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")}
-                .tag(2)
-            
-            MessageView(authService: authService, firestoreService: firestoreService)
-                .tabItem {
-                    Label("Messages", systemImage: "message")}
-                .tag(3)
-            
-            Text("Calendar")
-                .tabItem {
-                    Label("Calendar", systemImage: "calendar")}
-                .tag(4)
-            
+        Group {
+            if authService.isAuthenticated {
+                TabView(selection: $selectedTab) {
+                    
+                    Text("Search")
+                        .tabItem {
+                            Label("Search", systemImage: "magnifyingglass")
+                        }
+                        .tag(0)
+                    
+                    MapView()
+                        .tabItem {
+                            Label("Map", systemImage: "map")
+                        }
+                        .tag(1)
+                    
+                    HomeView(authService: authService)
+                    .tabItem {
+                        Label("Home", systemImage: "house.fill")
+                    }
+                    .tag(2)
+                    
+                    MessageView(authService: authService, firestoreService: firestoreService)
+                        .tabItem {
+                            Label("Messages", systemImage: "message")
+                        }
+                        .tag(3)
+                    
+                    Text("Calendar")
+                        .tabItem {
+                            Label("Calendar", systemImage: "calendar")
+                        }
+                        .tag(4)
+                }
+            } else {
+                AuthView(authService: authService)
+                    .task {
+                        selectedTab = 2
+                    }
+            }
+        }
+        .onChange(of: authService.isAuthenticated) { oldValue, newValue in
+            if !newValue {
+                selectedTab = 2
+            }
         }
     }
 }
 
 #Preview {
-    ContentView(authService: AuthService(), firestoreService: FirestoreService())
+    ContentView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
 }

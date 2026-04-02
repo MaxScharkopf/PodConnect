@@ -9,11 +9,11 @@ import SwiftUI
 
 struct ChatView: View {
     // Database interaction structure
-    let messageRepository: MessageRepository
+    private var messageRepository: MessageRepository
     // Reference to the specific message thread we are viewing
-    let messageThread: MessageThread
+    private let messageThread: MessageThread
     // Reference to the authentication service for checking sender ID
-    let authService: AuthService
+    @ObservedObject var authService: AuthService
     
     // State variables and view model
     @StateObject private var viewModel: ChatViewModel
@@ -50,7 +50,7 @@ struct ChatView: View {
                         
                         HStack {
                             // Render blue if sent, gray if recieved
-                            if message.sender == self.authService.currentUser?.id {
+                            if message.sender == self.authService.userInfo?.id {
                                 Spacer()
                                 
                                 Text(message.content)
@@ -110,5 +110,8 @@ struct ChatView: View {
 
 
 #Preview {
-    ChatView(messageRepository: MessageRepository(firestoreService: FirestoreService(), authService: AuthService()), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team", unread: 5), authService: AuthService())
+    let firestore = FirestoreService()
+    let auth = AuthService(firestoreService: firestore)
+    
+    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team", unread: 5), authService: auth)
 }

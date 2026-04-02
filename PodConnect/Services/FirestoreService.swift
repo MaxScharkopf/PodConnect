@@ -64,6 +64,11 @@ final class FirestoreService {
         try db.collection(path).document(documentId).setData(from: data)
     }
     
+    // Update document with specific ID after encoding them from the app usage data types
+    func updateDocument<T: Encodable>(path: String, documentId: String, data: T) async throws {
+        try db.collection(path).document(documentId).setData(from: data, merge: true)
+    }
+    
     // Remove a specific document from firestore
     func removeDocument(path: String, documentId: String) async throws {
         try await db.collection(path).document(documentId).delete()
