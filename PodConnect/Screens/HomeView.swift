@@ -11,7 +11,11 @@
 import SwiftUI
 
 struct HomeView: View {
-    let onSignOut: () -> Void
+    private var authService: AuthService
+    
+    init(authService: AuthService) {
+        self.authService = authService
+    }
     
     var body: some View {
         NavigationView {
@@ -21,7 +25,7 @@ struct HomeView: View {
                 HStack {
                     Spacer()
                     
-                    NavigationLink(destination: ProfileView(onSignOut: onSignOut)) {
+                    NavigationLink(destination: ProfileView(authService: authService)) {
                         HStack(spacing: 6) {
                             Image(systemName: "person.crop.circle")
                             Text("Profile")
@@ -77,5 +81,5 @@ struct FeedRow: View {
 }
 
 #Preview {
-    HomeView(onSignOut: {})
+    HomeView(authService: AuthService(firestoreService: FirestoreService()))
 }

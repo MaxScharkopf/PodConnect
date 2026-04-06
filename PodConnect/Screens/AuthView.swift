@@ -17,9 +17,8 @@ struct AuthView: View {
     @State private var errorMessage = ""
     @State private var isLoading = false
 
-    let authService = AuthService()
-    let onAuthenticated: () -> Void
-
+    @ObservedObject var authService: AuthService
+    
     private var trimmedUsername: String {
         username.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -156,8 +155,6 @@ struct AuthView: View {
                     password: password
                 )
             }
-
-            onAuthenticated()
         } catch let error as LocalizedError {
             errorMessage = error.errorDescription ?? "Something went wrong."
         } catch {
@@ -169,5 +166,5 @@ struct AuthView: View {
 }
 
 #Preview {
-    AuthView(onAuthenticated: {})
+    AuthView(authService: AuthService(firestoreService: FirestoreService()))
 }
