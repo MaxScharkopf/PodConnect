@@ -72,6 +72,10 @@ final class AuthService: ObservableObject {
         }
         
         do {
+            guard let username_lower = cleanUsername?.lowercased() else {
+                throw AuthError.usernameNotFound
+            }
+            
             let result = try await Auth.auth().createUser(
                 withEmail: cleanEmail,
                 password: password
@@ -80,6 +84,7 @@ final class AuthService: ObservableObject {
             let profile = UserInfo(
                 id: nil,
                 username: cleanUsername ?? "",
+                username_lowercase: username_lower,
                 classes: [],
                 clubs: [],
                 email: cleanEmail,
@@ -174,7 +179,6 @@ final class AuthService: ObservableObject {
             throw AuthError.usernameAlreadyTaken
         }
         
-
         try await firestoreService.updateDocument(path: "users", documentId: profile.uid, data: profile)
     }
 }
