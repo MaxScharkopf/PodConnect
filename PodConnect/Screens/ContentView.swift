@@ -46,11 +46,13 @@ struct ContentView: View {
                         }
                         .tag(3)
 
-                    CalendarView()
-                        .tabItem {
-                            Label("Calendar", systemImage: "calendar")
-                        }
-                        .tag(4)
+                    NavigationStack {
+                        CalendarView()
+                    }
+                    .tabItem {
+                        Label("Calendar", systemImage: "calendar")
+                    }
+                    .tag(4)
                 }
             } else {
                 AuthView(onAuthenticated: {
