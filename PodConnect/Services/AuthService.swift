@@ -22,7 +22,7 @@ final class AuthService: ObservableObject {
         self.firestoreService = firestoreService
     }
     
-    // This creates a listener that will wait for any auth changes and adjust thigns accordingly as it happens
+    // This creates a listener that will wait for any auth changes and adjust things accordingly as it happens
     func startAuthListener() {
         // Check if the auth handle exists
         guard authHandle == nil else { return }
@@ -173,6 +173,7 @@ final class AuthService: ObservableObject {
         if isTaken {
             throw AuthError.usernameAlreadyTaken
         }
+        
 
         try await firestoreService.updateDocument(path: "users", documentId: profile.uid, data: profile)
     }
