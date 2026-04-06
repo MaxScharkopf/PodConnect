@@ -215,7 +215,7 @@ struct ProfileView: View {
                             Button("Edit Profile") {
                                 isEditing = true
                             }
-                            .frame(maxWidth: .inity)
+                            .frame(maxWidth: .infinity)
                             .padding()
 
                             Divider()
