@@ -122,7 +122,17 @@ final class AuthService: ObservableObject {
 
         // Handle getting user email before do {...} catch for efficiency
         if cleanIdentifier.contains("@") {
+            // Get users that match this username
+            let users: [UserInfo] = try await firestoreService.fetchCollection(path: "users") { document in
+                document.whereField("email", isEqualTo: cleanIdentifier).limit(to: 1)
+            }
+            
+            guard let matchedUser = users.first else {
+                throw AuthError.usernameNotFound
+            }
+            
             email = cleanIdentifier
+
         }else {
             // Get users that match this username
             let users: [UserInfo] = try await firestoreService.fetchCollection(path: "users") { document in
