@@ -9,9 +9,7 @@ import SwiftUI
 import FirebaseAuth
 
 struct ProfileView: View {
-    let onSignOut: () -> Void
-
-    private let authService = AuthService()
+    @ObservedObject var authService: AuthService
 
     @State private var email = ""
     @State private var username = ""
@@ -237,7 +235,6 @@ struct ProfileView: View {
                 Button("Sign Out") {
                     do {
                         try authService.signOut()
-                        onSignOut()
                     } catch {
                         errorMessage = error.localizedDescription
                     }
@@ -274,12 +271,15 @@ struct ProfileView: View {
     // Loads the user's profile data through AuthService.
     func loadProfile() async {
         do {
-            let profile = try await authService.fetchUserProfile()
-            email = profile.email
-            username = profile.username
-            bio = profile.bio
-            selectedClubs = profile.clubs
-            selectedClasses = profile.classes
+            guard let userInfo = authService.userInfo else {
+                throw AuthError.generic
+            }
+            
+            email = userInfo.email
+            username = userInfo.username
+            bio = userInfo.bio
+            selectedClubs = userInfo.clubs
+            selectedClasses = userInfo.classes
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -287,11 +287,12 @@ struct ProfileView: View {
 
     // Saves profile changes through AuthService.
     func saveProfile() async {
-        guard let uid = authService.currentAuthenticatedUser()?.uid else { return }
+        guard let uid = authService.currentUser?.uid else { return }
 
         let profile = UserInfo(
             id: uid,
             username: username,
+            username_lowercase: username.lowercased(),
             classes: selectedClasses,
             clubs: selectedClubs,
             email: email,
@@ -312,6 +313,6 @@ struct ProfileView: View {
 
 #Preview {
     NavigationView {
-        ProfileView(onSignOut: {})
+        ProfileView(authService: AuthService(firestoreService: FirestoreService()))
     }
 }

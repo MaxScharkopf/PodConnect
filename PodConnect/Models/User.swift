@@ -13,6 +13,7 @@ import FirebaseFirestore
 struct UserInfo: Codable, Identifiable {
     @DocumentID var id: String?
     var username: String
+    var username_lowercase: String
     var classes: [String]
     var clubs: [String]
     var email: String

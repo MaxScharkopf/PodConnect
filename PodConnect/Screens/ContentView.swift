@@ -9,13 +9,14 @@ import SwiftUI
 import FirebaseAuth
 
 struct ContentView: View {
+    @ObservedObject var authService: AuthService
+    let firestoreService: FirestoreService
     
     @State private var selectedTab = 2
-    @State private var isAuthenticated = Auth.auth().currentUser != nil
     
     var body: some View {
         Group {
-            if isAuthenticated {
+            if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
 
                     Text("Search")
@@ -29,18 +30,14 @@ struct ContentView: View {
                             Label("Map", systemImage: "map")
                         }
                         .tag(1)
-
-                    HomeView(onSignOut: {
-                        isAuthenticated = false
-                        selectedTab = 2
-                    })
-                        .tabItem {
-                            Label("Home", systemImage: "house.fill")
-                        }
-                        .tag(2)
-
-
-                    Text("Messages")
+                    
+                    HomeView(authService: authService)
+                    .tabItem {
+                        Label("Home", systemImage: "house.fill")
+                    }
+                    .tag(2)
+                    
+                    MessageView(authService: authService, firestoreService: firestoreService)
                         .tabItem {
                             Label("Messages", systemImage: "message")
                         }
@@ -53,14 +50,20 @@ struct ContentView: View {
                         .tag(4)
                 }
             } else {
-                AuthView(onAuthenticated: {
-                    isAuthenticated = true
-                })
+                AuthView(authService: authService)
+                    .task {
+                        selectedTab = 2
+                    }
+            }
+        }
+        .onChange(of: authService.isAuthenticated) { oldValue, newValue in
+            if !newValue {
+                selectedTab = 2
             }
         }
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
 }
