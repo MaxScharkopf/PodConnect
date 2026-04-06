@@ -215,7 +215,7 @@ struct ProfileView: View {
                             Button("Edit Profile") {
                                 isEditing = true
                             }
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .inity)
                             .padding()
 
                             Divider()
@@ -292,6 +292,7 @@ struct ProfileView: View {
         let profile = UserInfo(
             id: uid,
             username: username,
+            username_lowercase: username.lowercased(),
             classes: selectedClasses,
             clubs: selectedClubs,
             email: email,
