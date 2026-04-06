@@ -190,6 +190,10 @@ final class AuthService: ObservableObject {
         }
         
         try await firestoreService.updateDocument(path: "users", documentId: profile.uid, data: profile)
+        
+        await MainActor.run {
+            self.userInfo = profile
+        }
     }
 }
 
