@@ -207,10 +207,6 @@ struct UserSearchResultCard: View {
             Text(user.username)
                 .font(.headline)
 
-            Text(user.email)
-                .font(.footnote)
-                .foregroundColor(.gray)
-
             if !user.bio.isEmpty {
                 Text(user.bio)
                     .font(.subheadline)
