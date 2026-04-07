@@ -101,4 +101,54 @@ final class FirestoreService {
     func removeDocument(path: String, documentId: String) async throws {
         try await db.collection(path).document(documentId).delete()
     }
+    
+    // MARK: - User Search
+
+    func searchUsers(by usernameQuery: String) async throws -> [UserInfo] {
+        let cleanedQuery = usernameQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        guard !cleanedQuery.isEmpty else { return [] }
+
+        let snapshot = try await db.collection("users")
+            .order(by: "username_lowercase")
+            .start(at: [cleanedQuery])
+            .end(at: [cleanedQuery + "\u{f8ff}"])
+            .getDocuments()
+
+        return try snapshot.documents.map { try $0.data(as: UserInfo.self) }
+    }
+
+    // MARK: - Friend Requests
+
+    func sendFriendRequest(senderUid: String, receiverUid: String) async throws {
+        guard senderUid != receiverUid else { return }
+
+        let request = FriendRequest(
+            id: nil,
+            senderUid: senderUid,
+            receiverUid: receiverUid,
+            status: "pending",
+            timestamp: Timestamp(date: Date())
+        )
+
+        try await saveDocument(path: "friendRequests", data: request)
+    }
+
+    func fetchIncomingFriendRequests(for uid: String) async throws -> [FriendRequest] {
+        let snapshot = try await db.collection("friendRequests")
+            .whereField("receiverUid", isEqualTo: uid)
+            .order(by: "timestamp", descending: true)
+            .getDocuments()
+
+        return try snapshot.documents.map { try $0.data(as: FriendRequest.self) }
+    }
+
+    func fetchOutgoingFriendRequests(for uid: String) async throws -> [FriendRequest] {
+        let snapshot = try await db.collection("friendRequests")
+            .whereField("senderUid", isEqualTo: uid)
+            .order(by: "timestamp", descending: true)
+            .getDocuments()
+
+        return try snapshot.documents.map { try $0.data(as: FriendRequest.self) }
+    }
 }
