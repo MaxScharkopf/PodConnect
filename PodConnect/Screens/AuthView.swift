@@ -43,7 +43,7 @@ struct AuthView: View {
                 VStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 16) {
                         if isSignUp {
-                            TextField("Username (optional)", text: $username)
+                            TextField("Username", text: $username)
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
@@ -124,7 +124,7 @@ struct AuthView: View {
         }
 
         if isSignUp {
-            return passwordsDoNotMatch || confirmPassword.isEmpty
+            return passwordsDoNotMatch || confirmPassword.isEmpty || trimmedUsername.isEmpty
         }
 
         return false

@@ -123,6 +123,24 @@ final class FirestoreService {
     func sendFriendRequest(senderUid: String, receiverUid: String) async throws {
         guard senderUid != receiverUid else { return }
 
+        let existingOutgoing = try await db.collection("friendRequests")
+            .whereField("senderUid", isEqualTo: senderUid)
+            .whereField("receiverUid", isEqualTo: receiverUid)
+            .getDocuments()
+
+        let existingIncoming = try await db.collection("friendRequests")
+            .whereField("senderUid", isEqualTo: receiverUid)
+            .whereField("receiverUid", isEqualTo: senderUid)
+            .getDocuments()
+
+        if !existingOutgoing.documents.isEmpty || !existingIncoming.documents.isEmpty {
+            throw NSError(
+                domain: "FriendRequest",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Request already exists"]
+            )
+        }
+
         let request = FriendRequest(
             id: nil,
             senderUid: senderUid,
