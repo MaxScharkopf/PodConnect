@@ -220,7 +220,7 @@ struct EventsTabView: View {
                 // User events section
                 if !filteredUserEvents.isEmpty {
                     Section("My Events") {
-                        ForEach(userEvents) { event in
+                        ForEach(filteredUserEvents) { event in
                             Button {
                                 selectedDate = event.startDate
                                 selectedTab = 0
@@ -230,8 +230,9 @@ struct EventsTabView: View {
                             .buttonStyle(.plain)
                         }
                         .onDelete { indexSet in
-                            userEvents.remove(atOffsets: indexSet)
-                        }
+                                        let idsToDelete = indexSet.map { filteredUserEvents[$0].id }
+                                        userEvents.removeAll { idsToDelete.contains($0.id) }
+                                    }
                     }
                 }
 
@@ -321,12 +322,18 @@ struct UserEventRow: View {
             Text(event.title)
                 .font(.body)
             HStack {
+                Text(event.startDate, style: .date)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                 Text(event.startDate, style: .time)
                 Text("–")
                 Text(event.endDate, style: .time)
             }
             .font(.caption)
-            .foregroundColor(channelClay)
+            .foregroundColor(.gray)
+            Text(event.category.rawValue)
+                .font(.caption)
+                .foregroundColor(channelClay)
             if !event.notes.isEmpty {
                 Text(event.notes)
                     .font(.caption)
