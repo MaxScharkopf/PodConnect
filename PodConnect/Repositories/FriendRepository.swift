@@ -51,8 +51,8 @@ class FriendRepository {
         let existingRequests: [FriendRequest] = try await firestoreService.fetchCollection(
             path: "friendRequests",
             configure: { query in
-                query.whereField("fromUID", isEqualTo: currentUID)
-                    .whereField("toUID", isEqualTo: toUID)
+                query.whereField("senderUid", isEqualTo: currentUID)
+                    .whereField("receiverUid", isEqualTo: toUID)
                     .whereField("status", isEqualTo: "pending")
             }
         )
@@ -63,10 +63,11 @@ class FriendRepository {
 
         // Send request
         let request = FriendRequest(
-            fromUID: currentUID,
-            toUID: toUID,
+            id: nil,
+            senderUid: currentUID,
+            receiverUid: toUID,
             status: "pending",
-            timestamp: Date()
+            timestamp: Timestamp(date: Date())
         )
 
         try await firestoreService.saveDocument(
@@ -93,8 +94,8 @@ class FriendRepository {
             let friendsReverse: [Friend] = try await firestoreService.fetchCollection(
                 path: "friends",
                 configure: { query in
-                    query.whereField("user1UID", isEqualTo: withUID)
-                        .whereField("user2UID", isEqualTo: currentUID)
+                    query.whereField("senderUid", isEqualTo: currentUID)
+                        .whereField("receiverUid", isEqualTo: withUID)
                 }
             )
             if !friendsReverse.isEmpty { return .friends }
@@ -103,8 +104,8 @@ class FriendRepository {
             let requests: [FriendRequest] = try await firestoreService.fetchCollection(
                 path: "friendRequests",
                 configure: { query in
-                    query.whereField("fromUID", isEqualTo: currentUID)
-                        .whereField("toUID", isEqualTo: withUID)
+                    query.whereField("senderUid", isEqualTo: currentUID)
+                        .whereField("receiverUid", isEqualTo: withUID)
                         .whereField("status", isEqualTo: "pending")
                 }
             )
@@ -119,18 +120,8 @@ class FriendRepository {
     }
 }
 
-
-
-struct FriendRequest: Codable {
-    var id: String?
-    let fromUID: String
-    let toUID: String
-    let status: String
-    let timestamp: Date
-}
-
 struct Friend: Codable {
-    var id: String?
+    @DocumentID var id: String?
     let user1UID: String
     let user2UID: String
     let since: Date
