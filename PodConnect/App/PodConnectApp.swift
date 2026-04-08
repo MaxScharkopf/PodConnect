@@ -6,15 +6,34 @@
 //
 
 import SwiftUI
+import FirebaseCore
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+  func application(_ application: UIApplication,
+                   didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+    FirebaseApp.configure()
+    return true
+  }
+}
 
 @main
-struct YourApp: App {
-    var body: some Scene {
-    WindowGroup {
-      NavigationView {
-        // ContentView() UNCOMMENT AFTER FIRST SPRINT DEMO
-          MapView()
-      }
+struct PodConnectApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    
+    private let firestore = FirestoreService()
+    private let auth: AuthService
+    
+    init() {
+        auth = AuthService(firestoreService: firestore)
     }
-  }
+    
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView(authService: auth, firestoreService: firestore)
+                .onAppear {
+                    auth.startAuthListener()
+                }
+            }
+    }
 }
