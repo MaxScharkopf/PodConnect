@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct MessageView: View {
+struct MessageView1: View {
     // Recieve necessary services
     @ObservedObject var authService: AuthService
     private var firestoreService: FirestoreService

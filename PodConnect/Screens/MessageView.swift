@@ -10,7 +10,7 @@ import FirebaseAuth
 
 struct MessageView: View {
     @State private var TextMessage: String = ""
-    @StateObject private var authServ = AuthService()
+    //@StateObject private var authServ = AuthService()
     //@StateObject private var MessageVM = MessageViewModel(messageRepository: MessageRepository(firestoreService: <#FirestoreService#>, authService: <#AuthService#>)) // Fix this?
     var body: some View {
         //let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
