@@ -19,7 +19,7 @@ struct ContentView: View {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
 
-                    SearchView(authService: authService, firestoreService: firestoreService)
+                    SearchView(authService: authService, friendRepository: FriendRepository(firestoreService: firestoreService))
                         .tabItem {
                             Label("Search", systemImage: "magnifyingglass")
                         }

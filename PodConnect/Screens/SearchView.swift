@@ -11,7 +11,7 @@ import FirebaseAuth
 
 struct SearchView: View {
     private var authService: AuthService
-    private let firestoreService: FirestoreService
+    private let friendRepository: FriendRepository
 
     @State private var searchText = ""
     @State private var searchResults: [UserInfo] = []
@@ -21,9 +21,9 @@ struct SearchView: View {
 
     @FocusState private var isSearchFieldFocused: Bool
 
-    init(authService: AuthService, firestoreService: FirestoreService) {
+    init(authService: AuthService, friendRepository: FriendRepository) {
         self.authService = authService
-        self.firestoreService = firestoreService
+        self.friendRepository = friendRepository
     }
 
     var body: some View {
@@ -137,7 +137,7 @@ struct SearchView: View {
         errorMessage = ""
 
         do {
-            searchResults = try await firestoreService.searchUsers(by: trimmedSearch)
+            searchResults = try await friendRepository.searchUsers(by: trimmedSearch)
         } catch {
             errorMessage = "Failed to search users."
         }
@@ -146,21 +146,16 @@ struct SearchView: View {
     }
 
     func sendFriendRequest(to receiverUid: String) async {
-        guard let senderUid = authService.currentUser?.uid else { return }
-
         errorMessage = ""
 
         do {
-            try await firestoreService.sendFriendRequest(
-                senderUid: senderUid,
-                receiverUid: receiverUid
-            )
+            try await friendRepository.sendFriendRequest(toUID: receiverUid)
         } catch {
             if !error.localizedDescription.contains("already") {
                 errorMessage = error.localizedDescription
             }
         }
-        
+
         requestedUserIds.insert(receiverUid)
     }
 }
@@ -199,6 +194,6 @@ struct UserSearchResultCard: View {
 #Preview {
     SearchView(
         authService: AuthService(firestoreService: FirestoreService()),
-        firestoreService: FirestoreService()
+        friendRepository: FriendRepository(firestoreService: FirestoreService())
     )
 }

@@ -16,17 +16,20 @@ class FriendRepository {
         self.firestoreService = firestoreService
     }
 
-    func searchUser(username: String) async throws -> UserInfo? {
-        let users: [UserInfo] = try await firestoreService.fetchCollection(
+    func searchUsers(by usernameQuery: String) async throws -> [UserInfo] {
+        let cleaned = usernameQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cleaned.isEmpty else { return [] }
+
+        return try await firestoreService.fetchCollection(
             path: "users",
             configure: { query in
-                query.whereField("username_lowercase", isEqualTo: username.lowercased())
-                    .limit(to: 1)
+                query.order(by: "username_lowercase")
+                    .start(at: [cleaned])
+                    .end(at: [cleaned + "\u{f8ff}"])
             }
         )
-        return users.first
     }
-
+    
     func sendFriendRequest(toUID: String) async throws {
         guard let currentUID = Auth.auth().currentUser?.uid else { return }
 

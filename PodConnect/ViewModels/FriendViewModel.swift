@@ -38,8 +38,8 @@ class FriendViewModel: ObservableObject {
         isLoading = true
 
         do {
-            let user = try await friendRepository.searchUser(username: username)
-            if let user = user {
+            let users = try await friendRepository.searchUsers(by: username)
+            if let user = users.first {
                 searchResults = user
             } else {
                 searchErrorMessage = "Username not found."
