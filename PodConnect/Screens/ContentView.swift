@@ -19,11 +19,11 @@ struct ContentView: View {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
 
-                    Text("Search")
-                        .tabItem {
-                            Label("Search", systemImage: "magnifyingglass")
-                        }
-                        .tag(0)
+                    // Text("Search")
+                    //     .tabItem {
+                    //         Label("Search", systemImage: "magnifyingglass")
+                    //     }
+                    //     .tag(0)
 
                     MapView()
                         .tabItem {
