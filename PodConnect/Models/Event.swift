@@ -22,6 +22,17 @@ struct UserEvent: Identifiable {
     var startDate: Date
     var endDate: Date
     var notes: String
+    var category: EventCategory
+}
+
+enum EventCategory: String, CaseIterable {
+    case academic = "Academic"
+    case arts = "Arts"
+    case campusLife = "Campus Life"
+    case wellness = "Wellness"
+    case personal = "Personal"
+    case work = "Work"
+    case other = "Other"
 }
 
 // Helper to build dates cleanly

@@ -59,22 +59,22 @@ final class AuthService: ObservableObject {
         let cleanUsername = username?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Check for users that already have that name
-        if let cleanUsername, !cleanUsername.isEmpty {
-            let matchingUsers: [UserInfo] = try await firestoreService.fetchCollection(path: "users") { document in
-                document
-                    .whereField("username_lowercase", isEqualTo: cleanUsername.lowercased())
-                    .limit(to: 1)
-            }
-
-            if !matchingUsers.isEmpty {
-                throw AuthError.usernameAlreadyTaken
-            }
+        guard let cleanUsername, !cleanUsername.isEmpty else {
+            throw AuthError.usernameNotFound
         }
-        
+
+        let matchingUsers: [UserInfo] = try await firestoreService.fetchCollection(path: "users") { document in
+            document
+                .whereField("username_lowercase", isEqualTo: cleanUsername.lowercased())
+                .limit(to: 1)
+        }
+
+        if !matchingUsers.isEmpty {
+            throw AuthError.usernameAlreadyTaken
+        }
+
         do {
-            guard let username_lower = cleanUsername?.lowercased() else {
-                throw AuthError.usernameNotFound
-            }
+            let username_lower = cleanUsername.lowercased()
             
             let result = try await Auth.auth().createUser(
                 withEmail: cleanEmail,
@@ -83,7 +83,7 @@ final class AuthService: ObservableObject {
 
             let profile = UserInfo(
                 id: nil,
-                username: cleanUsername ?? "",
+                username: cleanUsername,
                 username_lowercase: username_lower,
                 classes: [],
                 clubs: [],
