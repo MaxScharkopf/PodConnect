@@ -15,3 +15,10 @@ struct FriendRequest: Codable, Identifiable {
     var status: String
     var timestamp: Timestamp
 }
+
+struct Friend: Codable {
+    @DocumentID var id: String?
+    let user1UID: String
+    let user2UID: String
+    let since: Date
+}
