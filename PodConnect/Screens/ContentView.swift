@@ -19,11 +19,19 @@ struct ContentView: View {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
 
+<<<<<<< US3T3_DA
                     SearchView(authService: authService, friendRepository: FriendRepository(firestoreService: firestoreService))
                         .tabItem {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         .tag(0)
+=======
+                    // Text("Search")
+                    //     .tabItem {
+                    //         Label("Search", systemImage: "magnifyingglass")
+                    //     }
+                    //     .tag(0)
+>>>>>>> dev
 
                     MapView()
                         .tabItem {
