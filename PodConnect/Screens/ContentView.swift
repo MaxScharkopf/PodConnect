@@ -18,21 +18,18 @@ struct ContentView: View {
         Group {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
-
-<<<<<<< US3T3_DA
-                    SearchView(authService: authService, friendRepository: FriendRepository(firestoreService: firestoreService))
-                        .tabItem {
-                            Label("Search", systemImage: "magnifyingglass")
-                        }
-                        .tag(0)
-=======
-                    // Text("Search")
-                    //     .tabItem {
-                    //         Label("Search", systemImage: "magnifyingglass")
-                    //     }
-                    //     .tag(0)
->>>>>>> dev
-
+                    
+                    NavigationStack {
+                        ProfileView(authService: authService,
+                                    friendRepository:
+                                        FriendRepository(firestoreService:
+                                                            firestoreService))
+                    }
+                    .tabItem {
+                        Label("Profile", systemImage: "person")
+                    }
+                    .tag(0)
+                    
                     MapView()
                         .tabItem {
                             Label("Map", systemImage: "map")
@@ -40,17 +37,17 @@ struct ContentView: View {
                         .tag(1)
                     
                     HomeView(authService: authService, selectedTab: $selectedTab)
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    .tag(2)
+                        .tabItem {
+                            Label("Home", systemImage: "house.fill")
+                        }
+                        .tag(2)
                     
                     MessageView(authService: authService, firestoreService: firestoreService)
                         .tabItem {
                             Label("Messages", systemImage: "message")
                         }
                         .tag(3)
-
+                    
                     NavigationStack {
                         CalendarView()
                     }

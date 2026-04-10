@@ -12,13 +12,14 @@ import FirebaseAuth
 @MainActor
 class FriendViewModel: ObservableObject {
 
-    private let friendRepository: FriendRepository
+    let friendRepository: FriendRepository
 
     @Published var searchResults: UserInfo? = nil
     @Published var searchErrorMessage: String = ""
     @Published var sendErrorMessage: String = ""
     @Published var sendSuccessMessage: String = ""
     @Published var isLoading: Bool = false
+    @Published var friends: [UserInfo] = []
     @Published var relationshipStatus: RelationshipStatus = .none
 
     init(friendRepository: FriendRepository) {
@@ -70,5 +71,14 @@ class FriendViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+    
+    // Fetch friends
+    func fetchFriends() async {
+        do {
+            friends = try await friendRepository.fetchFriends()
+        } catch {
+            print("Error fetching friends: \(error)")
+        }
     }
 }
