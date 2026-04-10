@@ -138,6 +138,14 @@ struct SearchView: View {
 
         do {
             searchResults = try await friendRepository.searchUsers(by: trimmedSearch)
+            
+            // Pre-populate button state from Firestore
+            for user in searchResults {
+                let status = await friendRepository.getRelationshipStatus(withUID: user.uid)
+                if status == .requestSent || status == .friends {
+                    requestedUserIds.insert(user.uid)
+                }
+            }
         } catch {
             errorMessage = "Failed to search users."
         }
