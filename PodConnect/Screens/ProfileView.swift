@@ -315,7 +315,7 @@ struct ProfileView: View {
                                             }
                                             
                                             ForEach(searchResults) { user in
-                                                if user.uid != authService.currentUser?.uid {
+                                                if user.uid != currentUID {
                                                     UserSearchResultCard(
                                                         user: user,
                                                         isRequested: requestedUserIds.contains(user.uid),
@@ -474,6 +474,37 @@ struct ProfileView: View {
             }
         }
         requestedUserIds.insert(receiverUid)
+    }
+}
+
+struct UserSearchResultCard: View {
+    let user: UserInfo
+    let isRequested: Bool
+    let onSendRequest: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(user.username)
+                .font(.headline)
+
+            if !user.bio.isEmpty {
+                Text(user.bio)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+            }
+
+            Button(isRequested ? "Requested" : "Send Request") {
+                onSendRequest()
+            }
+            .disabled(isRequested)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
     }
 }
 
