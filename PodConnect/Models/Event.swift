@@ -22,6 +22,17 @@ struct UserEvent: Identifiable {
     var startDate: Date
     var endDate: Date
     var notes: String
+    var category: EventCategory
+}
+
+enum EventCategory: String, CaseIterable {
+    case academic = "Academic"
+    case arts = "Arts"
+    case campusLife = "Campus Life"
+    case wellness = "Wellness"
+    case personal = "Personal"
+    case work = "Work"
+    case other = "Other"
 }
 
 // Helper to build dates cleanly
@@ -37,23 +48,6 @@ func makeDate(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int)
 
 // MARK: - School Events Data
 let schoolEvents: [SchoolEvent] = [
-    SchoolEvent(title: "Teach Me Music Series", date: makeDate(2026, 4, 1, 12, 0), duration: 3600, notes: "Malibu Hall 100", category: "Arts"),
-    SchoolEvent(title: "CSUCI HeaLS: Healthcare Leadership Symposium", date: makeDate(2026, 4, 1, 17, 30), duration: 3600, notes: "del Norte Hall 1500", category: "Academic"),
-    SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 2, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),
-    SchoolEvent(title: "Wellness Fair", date: makeDate(2026, 4, 2, 10, 0), duration: 3600, notes: "Central Mall South", category: "Wellness"),
-    SchoolEvent(title: "Campus to Career Workshop", date: makeDate(2026, 4, 2, 12, 0), duration: 3600, notes: "Broome Library 1360", category: "Academic"),
-    SchoolEvent(title: "2026 Miller Mid-Semester Check In Workshop", date: makeDate(2026, 4, 2, 17, 0), duration: 3600, notes: "Broome Library 1756", category: "Academic"),
-    SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 3, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),
-    SchoolEvent(title: "2026 Celebrating HER-Story", date: makeDate(2026, 4, 3, 12, 0), duration: 3600, notes: "Petit Salon", category: "Campus Life"),
-    SchoolEvent(title: "CSULB Social Work Program", date: makeDate(2026, 4, 4, 8, 0), duration: 3600, notes: "Bell Tower 1621, Bell Tower 2688, Bell Tower 2704", category: "Campus Life"),
-    SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 4, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),
-    SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 5, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),
-    SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 6, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),
-    SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 7, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),
-    SchoolEvent(title: "Campus to Career Workshop", date: makeDate(2026, 4, 7, 12, 0), duration: 3600, notes: "Broome Library 1360", category: "Academic"),
-    SchoolEvent(title: "PA 494 with MiRi Park", date: makeDate(2026, 4, 7, 13, 0), duration: 3600, notes: "Bell Tower East 2810 - Conference Room", category: "Academic"),
-    SchoolEvent(title: "SPB Presents - Together We Craft Terrariums", date: makeDate(2026, 4, 7, 13, 0), duration: 3600, notes: "Student Union Treehouse 1, Student Union Treehouse 2, Student Union Treehouse 3", category: "Campus Life"),
-    SchoolEvent(title: "CHEM 122 Drop In Session", date: makeDate(2026, 4, 7, 17, 0), duration: 3600, notes: "Broome Library 1750", category: "Academic"),
     SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 8, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),
     SchoolEvent(title: "MS Biotech Spring Mixer", date: makeDate(2026, 4, 8, 16, 0), duration: 3600, notes: "Grand Salon", category: "Campus Life"),
     SchoolEvent(title: "Exhibition of Bobi Bosson Artwork", date: makeDate(2026, 4, 9, 8, 0), duration: 3600, notes: "Broome Library 2537 - Art Gallery", category: "Arts"),

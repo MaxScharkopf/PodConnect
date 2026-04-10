@@ -13,6 +13,7 @@ struct CalendarView: View {
     // User-created events shared between both tabs
     @State private var userEvents: [UserEvent] = []
     @State private var showAddEvent = false
+    @State private var selectedDate = Date()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,9 +28,11 @@ struct CalendarView: View {
             Divider()
 
             if selectedTab == 0 {
-                CalendarTabView(userEvents: $userEvents)
+                CalendarTabView(userEvents: $userEvents,
+                    selectedDate:$selectedDate,
+                    selectedTab: $selectedTab)
             } else {
-                EventsTabView(userEvents: $userEvents)
+                EventsTabView(userEvents: $userEvents, selectedDate: $selectedDate, selectedTab: $selectedTab)
             }
         }
         .navigationTitle("Calendar")
@@ -41,7 +44,7 @@ struct CalendarView: View {
             }
         }
         .sheet(isPresented: $showAddEvent) {
-            AddEventSheet(initialDate: Date()) { newEvent in
+            AddEventSheet(initialDate: selectedDate) { newEvent in
                 userEvents.append(newEvent)
             }
         }
@@ -51,7 +54,9 @@ struct CalendarView: View {
 // MARK: - Calendar Tab
 struct CalendarTabView: View {
     @Binding var userEvents: [UserEvent]
-    @State private var selectedDate = Date()
+    @Binding var selectedDate: Date
+    @Binding var selectedTab: Int
+
 
     // All events (school + user) on the selected date
     private var schoolEventsOnDate: [SchoolEvent] {
@@ -108,16 +113,52 @@ struct CalendarTabView: View {
 // MARK: - Events Tab
 struct EventsTabView: View {
     @Binding var userEvents: [UserEvent]
+    @Binding var selectedDate: Date
+    @Binding var selectedTab: Int
+    @State private var showSearch = false
+    @State private var searchText = ""
     @State private var activeCategories: Set<String> = []
 
-    private let allCategories = ["Academic", "Arts", "Campus Life", "Wellness"]
+    private let allCategories = ["Academic", "Arts", "Campus Life", "Wellness", "Personal", "Work", "Other"]
 
-    // School events filtered by active category chips
+    // School events filtered by active category chips and search bar
     private var filteredSchoolEvents: [SchoolEvent] {
-        guard !activeCategories.isEmpty else { return schoolEvents }
-        return schoolEvents.filter { activeCategories.contains($0.category) }
-    }
+            let categoryFiltered: [SchoolEvent]
 
+            if activeCategories.isEmpty {
+                categoryFiltered = schoolEvents
+            } else {
+                categoryFiltered = schoolEvents.filter { activeCategories.contains($0.category) }
+            }
+
+            guard !searchText.isEmpty else { return categoryFiltered }
+
+            return categoryFiltered.filter { event in
+                event.title.localizedCaseInsensitiveContains(searchText) ||
+                event.notes.localizedCaseInsensitiveContains(searchText) ||
+                event.category.localizedCaseInsensitiveContains(searchText)
+            }
+        }
+    
+    // Users events filtered by active category chips and search bar
+    private var filteredUserEvents: [UserEvent] {
+        let categoryFiltered: [UserEvent]
+
+        if activeCategories.isEmpty {
+            categoryFiltered = userEvents
+        } else {
+            categoryFiltered = userEvents.filter { activeCategories.contains($0.category.rawValue) }
+        }
+
+        guard !searchText.isEmpty else { return categoryFiltered }
+
+        return categoryFiltered.filter { event in
+            event.title.localizedCaseInsensitiveContains(searchText) ||
+            event.notes.localizedCaseInsensitiveContains(searchText) ||
+            event.category.rawValue.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+    
     // Group filtered school events by date for section headers
     private var groupedSchoolEvents: [(String, [SchoolEvent])] {
         let formatter = DateFormatter()
@@ -177,14 +218,21 @@ struct EventsTabView: View {
 
             List {
                 // User events section
-                if !userEvents.isEmpty {
+                if !filteredUserEvents.isEmpty {
                     Section("My Events") {
-                        ForEach(userEvents) { event in
-                            UserEventRow(event: event)
+                        ForEach(filteredUserEvents) { event in
+                            Button {
+                                selectedDate = event.startDate
+                                selectedTab = 0
+                            } label: {
+                                UserEventRow(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .onDelete { indexSet in
-                            userEvents.remove(atOffsets: indexSet)
-                        }
+                                        let idsToDelete = indexSet.map { filteredUserEvents[$0].id }
+                                        userEvents.removeAll { idsToDelete.contains($0.id) }
+                                    }
                     }
                 }
 
@@ -192,13 +240,28 @@ struct EventsTabView: View {
                 ForEach(groupedSchoolEvents, id: \.0) { dateString, events in
                     Section(dateString) {
                         ForEach(events) { event in
-                            SchoolEventRow(event: event)
+                            Button {
+                                selectedDate = event.date
+                                selectedTab = 0
+                            } label: {
+                                SchoolEventRow(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
+                }
+                if filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
+                    Text("No matching events")
+                        .foregroundColor(.secondary)
                 }
             }
             .listStyle(.plain)
         }
+        .searchable(
+            text: $searchText,
+            isPresented: $showSearch,
+            prompt: "Search events"
+        )
     }
 
     // Color per category for filter chips
@@ -259,12 +322,18 @@ struct UserEventRow: View {
             Text(event.title)
                 .font(.body)
             HStack {
+                Text(event.startDate, style: .date)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                 Text(event.startDate, style: .time)
                 Text("–")
                 Text(event.endDate, style: .time)
             }
             .font(.caption)
-            .foregroundColor(channelClay)
+            .foregroundColor(.gray)
+            Text(event.category.rawValue)
+                .font(.caption)
+                .foregroundColor(channelClay)
             if !event.notes.isEmpty {
                 Text(event.notes)
                     .font(.caption)
@@ -285,6 +354,7 @@ struct AddEventSheet: View {
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var notes = ""
+    @State private var category: EventCategory = .personal
 
     init(initialDate: Date, onSave: @escaping (UserEvent) -> Void) {
         self.initialDate = initialDate
@@ -302,6 +372,14 @@ struct AddEventSheet: View {
                     DatePicker("Start", selection: $startDate)
                     DatePicker("End", selection: $endDate)
                 }
+                Section("Category") {
+                    Picker("Category", selection: $category) {
+                        ForEach(EventCategory.allCases, id: \.self) { category in
+                            Text(category.rawValue).tag(category)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
                 Section("Notes") {
                     TextField("Add notes...", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
@@ -317,7 +395,8 @@ struct AddEventSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let event = UserEvent(title: title, startDate: startDate, endDate: endDate, notes: notes)
+                        let event = UserEvent(title: title, startDate: startDate, endDate: endDate, notes: notes,
+                            category: category)
                         onSave(event)
                         dismiss()
                     }

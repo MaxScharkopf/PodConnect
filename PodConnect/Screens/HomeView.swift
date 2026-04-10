@@ -7,24 +7,25 @@
 // Modified by: Kassidy Saffa,
 //
 
-
 import SwiftUI
+import FirebaseAuth
 
 struct HomeView: View {
     private var authService: AuthService
+    @Binding var selectedTab: Int
     
-    init(authService: AuthService) {
+    
+    init(authService: AuthService, selectedTab: Binding<Int>) {
         self.authService = authService
+        _selectedTab = selectedTab
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
                 
-                // Top Bar (keep this)
                 HStack {
                     Spacer()
-                    
                     NavigationLink(destination: ProfileView(authService: authService)) {
                         HStack(spacing: 6) {
                             Image(systemName: "person.crop.circle")
@@ -37,7 +38,32 @@ struct HomeView: View {
                         .cornerRadius(10)
                     }
                 }
-                .padding(.horizontal)
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                    Button {
+                        selectedTab = 0
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.2.fill")
+                                .font(.title2)
+                                .padding(.trailing, 8)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Find a")
+                                    .font(.headline)
+                                Text("Classmate")
+                                    .font(.headline)
+                            }
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .frame(height: 120)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
+                    }
+                    .foregroundColor(.primary)
+                }
                 
                 Spacer()
                 
@@ -52,34 +78,9 @@ struct HomeView: View {
         }
     }
 }
-
-
-struct FeedRow: View {
-    let icon: String
-    let label: String
-    let detail: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.subheadline)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.subheadline)
-                    .bold()
-                Text(detail)
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            Spacer()
-        }
-        .navigationTitle("Home")
-        .padding(.horizontal)
-        .padding(.vertical, 4)
-    }
-}
-
 #Preview {
-    HomeView(authService: AuthService(firestoreService: FirestoreService()))
+        HomeView(
+            authService: AuthService(firestoreService: FirestoreService()),
+            selectedTab: .constant(2)
+        )
 }
