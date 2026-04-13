@@ -113,5 +113,5 @@ struct ChatView: View {
     let firestore = FirestoreService()
     let auth = AuthService(firestoreService: firestore)
     
-    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team", unread: 5), authService: auth)
+    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team"), authService: auth)
 }

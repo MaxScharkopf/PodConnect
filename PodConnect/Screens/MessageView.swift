@@ -16,6 +16,11 @@ struct MessageView: View {
     // View model for state updates
     @StateObject private var viewModel: MessageViewModel
     
+    @State private var searchText = ""
+    @State private var showThreadPopup = false
+    @State private var newThreadName = ""
+    @State private var participantList: [String] = []
+    
     init(authService: AuthService, firestoreService: FirestoreService) {
         self.authService = authService
         self.firestoreService = firestoreService
@@ -35,12 +40,27 @@ struct MessageView: View {
                 Color.gray.opacity(0.5).ignoresSafeArea()
                 
                 VStack {
-                    Text("Messages")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.red)
-                        .foregroundColor(.white)
-                        .font(.title)
+                    HStack {
+                        
+                        Text("Messages")
+                            .foregroundColor(.white)
+                            .font(.title)
+                            .padding()
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            withAnimation { showThreadPopup = true }
+                        })
+                        {
+                            Image(systemName: "plus")
+                                .padding()
+                                .glassEffect()
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red)
                     
                     Spacer()
                     
@@ -61,16 +81,6 @@ struct MessageView: View {
                                             .foregroundStyle(.black)
                                         
                                         Spacer()
-                                        
-                                        if(thread.unread > 0) {
-                                            Text("\(thread.unread)")
-                                                .font(.headline)
-                                                .foregroundColor(.white)
-                                                .padding(10)
-                                                .background(.blue)
-                                                .clipShape(Circle())
-                                                .padding(10)
-                                        }
                                     }
                                 }
                             }
@@ -80,7 +90,24 @@ struct MessageView: View {
                         await viewModel.fetchMessageThreads()
                     }
                     
+                    
                     Spacer()
+                }
+                .popover(isPresented: $showThreadPopup) {
+                    VStack {
+                        Text("Create New Thread")
+                            .font(.headline)
+                            .padding(.top)
+                        
+                        TextField("Thread Name", text: $newThreadName)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(.secondarySystemBackground))
+                            )
+                            .padding()
+                        Spacer()
+                    }
                 }
             }
         }
