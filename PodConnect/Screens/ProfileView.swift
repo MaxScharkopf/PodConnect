@@ -10,6 +10,12 @@ import FirebaseAuth
 
 struct ProfileView: View {
     @ObservedObject var authService: AuthService
+    @StateObject private var viewModel: FriendViewModel
+
+    init(authService: AuthService, friendRepository: FriendRepository) {
+        _authService = ObservedObject(wrappedValue: authService)
+        _viewModel = StateObject(wrappedValue: FriendViewModel(friendRepository: friendRepository))
+    }
 
     @State private var email = ""
     @State private var username = ""
@@ -20,6 +26,16 @@ struct ProfileView: View {
 
     @State private var isEditing = false
     @State private var errorMessage = ""
+    
+    @State private var currentUID = ""
+    @State private var selectedSocialTab = 0
+    
+    @State private var searchText = ""
+    @State private var searchResults: [UserInfo] = []
+    @State private var isLoadingSearch = false
+    @State private var searchErrorMessage = ""
+    @State private var requestedUserIds: Set<String> = []
+    @FocusState private var isSearchFieldFocused: Bool
 
     @FocusState private var bioFieldFocused: Bool
     @FocusState private var usernameFieldFocused: Bool
@@ -210,16 +226,128 @@ struct ProfileView: View {
                         .padding()
                         .background(Color(.systemGray6))
                         .cornerRadius(16)
+                        
+                        // Connections section
+                        VStack(spacing: 8) {
+                            Picker("", selection: $selectedSocialTab) {
+                                Text("Friends").tag(0)
+                                Text("Requests").tag(1)
+                                Text("Search").tag(2)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: .infinity)
 
+                            ScrollView {
+                                VStack(spacing: 0) {
+                                    if selectedSocialTab == 0 {
+                                        if viewModel.friends.isEmpty {
+                                            Text("No friends yet")
+                                                .foregroundColor(.secondary)
+                                                .padding()
+                                        } else {
+                                            ForEach(viewModel.friends) { friend in
+                                                Text(friend.username)
+                                                    .padding(.horizontal)
+                                                    .padding(.vertical, 10)
+                                                Divider()
+                                            }
+                                        }
+                                    } else if selectedSocialTab == 1 {
+                                        Text("Requests — coming soon")
+                                            .foregroundColor(.secondary)
+                                            .padding()
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            HStack(spacing: 8) {
+                                                HStack {
+                                                    Image(systemName: "magnifyingglass")
+                                                        .foregroundColor(.gray)
+                                                    TextField("Search users...", text: $searchText)
+                                                        .textInputAutocapitalization(.never)
+                                                        .autocorrectionDisabled()
+                                                        .focused($isSearchFieldFocused)
+                                                        .onSubmit {
+                                                            Task {
+                                                                await performSearch()
+                                                                isSearchFieldFocused = false
+                                                            }
+                                                        }
+                                                    if !searchText.isEmpty {
+                                                        Button {
+                                                            searchText = ""
+                                                            searchResults = []
+                                                            searchErrorMessage = ""
+                                                            isSearchFieldFocused = false
+                                                        } label: {
+                                                            Image(systemName: "xmark.circle.fill")
+                                                                .foregroundColor(.gray)
+                                                        }
+                                                    }
+                                                }
+                                                .padding(10)
+                                                .background(Color(.systemBackground))
+                                                .cornerRadius(12)
+                                                
+                                                Button("Search") {
+                                                    Task {
+                                                        await performSearch()
+                                                        isSearchFieldFocused = false
+                                                    }
+                                                }
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 10)
+                                                .background(Color(.systemBackground))
+                                                .cornerRadius(12)
+                                            }
+                                            
+                                            if isLoadingSearch {
+                                                HStack {
+                                                    Spacer()
+                                                    ProgressView()
+                                                    Spacer()
+                                                }
+                                            }
+                                            
+                                            if !searchErrorMessage.isEmpty {
+                                                Text(searchErrorMessage)
+                                                    .foregroundColor(.red)
+                                                    .font(.footnote)
+                                            }
+                                            
+                                            ForEach(searchResults) { user in
+                                                if user.uid != currentUID {
+                                                    UserSearchResultCard(
+                                                        user: user,
+                                                        isRequested: requestedUserIds.contains(user.uid),
+                                                        onSendRequest: {
+                                                            Task {
+                                                                await sendFriendRequest(to: user.uid)
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.top, 8)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 220)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(16)
+                        }
+                        
                         VStack(spacing: 0) {
                             Button("Edit Profile") {
                                 isEditing = true
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
-
+                            
                             Divider()
-
+                            
                             NavigationLink(destination: AccountSettingsView()) {
                                 Text("Account Settings")
                                     .frame(maxWidth: .infinity)
@@ -231,7 +359,7 @@ struct ProfileView: View {
                         .cornerRadius(16)
                     }
                 }
-
+                
                 Button("Sign Out") {
                     do {
                         try authService.signOut()
@@ -240,7 +368,7 @@ struct ProfileView: View {
                     }
                 }
                 .foregroundColor(.red)
-
+                
                 Spacer(minLength: 30)
             }
             .padding()
@@ -252,9 +380,10 @@ struct ProfileView: View {
         .navigationTitle("Profile")
         .task {
             await loadProfile()
+            await viewModel.fetchFriends()
         }
     }
-
+    
     func toggleSelection(_ item: String, in array: inout [String]) {
         if array.contains(item) {
             array.removeAll { $0 == item }
@@ -262,12 +391,12 @@ struct ProfileView: View {
             array.append(item)
         }
     }
-
+    
     func dismissKeyboard() {
         bioFieldFocused = false
         usernameFieldFocused = false
     }
-
+    
     // Loads the user's profile data through AuthService.
     func loadProfile() async {
         do {
@@ -278,6 +407,7 @@ struct ProfileView: View {
             email = userInfo.email
             username = userInfo.username
             bio = userInfo.bio
+            currentUID = userInfo.uid
             selectedClubs = userInfo.clubs
             selectedClasses = userInfo.classes
         } catch {
@@ -287,7 +417,8 @@ struct ProfileView: View {
 
     // Saves profile changes through AuthService.
     func saveProfile() async {
-        guard let uid = authService.currentUser?.uid else { return }
+        guard !currentUID.isEmpty else { return }
+                let uid = currentUID
 
         let profile = UserInfo(
             id: uid,
@@ -309,10 +440,79 @@ struct ProfileView: View {
             errorMessage = error.localizedDescription
         }
     }
+    
+    func performSearch() async {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            searchResults = []
+            searchErrorMessage = ""
+            return
+        }
+        isLoadingSearch = true
+        searchErrorMessage = ""
+        do {
+            searchResults = try await viewModel.friendRepository.searchUsers(by: trimmed)
+            for user in searchResults {
+                let status = await viewModel.friendRepository.getRelationshipStatus(withUID: user.uid)
+                if status == .requestSent || status == .friends {
+                    requestedUserIds.insert(user.uid)
+                }
+            }
+        } catch {
+            searchErrorMessage = "Failed to search users."
+        }
+        isLoadingSearch = false
+    }
+
+    func sendFriendRequest(to receiverUid: String) async {
+        searchErrorMessage = ""
+        do {
+            try await viewModel.friendRepository.sendFriendRequest(toUID: receiverUid)
+        } catch {
+            if !error.localizedDescription.contains("already") {
+                searchErrorMessage = error.localizedDescription
+            }
+        }
+        requestedUserIds.insert(receiverUid)
+    }
+}
+
+struct UserSearchResultCard: View {
+    let user: UserInfo
+    let isRequested: Bool
+    let onSendRequest: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(user.username)
+                .font(.headline)
+
+            if !user.bio.isEmpty {
+                Text(user.bio)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+            }
+
+            Button(isRequested ? "Requested" : "Send Request") {
+                onSendRequest()
+            }
+            .disabled(isRequested)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
+    }
 }
 
 #Preview {
     NavigationView {
-        ProfileView(authService: AuthService(firestoreService: FirestoreService()))
+        ProfileView(
+            authService: AuthService(firestoreService: FirestoreService()),
+            friendRepository: FriendRepository(firestoreService: FirestoreService())
+        )
     }
 }
