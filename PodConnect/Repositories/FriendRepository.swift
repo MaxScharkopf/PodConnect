@@ -121,4 +121,37 @@ class FriendRepository {
             return .none
         }
     }
+    
+    func fetchFriends() async throws -> [UserInfo] {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
+
+        // Where current user is user1
+        let asUser1: [Friend] = try await firestoreService.fetchCollection(
+            path: "friends",
+            configure: { query in
+                query.whereField("user1UID", isEqualTo: currentUID)
+            }
+        )
+
+        // Where current user is user2
+        let asUser2: [Friend] = try await firestoreService.fetchCollection(
+            path: "friends",
+            configure: { query in
+                query.whereField("user2UID", isEqualTo: currentUID)
+            }
+        )
+
+        // Get other user's UID from each document
+        let friendUIDs = asUser1.map { $0.user2UID } + asUser2.map { $0.user1UID }
+
+        // Fetch each friend's UserInfo by their UID
+        var results: [UserInfo] = []
+        for uid in friendUIDs {
+            if let user: UserInfo = try await firestoreService.fetchDocument(path: "users", documentId: uid) {
+                results.append(user)
+            }
+        }
+
+        return results
+    }
 }
