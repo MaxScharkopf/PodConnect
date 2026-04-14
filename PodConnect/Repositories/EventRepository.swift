@@ -44,6 +44,17 @@ class EventRepository {
         try await firestoreService.saveDocument(path: "events", documentId: event.id.uuidString, data: event)
     }
     
+    func deleteEvent(event: UserEvent) async throws {
+       
+        // Check if user is logged in
+        guard let userId = authService.userInfo?.id else {
+            return
+        }
+        
+        // Remove the event document using the event's unique ID
+        try await firestoreService.removeDocument(path: "events", documentId: event.id.uuidString)
+    }
+    
 }
 
     
