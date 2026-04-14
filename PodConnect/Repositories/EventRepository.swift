@@ -32,6 +32,18 @@ class EventRepository {
         
         return events
     }
+    
+    func saveEvent(event: UserEvent) async throws {
+        
+        // Check if user is logged in
+        guard let userId = authService.userInfo?.id else {
+            return
+        }
+        
+        // Save the event to the events collection with the owner's user ID
+        try await firestoreService.saveDocument(path: "events", documentId: event.id.uuidString, data: event)
+    }
+    
 }
 
     
