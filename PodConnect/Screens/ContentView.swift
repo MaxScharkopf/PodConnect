@@ -19,6 +19,33 @@ struct ContentView: View {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
                     
+                    MapView()
+                        .tabItem {
+                            Label("Map", systemImage: "map")
+                        }
+                        .tag(0)
+                    
+                    MessageView(authService: authService, firestoreService: firestoreService)
+                        .tabItem {
+                            Label("Messages", systemImage: "message")
+                        }
+                        .tag(1)
+                    
+                    HomeView(authService: authService, selectedTab: $selectedTab)
+                        .tabItem {
+                            Label("Home", systemImage: "house.fill")
+                        }
+                        .tag(2)
+                    
+                    
+                    NavigationStack {
+                        CalendarView()
+                    }
+                    .tabItem {
+                        Label("Calendar", systemImage: "calendar")
+                    }
+                    .tag(3)
+                    
                     NavigationStack {
                         ProfileView(authService: authService,
                                     friendRepository:
@@ -29,32 +56,6 @@ struct ContentView: View {
                         Label("Profile", systemImage: "person")
                     }
                     .tag(0)
-                    
-                    MapView()
-                        .tabItem {
-                            Label("Map", systemImage: "map")
-                        }
-                        .tag(1)
-                    
-                    HomeView(authService: authService, selectedTab: $selectedTab)
-                        .tabItem {
-                            Label("Home", systemImage: "house.fill")
-                        }
-                        .tag(2)
-                    
-                    MessageView(authService: authService, firestoreService: firestoreService)
-                        .tabItem {
-                            Label("Messages", systemImage: "message")
-                        }
-                        .tag(3)
-                    
-                    NavigationStack {
-                        CalendarView()
-                    }
-                    .tabItem {
-                        Label("Calendar", systemImage: "calendar")
-                    }
-                    .tag(4)
                 }
             } else {
                 AuthView(authService: authService)
