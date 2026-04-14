@@ -15,6 +15,7 @@ struct MapView: View {
     @State private var showSearch = false
     @State private var activeCategories: Set<String> = []
     @State private var selectedLocation: MapLocation? = nil
+    @State private var searchedLocation: MapLocation? = nil
 
     @State private var mapPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -47,7 +48,7 @@ struct MapView: View {
 
     var body: some View {
         ZStack {
-            Map(position: $mapPosition) {
+            Map(position: $mapPosition, selection: $selectedLocation) {
                 UserAnnotation()
 
                 ForEach(filteredLocations) { location in
@@ -63,6 +64,7 @@ struct MapView: View {
                                 )
                             )
                             .tint(style.color)
+                            .tag(location)
                         }
                     }
                 }
@@ -87,18 +89,17 @@ struct MapView: View {
                 centerMap(on: coord)
             }
             // Fly to location when selected from search
-            .onChange(of: selectedLocation?.id) { _, _ in
-                guard let location = selectedLocation else { return }
-                
+            .onChange(of: searchedLocation?.id) { _, _ in
+                guard let location = searchedLocation else { return }
+
                 autoCenterEnabled = false
-                
+
                 centerMap(
                     on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
                     span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
                 )
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    selectedLocation = nil
-                }
+
+                searchedLocation = nil
             }
 
             // Search button and autocenter overlay
@@ -140,7 +141,7 @@ struct MapView: View {
                                 locations: mapViewModel.mapLocations,
                                 categories: mapViewModel.locationCategories,
                                 activeCategories: $activeCategories,
-                                selectedLocation: $selectedLocation
+                                selectedLocation: $searchedLocation
                             )
                         }
                         .padding(20)
@@ -153,6 +154,14 @@ struct MapView: View {
                     .background(.thinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+        }
+        .sheet(item: $selectedLocation) { location in
+            LocationDetailSheet(
+                location: location,
+                category: mapViewModel.locationCategories[location.catId ?? 0],
+                onDirections: {
+                }
+            )
         }
         .alert("Error",
             isPresented: Binding(
@@ -301,6 +310,39 @@ struct sBar: View {
         }
         .searchable(text: $sText, prompt: "Search campus locations")
         .presentationDetents([.medium, .large])
+    }
+}
+
+struct LocationDetailSheet: View {
+    let location: MapLocation
+    let category: String?
+    let onDirections: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(location.name)
+                .font(.title2)
+                .bold()
+
+            if let category {
+                Text(category)
+                    .foregroundColor(.secondary)
+            }
+
+            Text("Input description here")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Button("Get Directions") {
+                onDirections()
+            }
+            .buttonStyle(.borderedProminent)
+
+            Spacer()
+        }
+        .padding()
+        .presentationDetents([.height(200)])
+        .presentationDragIndicator(.visible)
     }
 }
 

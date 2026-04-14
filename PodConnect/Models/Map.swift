@@ -5,6 +5,8 @@
 //  Created by Noah Hester on 3/9/26.
 //
 
+import FirebaseFirestore
+import CoreLocation
 import Foundation
 
 // HTTP Response data structure
@@ -39,7 +41,7 @@ struct Children: Decodable {
 }
 
 // Location structure
-struct MapLocation: Decodable, Identifiable {
+struct MapLocation: Decodable, Identifiable, Hashable {
     let id: Int
     let name: String
     let lat: Double
