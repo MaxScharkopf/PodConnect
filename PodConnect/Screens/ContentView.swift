@@ -55,7 +55,7 @@ struct ContentView: View {
                     .tabItem {
                         Label("Profile", systemImage: "person")
                     }
-                    .tag(0)
+                    .tag(4)
                 }
             } else {
                 AuthView(authService: authService)
