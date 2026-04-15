@@ -16,12 +16,23 @@ struct MapView: View {
     @State private var activeCategories: Set<String> = []
     @State private var selectedLocation: MapLocation? = nil
     @State private var searchedLocation: MapLocation? = nil
+    @State private var route: MKRoute?
+    @State private var isCalculatingRoute = false
+    @State private var routeError: String?
+    @State private var isTripActive = false
+    @State private var tripEndDate: Date?
+    @State private var destinationName: String?
 
     @State private var mapPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 34.1647, longitude: -119.0426),
             span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
         )
+    )
+    
+    private let followSpan = MKCoordinateSpan(
+        latitudeDelta: 0.0015,
+        longitudeDelta: 0.0015
     )
 
     // CSUCI coordinates for default centering
@@ -68,7 +79,12 @@ struct MapView: View {
                         }
                     }
                 }
+                if let route {
+                    MapPolyline(route.polyline)
+                        .stroke(.blue, lineWidth: 6)
+                }
             }
+            
             // Toggle auto center off when user scrolls
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
@@ -86,7 +102,7 @@ struct MapView: View {
             .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
                 guard autoCenterEnabled else { return }
                 guard let coord = locationManager.userLocation else { return }
-                centerMap(on: coord)
+                centerMap(on: coord, span: followSpan)
             }
             // Fly to location when selected from search
             .onChange(of: searchedLocation?.id) { _, _ in
@@ -100,6 +116,45 @@ struct MapView: View {
                 )
 
                 searchedLocation = nil
+            }
+            
+            if isCalculatingRoute {
+                Text("Calculating route...")
+                    .padding()
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            
+            if isTripActive {
+                VStack {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Directions to: \(destinationName ?? "Destination")")
+                                .font(.headline)
+                                .font(.headline)
+
+                            if let route {
+                                Text("Estimated time: \(Int(route.expectedTravelTime / 60)) min")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button("End Trip") {
+                            endTrip()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding()
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+
+                    Spacer()
+                }
             }
 
             // Search button and autocenter overlay
@@ -116,7 +171,7 @@ struct MapView: View {
                                 autoCenterEnabled = true
 
                                 if let coord = locationManager.userLocation {
-                                    centerMap(on: coord)
+                                    centerMap(on: coord, span: followSpan)
                                 }
                             }
                         }) {
@@ -160,6 +215,9 @@ struct MapView: View {
                 location: location,
                 category: mapViewModel.locationCategories[location.catId ?? 0],
                 onDirections: {
+                    Task {
+                        await getDirections(to: location)
+                    }
                 }
             )
         }
@@ -202,6 +260,80 @@ struct MapView: View {
         default:
             return ("mappin", .gray)
         }
+    }
+    
+    func startTrip(to location: MapLocation, using route: MKRoute) {
+        self.route = route
+        isTripActive = true
+        destinationName = location.name
+        tripEndDate = Date().addingTimeInterval(route.expectedTravelTime)
+
+        selectedLocation = nil
+        autoCenterEnabled = false
+
+        withAnimation(.smooth(duration: 1.0)) {
+            mapPosition = .rect(route.polyline.boundingMapRect)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            guard isTripActive else { return }
+            autoCenterEnabled = true
+
+            if let coord = locationManager.userLocation {
+                centerMap(on: coord, span: followSpan)
+            }
+        }
+    }
+    
+    func getDirections(to location: MapLocation) async {
+        guard let userCoord = locationManager.userLocation else {
+            routeError = "User location is unavailable."
+            return
+        }
+
+        isCalculatingRoute = true
+        route = nil
+        routeError = nil
+
+        let request = MKDirections.Request()
+
+        request.source = MKMapItem(
+            location: CLLocation(latitude: userCoord.latitude, longitude: userCoord.longitude),
+            address: nil
+        )
+
+        request.destination = MKMapItem(
+            location: CLLocation(latitude: location.lat, longitude: location.lng),
+            address: nil
+        )
+
+        request.transportType = .walking
+        request.requestsAlternateRoutes = false
+
+        do {
+            let response = try await MKDirections(request: request).calculate()
+
+            guard let firstRoute = response.routes.first else {
+                routeError = "No route found."
+                isCalculatingRoute = false
+                return
+            }
+
+            startTrip(to: location, using: firstRoute)
+        } catch {
+            routeError = error.localizedDescription
+        }
+
+        isCalculatingRoute = false
+    }
+    
+    func endTrip() {
+        route = nil
+        isTripActive = false
+        tripEndDate = nil
+        destinationName = nil
+        autoCenterEnabled = false
+        selectedLocation = nil
     }
 }
 
