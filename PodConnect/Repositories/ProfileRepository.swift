@@ -31,4 +31,14 @@ final class ProfileRepository {
         let partialUpdate = ["profileImageURL": profileImageURL]
         try await firestoreService.updateDocument(path: usersPath, documentId: uid, data: partialUpdate)
     }
+    
+    func fetchClubOptions() async throws -> [String] {
+        let clubs: [ProfileOption] = try await firestoreService.fetchCollection(path: "clubs")
+        return clubs.map { $0.name }.sorted()
+    }
+
+    func fetchClassOptions() async throws -> [String] {
+        let classes: [ProfileOption] = try await firestoreService.fetchCollection(path: "classes")
+        return classes.map { $0.name }.sorted()
+    }
 }

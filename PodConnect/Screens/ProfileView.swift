@@ -16,6 +16,7 @@ struct ProfileView: View {
     @State private var profileImageData: Data?
     @State private var profileImageURL: String?
     @State private var isUploadingProfileImage = false
+    
 
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
@@ -28,6 +29,7 @@ struct ProfileView: View {
 
     @State private var selectedClubs: [String] = []
     @State private var selectedClasses: [String] = []
+    @State private var clubOptions: [String] = []
 
     @State private var isEditing = false
     @State private var errorMessage = ""
@@ -45,7 +47,6 @@ struct ProfileView: View {
     @FocusState private var bioFieldFocused: Bool
     @FocusState private var usernameFieldFocused: Bool
 
-    let clubs = ["Anthropology Club", "CI Bird Club", "CI Hiking Club", "CI Roller-Skating Club", "Data Science Club", "Programming Club", "TableTope Games Club", "Union de Hermanos"]
     let classes = ["COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350", "COMP 362", "COMP 354", "COMP 429", "MATH 240", "MATH 300", "ENGL 101"]
 
     var body: some View {
@@ -104,7 +105,7 @@ struct ProfileView: View {
                                     .font(.headline)
 
                                 Menu {
-                                    ForEach(clubs, id: \.self) { club in
+                                    ForEach(clubOptions, id: \.self) { club in
                                         Button {
                                             toggleSelection(club, in: &selectedClubs)
                                         } label: {
@@ -384,6 +385,7 @@ struct ProfileView: View {
         .navigationTitle("Profile")
         .task {
             await loadProfile()
+            await loadClubOptions()
             await viewModel.fetchFriends()
         }
         .onChange(of: selectedPhotoItem) { _, newItem in
@@ -543,6 +545,15 @@ struct ProfileView: View {
             errorMessage = error.errorDescription ?? "Something went wrong."
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+    
+    func loadClubOptions() async {
+        do {
+            let profileRepo = ProfileRepository(firestoreService: FirestoreService())
+            clubOptions = try await profileRepo.fetchClubOptions()
+        } catch {
+            errorMessage = "Failed to load clubs."
         }
     }
     
