@@ -48,3 +48,37 @@ struct MapLocation: Decodable, Identifiable, Hashable {
     let lng: Double
     let catId: Int?
 }
+
+struct MapPin: Identifiable, Codable, Hashable {
+    @DocumentID var id: String?
+    var name: String
+    var latitude: Double
+    var longitude: Double
+    var category: String?
+    var subtitle: String?
+    var pinType: String
+    var ownerUserId: String?
+    var createdAt: Timestamp?
+}
+extension MapPin {
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+// Convert current pins into MapPins. Will not need later
+extension MapLocation {
+    func toMapPin(categoryName: String?) -> MapPin {
+        MapPin(
+            id: "campus-\(id)",
+            name: name,
+            latitude: lat,
+            longitude: lng,
+            category: categoryName,
+            subtitle: nil,
+            pinType: "campus",
+            ownerUserId: nil,
+            createdAt: nil
+        )
+    }
+}

@@ -14,7 +14,7 @@ struct MapView: View {
     @State private var userMovingMap = false
     @State private var showSearch = false
     @State private var activeCategories: Set<String> = []
-    @State private var selectedLocation: MapLocation? = nil
+    @State private var selectedPin: MapPin? = nil
     @State private var searchedLocation: MapLocation? = nil
     @State private var route: MKRoute?
     @State private var isCalculatingRoute = false
@@ -48,37 +48,33 @@ struct MapView: View {
     )
 
     // Locations filtered by active categories (empty = show all)
-    private var filteredLocations: [MapLocation] {
-        guard !activeCategories.isEmpty else { return mapViewModel.mapLocations }
-        return mapViewModel.mapLocations.filter { location in
-            guard let catId = location.catId,
-                  let category = mapViewModel.locationCategories[catId] else { return false }
+    private var filteredPins: [MapPin] {
+        guard !activeCategories.isEmpty else { return mapViewModel.allPins }
+        return mapViewModel.allPins.filter { pin in
+            guard let category = pin.category else { return false }
             return activeCategories.contains(category)
         }
     }
 
     var body: some View {
         ZStack {
-            Map(position: $mapPosition, selection: $selectedLocation) {
+            Map(position: $mapPosition, selection: $selectedPin) {
                 UserAnnotation()
 
-                ForEach(filteredLocations) { location in
-                    if let category = mapViewModel.locationCategories[location.catId ?? 0] {
-                        let style = markerStyle(for: category)
-                        if category != "Classrooms" {
-                            Marker(
-                                location.name,
-                                systemImage: style.icon,
-                                coordinate: CLLocationCoordinate2D(
-                                    latitude: location.lat,
-                                    longitude: location.lng
-                                )
-                            )
-                            .tint(style.color)
-                            .tag(location)
-                        }
+                ForEach(filteredPins) { pin in
+                    let style = markerStyle(for: pin.category ?? "")
+
+                    if pin.category != "Classrooms" {
+                        Marker(
+                            pin.name,
+                            systemImage: style.icon,
+                            coordinate: pin.coordinate
+                        )
+                        .tint(pin.pinType == "user" ? .orange : style.color)
+                        .tag(pin)
                     }
                 }
+
                 if let route {
                     MapPolyline(route.polyline)
                         .stroke(.blue, lineWidth: 6)
@@ -210,13 +206,12 @@ struct MapView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
-        .sheet(item: $selectedLocation) { location in
+        .sheet(item: $selectedPin) { pin in
             LocationDetailSheet(
-                location: location,
-                category: mapViewModel.locationCategories[location.catId ?? 0],
+                pin: pin,
                 onDirections: {
                     Task {
-                        await getDirections(to: location)
+                        await getDirections(to: pin)
                     }
                 }
             )
@@ -262,13 +257,13 @@ struct MapView: View {
         }
     }
     
-    func startTrip(to location: MapLocation, using route: MKRoute) {
+    func startTrip(to pin: MapPin, using route: MKRoute) {
         self.route = route
         isTripActive = true
-        destinationName = location.name
+        destinationName = pin.name
         tripEndDate = Date().addingTimeInterval(route.expectedTravelTime)
 
-        selectedLocation = nil
+        selectedPin = nil
         autoCenterEnabled = false
 
         withAnimation(.smooth(duration: 1.0)) {
@@ -285,7 +280,7 @@ struct MapView: View {
         }
     }
     
-    func getDirections(to location: MapLocation) async {
+    func getDirections(to pin: MapPin) async {
         guard let userCoord = locationManager.userLocation else {
             routeError = "User location is unavailable."
             return
@@ -303,7 +298,7 @@ struct MapView: View {
         )
 
         request.destination = MKMapItem(
-            location: CLLocation(latitude: location.lat, longitude: location.lng),
+            location: CLLocation(latitude: pin.latitude, longitude: pin.longitude),
             address: nil
         )
 
@@ -319,7 +314,7 @@ struct MapView: View {
                 return
             }
 
-            startTrip(to: location, using: firstRoute)
+            startTrip(to: pin, using: firstRoute)
         } catch {
             routeError = error.localizedDescription
         }
@@ -333,7 +328,7 @@ struct MapView: View {
         tripEndDate = nil
         destinationName = nil
         autoCenterEnabled = false
-        selectedLocation = nil
+        selectedPin = nil
     }
 }
 
@@ -446,24 +441,29 @@ struct sBar: View {
 }
 
 struct LocationDetailSheet: View {
-    let location: MapLocation
-    let category: String?
+    let pin: MapPin
     let onDirections: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(location.name)
+            Text(pin.name)
                 .font(.title2)
                 .bold()
 
-            if let category {
+            if let category = pin.category {
                 Text(category)
                     .foregroundColor(.secondary)
             }
 
-            Text("Input description here")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            if let subtitle = pin.subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Input description here")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
             Button("Get Directions") {
                 onDirections()
