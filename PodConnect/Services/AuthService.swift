@@ -167,6 +167,12 @@ final class AuthService: ObservableObject {
             throw AuthError.generic
         }
     }
+    
+    func fetchUserInfo(userId: String) async throws -> UserInfo? {
+        let info: UserInfo? = try await firestoreService.fetchDocument(path: "users", documentId: userId)
+        
+        return info
+    }
 
     func signOut() throws {
         try Auth.auth().signOut()

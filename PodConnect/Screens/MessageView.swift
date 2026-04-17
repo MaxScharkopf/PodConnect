@@ -18,8 +18,9 @@ struct MessageView: View {
     
     @State private var searchText = ""
     @State private var showThreadPopup = false
+    @State private var showUserSearch = false
     @State private var newThreadName = ""
-    @State private var participantList: [String] = []
+    @State private var participants: [String] = []
     
     init(authService: AuthService, firestoreService: FirestoreService) {
         self.authService = authService
@@ -106,6 +107,8 @@ struct MessageView: View {
                                     .fill(Color(.secondarySystemBackground))
                             )
                             .padding()
+                        
+                        
                         Spacer()
                     }
                 }
