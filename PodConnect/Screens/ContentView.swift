@@ -19,20 +19,15 @@ struct ContentView: View {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
                     
-                    NavigationStack {
-                        ProfileView(authService: authService,
-                                    friendRepository:
-                                        FriendRepository(firestoreService:
-                                                            firestoreService))
-                    }
-                    .tabItem {
-                        Label("Profile", systemImage: "person")
-                    }
-                    .tag(0)
-                    
                     MapView()
                         .tabItem {
                             Label("Map", systemImage: "map")
+                        }
+                        .tag(0)
+                    
+                    MessageView(authService: authService, firestoreService: firestoreService)
+                        .tabItem {
+                            Label("Messages", systemImage: "message")
                         }
                         .tag(1)
                     
@@ -42,17 +37,23 @@ struct ContentView: View {
                         }
                         .tag(2)
                     
-                    MessageView(authService: authService, firestoreService: firestoreService)
-                        .tabItem {
-                            Label("Messages", systemImage: "message")
-                        }
-                        .tag(3)
                     
                     NavigationStack {
                         CalendarView()
                     }
                     .tabItem {
                         Label("Calendar", systemImage: "calendar")
+                    }
+                    .tag(3)
+                    
+                    NavigationStack {
+                        ProfileView(authService: authService,
+                                    friendRepository:
+                                        FriendRepository(firestoreService:
+                                                            firestoreService))
+                    }
+                    .tabItem {
+                        Label("Profile", systemImage: "person")
                     }
                     .tag(4)
                 }
