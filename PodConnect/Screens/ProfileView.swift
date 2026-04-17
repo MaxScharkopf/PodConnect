@@ -7,10 +7,16 @@
 
 import SwiftUI
 import FirebaseAuth
+import PhotosUI
 
 struct ProfileView: View {
     @ObservedObject var authService: AuthService
     @StateObject private var viewModel: FriendViewModel
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var profileImageData: Data?
+    @State private var profileImageURL: String?
+    @State private var isUploadingProfileImage = false
+    
 
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
@@ -23,6 +29,7 @@ struct ProfileView: View {
 
     @State private var selectedClubs: [String] = []
     @State private var selectedClasses: [String] = []
+    @State private var clubOptions: [String] = []
 
     @State private var isEditing = false
     @State private var errorMessage = ""
@@ -40,15 +47,13 @@ struct ProfileView: View {
     @FocusState private var bioFieldFocused: Bool
     @FocusState private var usernameFieldFocused: Bool
 
-    let clubs = ["Anthropology Club", "CI Bird Club", "CI Hiking Club", "CI Roller-Skating Club", "Data Science Club", "Programming Club", "TableTope Games Club", "Union de Hermanos"]
     let classes = ["COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350", "COMP 362", "COMP 354", "COMP 429", "MATH 240", "MATH 300", "ENGL 101"]
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
 
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 80))
+                profileImageSection
 
                 Text(email)
                     .foregroundColor(.gray)
@@ -100,7 +105,7 @@ struct ProfileView: View {
                                     .font(.headline)
 
                                 Menu {
-                                    ForEach(clubs, id: \.self) { club in
+                                    ForEach(clubOptions, id: \.self) { club in
                                         Button {
                                             toggleSelection(club, in: &selectedClubs)
                                         } label: {
@@ -380,8 +385,108 @@ struct ProfileView: View {
         .navigationTitle("Profile")
         .task {
             await loadProfile()
+            await loadClubOptions()
             await viewModel.fetchFriends()
         }
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard newItem != nil else { return }
+            Task {
+                await handleSelectedPhoto()
+            }
+        }
+    }
+    
+    private var profileImageSection: some View {
+        VStack(spacing: 10) {
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                ZStack(alignment: .bottomTrailing) {
+                    Group {
+                        if let profileImageData,
+                           let uiImage = UIImage(data: profileImageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                        } else if let profileImageURL,
+                                  let url = URL(string: profileImageURL) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                case .empty:
+                                    ProgressView()
+                                case .failure:
+                                    Image(systemName: "person.crop.circle.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .foregroundColor(.gray)
+                                        .padding(8)
+                                @unknown default:
+                                    Image(systemName: "person.crop.circle.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .foregroundColor(.gray)
+                                        .padding(8)
+                                }
+                            }
+                        } else {
+                            Image(systemName: "person.crop.circle.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundColor(.gray)
+                                .padding(8)
+                        }
+                    }
+                    .frame(width: 110, height: 110)
+                    .background(Color(.systemGray6))
+                    .clipShape(Circle())
+
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "camera.fill")
+                                .foregroundColor(.white)
+                                .font(.system(size: 12, weight: .semibold))
+                        )
+                }
+            }
+
+            if isUploadingProfileImage {
+                ProgressView()
+            }
+        }
+    }
+    
+    
+    func handleSelectedPhoto() async {
+        guard let item = selectedPhotoItem else { return }
+
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                errorMessage = "Failed to load selected image."
+                return
+            }
+
+            profileImageData = data
+            isUploadingProfileImage = true
+
+            guard let uid = Auth.auth().currentUser?.uid else {
+                errorMessage = "User not authenticated."
+                isUploadingProfileImage = false
+                return
+            }
+
+            let imageURL = try await authService.uploadProfileImage(data: data, uid: uid)
+            profileImageURL = imageURL
+            try await authService.updateProfileImageURL(uid: uid, imageURL: imageURL)
+
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isUploadingProfileImage = false
     }
     
     func toggleSelection(_ item: String, in array: inout [String]) {
@@ -410,6 +515,7 @@ struct ProfileView: View {
             currentUID = userInfo.uid
             selectedClubs = userInfo.clubs
             selectedClasses = userInfo.classes
+            profileImageURL = userInfo.profileImageURL
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -428,7 +534,8 @@ struct ProfileView: View {
             clubs: selectedClubs,
             email: email,
             uid: uid,
-            bio: bio
+            bio: bio,
+            profileImageURL: profileImageURL
         )
 
         do {
@@ -438,6 +545,15 @@ struct ProfileView: View {
             errorMessage = error.errorDescription ?? "Something went wrong."
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+    
+    func loadClubOptions() async {
+        do {
+            let profileRepo = ProfileRepository(firestoreService: FirestoreService())
+            clubOptions = try await profileRepo.fetchClubOptions()
+        } catch {
+            errorMessage = "Failed to load clubs."
         }
     }
     
