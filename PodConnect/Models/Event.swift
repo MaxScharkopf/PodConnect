@@ -18,6 +18,7 @@ struct SchoolEvent: Identifiable {
 // User-created personal event
 struct UserEvent: Identifiable, Codable {
     var id = UUID()
+    var uid: String = ""
     var title: String
     var startDate: Date
     var endDate: Date

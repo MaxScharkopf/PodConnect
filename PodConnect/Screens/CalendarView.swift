@@ -9,10 +9,14 @@ private let channelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 private let islandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
 struct CalendarView: View {
-    @StateObject var viewModel: CalendarViewModel
+    @StateObject private var viewModel: CalendarViewModel
     @State private var selectedTab = 0
     @State private var showAddEvent = false
     @State private var selectedDate = Date()
+
+    init(eventRepository: EventRepository) {
+        _viewModel = StateObject(wrappedValue: CalendarViewModel(eventRepository: eventRepository))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -417,6 +421,8 @@ struct AddEventSheet: View {
 
 #Preview {
     NavigationStack {
-        CalendarView()
+        CalendarView(eventRepository: EventRepository(
+            firestoreService: FirestoreService(),
+            authService: AuthService(firestoreService: FirestoreService())))
     }
 }
