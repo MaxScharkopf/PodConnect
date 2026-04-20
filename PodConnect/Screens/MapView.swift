@@ -166,7 +166,7 @@ struct MapView: View {
                     Spacer()
                     VStack (spacing: 12) {
                         
-                        // Add a pin
+                        // Add a user pin
                         Button(action: {showingAddPinSheet = true}) {
                             mapButton(icon: "plus")
                         }
@@ -268,7 +268,7 @@ struct MapView: View {
         }
     }
     
-    // Get center of the map
+    // Get center of the map for creating a pin
     func currentMapCenter() -> CLLocationCoordinate2D {
         visibleRegion?.center ?? defaultRegion.center
     }
@@ -299,6 +299,7 @@ struct MapView: View {
         selectedPin = nil
         autoCenterEnabled = false
 
+        // Zooms out to show whole path
         withAnimation(.smooth(duration: 1.0)) {
             mapPosition = .rect(route.polyline.boundingMapRect)
         }
@@ -365,10 +366,11 @@ struct MapView: View {
     }
 }
 
+// Helper function keep map buttons consistent
 func mapButton(icon: String, isActive: Bool = false) -> some View {
     Image(systemName: icon)
         .font(.system(size: 22))
-        .frame(width: 44, height: 44) // 🔥 fixed size
+        .frame(width: 44, height: 44)
         .background(Color.white.opacity(0.6))
         .clipShape(Circle())
         .shadow(radius: 5)
@@ -557,8 +559,8 @@ struct AddPinSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(220)])          // ✅ now attached properly
-        .presentationDragIndicator(.visible)          // ✅
+        .presentationDetents([.height(220)])         
+        .presentationDragIndicator(.visible)
     }
 }
 
