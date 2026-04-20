@@ -600,13 +600,21 @@ struct UserSearchResultCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(user.username)
-                .font(.headline)
+            HStack(alignment: .top, spacing: 12) {
+                profileImageView
 
-            if !user.bio.isEmpty {
-                Text(user.bio)
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(user.username)
+                        .font(.headline)
+
+                    if !user.bio.isEmpty {
+                        Text(user.bio)
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                    }
+                }
+
+                Spacer()
             }
 
             Button(isRequested ? "Requested" : "Send Request") {
@@ -621,6 +629,45 @@ struct UserSearchResultCard: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(16)
+    }
+
+    private var profileImageView: some View {
+        Group {
+            if let profileImageURL = user.profileImageURL,
+               let url = URL(string: profileImageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .empty:
+                        ProgressView()
+                    case .failure:
+                        Image(systemName: "person.crop.circle.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundColor(.gray)
+                            .padding(6)
+                    @unknown default:
+                        Image(systemName: "person.crop.circle.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundColor(.gray)
+                            .padding(6)
+                    }
+                }
+            } else {
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundColor(.gray)
+                    .padding(6)
+            }
+        }
+        .frame(width: 56, height: 56)
+        .background(Color(.systemBackground))
+        .clipShape(Circle())
     }
 }
 
