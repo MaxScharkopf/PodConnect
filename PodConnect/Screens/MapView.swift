@@ -107,7 +107,40 @@ struct MapView: View {
                             .background(.thinMaterial)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                }
+            )
+            // Auto centering map if toggled
+            .onChange(of: locationManager.userLocation) { _, newCoord in
+                guard autoCenterEnabled, let coord = newCoord else { return }
+                centerMap(on: coord, span: followSpan)
+            }
+            // Fly to location when selected from search
+            .onChange(of: searchedLocation?.id) { _, _ in
+                guard let location = searchedLocation else { return }
+
+                autoCenterEnabled = false
+
+                centerMap(
+                    on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
+                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+                )
+
+                searchedLocation = nil
+            }
+            
+            if isCalculatingRoute {
+                Text("Calculating route...")
+                    .padding()
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            
+            if isTripActive {
+                VStack {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Directions to: \(destinationName ?? "Destination")")
+                                .font(.headline)
+                                .font(.headline)
 
                 
                 // Tracks visible region for center
@@ -525,7 +558,7 @@ struct LocationDetailSheet: View {
     let onDelete: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .center, spacing: 16) {
             Text(pin.name)
                 .font(.title2)
                 .bold()
