@@ -14,6 +14,7 @@ struct UserInfo: Codable, Identifiable {
     @DocumentID var id: String?
     var username: String
     var username_lowercase: String
+    var name: String
     var classes: [String]
     var clubs: [String]
     var email: String
@@ -25,6 +26,7 @@ struct UserInfo: Codable, Identifiable {
         id: String? = nil,
         username: String,
         username_lowercase: String,
+        name: String,
         classes: [String],
         clubs: [String],
         email: String,
@@ -35,6 +37,7 @@ struct UserInfo: Codable, Identifiable {
         self.id = id
         self.username = username
         self.username_lowercase = username_lowercase
+        self.name = name
         self.classes = classes
         self.clubs = clubs
         self.email = email

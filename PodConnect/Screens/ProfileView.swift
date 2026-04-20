@@ -26,6 +26,7 @@ struct ProfileView: View {
     @State private var email = ""
     @State private var username = ""
     @State private var bio = ""
+    @State private var name = ""
 
     @State private var selectedClubs: [String] = []
     @State private var selectedClasses: [String] = []
@@ -46,6 +47,7 @@ struct ProfileView: View {
 
     @FocusState private var bioFieldFocused: Bool
     @FocusState private var usernameFieldFocused: Bool
+    @FocusState private var nameFieldFocused: Bool
 
     let classes = ["COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350", "COMP 362", "COMP 354", "COMP 429", "MATH 240", "MATH 300", "ENGL 101"]
 
@@ -68,6 +70,8 @@ struct ProfileView: View {
 
                 if isEditing {
                     VStack(spacing: 12) {
+                        
+        
 
                         VStack(alignment: .leading, spacing: 16) {
 
@@ -78,6 +82,17 @@ struct ProfileView: View {
                                 TextField("Username", text: $username)
                                     .textFieldStyle(.roundedBorder)
                                     .focused($usernameFieldFocused)
+                            }
+
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Name")
+                                    .font(.headline)
+
+                                TextField("Name", text: $name)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($nameFieldFocused)
                             }
 
                             Divider()
@@ -190,6 +205,7 @@ struct ProfileView: View {
                     }
                 } else {
                     VStack(spacing: 12) {
+                        
 
                         VStack(alignment: .leading, spacing: 16) {
 
@@ -201,6 +217,16 @@ struct ProfileView: View {
                             }
 
                             Divider()
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Name")
+                                    .font(.headline)
+                                Text(name.isEmpty ? "Not set" : name)
+                                    .foregroundColor(.primary)
+                            }
+
+                            Divider()
+
 
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Bio")
@@ -500,6 +526,7 @@ struct ProfileView: View {
     func dismissKeyboard() {
         bioFieldFocused = false
         usernameFieldFocused = false
+        nameFieldFocused = false
     }
     
     // Loads the user's profile data through AuthService.
@@ -511,6 +538,7 @@ struct ProfileView: View {
             
             email = userInfo.email
             username = userInfo.username
+            name = userInfo.name
             bio = userInfo.bio
             currentUID = userInfo.uid
             selectedClubs = userInfo.clubs
@@ -530,6 +558,7 @@ struct ProfileView: View {
             id: uid,
             username: username,
             username_lowercase: username.lowercased(),
+            name: name,
             classes: selectedClasses,
             clubs: selectedClubs,
             email: email,
@@ -606,11 +635,11 @@ struct UserSearchResultCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(user.username)
                         .font(.headline)
-
-                    if !user.bio.isEmpty {
-                        Text(user.bio)
+                    
+                    if !user.name.isEmpty {
+                        Text(user.name)
                             .font(.subheadline)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.secondary)
                     }
                 }
 
