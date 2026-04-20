@@ -9,11 +9,14 @@ private let channelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 private let islandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
 struct CalendarView: View {
+    @StateObject private var viewModel: CalendarViewModel
     @State private var selectedTab = 0
-    // User-created events shared between both tabs
-    @State private var userEvents: [UserEvent] = []
     @State private var showAddEvent = false
     @State private var selectedDate = Date()
+
+    init(eventRepository: EventRepository) {
+        _viewModel = StateObject(wrappedValue: CalendarViewModel(eventRepository: eventRepository))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,11 +31,19 @@ struct CalendarView: View {
             Divider()
 
             if selectedTab == 0 {
-                CalendarTabView(userEvents: $userEvents,
-                    selectedDate:$selectedDate,
-                    selectedTab: $selectedTab)
+                CalendarTabView(
+                    userEvents: viewModel.userEvents,
+                    selectedDate: $selectedDate,
+                    selectedTab: $selectedTab,
+                    onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
+                )
             } else {
-                EventsTabView(userEvents: $userEvents, selectedDate: $selectedDate, selectedTab: $selectedTab)
+                EventsTabView(
+                    userEvents: viewModel.userEvents,
+                    selectedDate: $selectedDate,
+                    selectedTab: $selectedTab,
+                    onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
+                )
             }
         }
         .navigationTitle("Calendar")
@@ -45,7 +56,7 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $showAddEvent) {
             AddEventSheet(initialDate: selectedDate) { newEvent in
-                userEvents.append(newEvent)
+                Task { await viewModel.saveEvent(event: newEvent) }
             }
         }
     }
@@ -53,9 +64,10 @@ struct CalendarView: View {
 
 // MARK: - Calendar Tab
 struct CalendarTabView: View {
-    @Binding var userEvents: [UserEvent]
+    var userEvents: [UserEvent]
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
+    var onDeleteEvent: (UserEvent) -> Void
 
 
     // All events (school + user) on the selected date
@@ -90,8 +102,7 @@ struct CalendarTabView: View {
                                 UserEventRow(event: event)
                             }
                             .onDelete { indexSet in
-                                let idsToDelete = indexSet.map { userEventsOnDate[$0].id }
-                                userEvents.removeAll { idsToDelete.contains($0.id) }
+                                indexSet.forEach { onDeleteEvent(userEventsOnDate[$0]) }
                             }
                         }
                     }
@@ -112,9 +123,10 @@ struct CalendarTabView: View {
 
 // MARK: - Events Tab
 struct EventsTabView: View {
-    @Binding var userEvents: [UserEvent]
+    var userEvents: [UserEvent]
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
+    var onDeleteEvent: (UserEvent) -> Void
     @State private var showSearch = false
     @State private var searchText = ""
     @State private var activeCategories: Set<String> = []
@@ -230,9 +242,8 @@ struct EventsTabView: View {
                             .buttonStyle(.plain)
                         }
                         .onDelete { indexSet in
-                                        let idsToDelete = indexSet.map { filteredUserEvents[$0].id }
-                                        userEvents.removeAll { idsToDelete.contains($0.id) }
-                                    }
+                            indexSet.forEach { onDeleteEvent(filteredUserEvents[$0]) }
+                        }
                     }
                 }
 
@@ -410,6 +421,8 @@ struct AddEventSheet: View {
 
 #Preview {
     NavigationStack {
-        CalendarView()
+        CalendarView(eventRepository: EventRepository(
+            firestoreService: FirestoreService(),
+            authService: AuthService(firestoreService: FirestoreService())))
     }
 }

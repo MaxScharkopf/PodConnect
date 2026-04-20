@@ -14,13 +14,25 @@ struct MapView: View {
     @State private var userMovingMap = false
     @State private var showSearch = false
     @State private var activeCategories: Set<String> = []
-    @State private var selectedLocation: MapLocation? = nil
+    @State private var selectedPin: MapPin? = nil
+    @State private var searchedLocation: MapLocation? = nil
+    @State private var route: MKRoute?
+    @State private var isCalculatingRoute = false
+    @State private var routeError: String?
+    @State private var isTripActive = false
+    @State private var tripEndDate: Date?
+    @State private var destinationName: String?
 
     @State private var mapPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 34.1647, longitude: -119.0426),
             span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
         )
+    )
+    
+    private let followSpan = MKCoordinateSpan(
+        latitudeDelta: 0.0015,
+        longitudeDelta: 0.0015
     )
 
     // CSUCI coordinates for default centering
@@ -36,37 +48,39 @@ struct MapView: View {
     )
 
     // Locations filtered by active categories (empty = show all)
-    private var filteredLocations: [MapLocation] {
-        guard !activeCategories.isEmpty else { return mapViewModel.mapLocations }
-        return mapViewModel.mapLocations.filter { location in
-            guard let catId = location.catId,
-                  let category = mapViewModel.locationCategories[catId] else { return false }
+    private var filteredPins: [MapPin] {
+        guard !activeCategories.isEmpty else { return mapViewModel.allPins }
+        return mapViewModel.allPins.filter { pin in
+            guard let category = pin.category else { return false }
             return activeCategories.contains(category)
         }
     }
 
     var body: some View {
         ZStack {
-            Map(position: $mapPosition) {
+            Map(position: $mapPosition, selection: $selectedPin) {
                 UserAnnotation()
 
-                ForEach(filteredLocations) { location in
-                    if let category = mapViewModel.locationCategories[location.catId ?? 0] {
-                        let style = markerStyle(for: category)
-                        if category != "Classrooms" {
-                            Marker(
-                                location.name,
-                                systemImage: style.icon,
-                                coordinate: CLLocationCoordinate2D(
-                                    latitude: location.lat,
-                                    longitude: location.lng
-                                )
-                            )
-                            .tint(style.color)
-                        }
+                ForEach(filteredPins) { pin in
+                    let style = markerStyle(for: pin.category ?? "")
+
+                    if pin.category != "Classrooms" {
+                        Marker(
+                            pin.name,
+                            systemImage: style.icon,
+                            coordinate: pin.coordinate
+                        )
+                        .tint(pin.pinType == "user" ? .orange : style.color)
+                        .tag(pin)
                     }
                 }
+
+                if let route {
+                    MapPolyline(route.polyline)
+                        .stroke(.blue, lineWidth: 6)
+                }
             }
+            
             // Toggle auto center off when user scrolls
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
@@ -81,23 +95,60 @@ struct MapView: View {
                     }
             )
             // Auto centering map if toggled
-            .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
-                guard autoCenterEnabled else { return }
-                guard let coord = locationManager.userLocation else { return }
-                centerMap(on: coord)
+            .onChange(of: locationManager.userLocation) { _, newCoord in
+                guard autoCenterEnabled, let coord = newCoord else { return }
+                centerMap(on: coord, span: followSpan)
             }
             // Fly to location when selected from search
-            .onChange(of: selectedLocation?.id) { _, _ in
-                guard let location = selectedLocation else { return }
-                
+            .onChange(of: searchedLocation?.id) { _, _ in
+                guard let location = searchedLocation else { return }
+
                 autoCenterEnabled = false
-                
+
                 centerMap(
                     on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
                     span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
                 )
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    selectedLocation = nil
+
+                searchedLocation = nil
+            }
+            
+            if isCalculatingRoute {
+                Text("Calculating route...")
+                    .padding()
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            
+            if isTripActive {
+                VStack {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Directions to: \(destinationName ?? "Destination")")
+                                .font(.headline)
+                                .font(.headline)
+
+                            if let route {
+                                Text("Estimated time: \(Int(route.expectedTravelTime / 60)) min")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button("End Trip") {
+                            endTrip()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding()
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+
+                    Spacer()
                 }
             }
 
@@ -115,7 +166,7 @@ struct MapView: View {
                                 autoCenterEnabled = true
 
                                 if let coord = locationManager.userLocation {
-                                    centerMap(on: coord)
+                                    centerMap(on: coord, span: followSpan)
                                 }
                             }
                         }) {
@@ -140,7 +191,7 @@ struct MapView: View {
                                 locations: mapViewModel.mapLocations,
                                 categories: mapViewModel.locationCategories,
                                 activeCategories: $activeCategories,
-                                selectedLocation: $selectedLocation
+                                selectedLocation: $searchedLocation
                             )
                         }
                         .padding(20)
@@ -153,6 +204,16 @@ struct MapView: View {
                     .background(.thinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+        }
+        .sheet(item: $selectedPin) { pin in
+            LocationDetailSheet(
+                pin: pin,
+                onDirections: {
+                    Task {
+                        await getDirections(to: pin)
+                    }
+                }
+            )
         }
         .alert("Error",
             isPresented: Binding(
@@ -193,6 +254,80 @@ struct MapView: View {
         default:
             return ("mappin", .gray)
         }
+    }
+    
+    func startTrip(to pin: MapPin, using route: MKRoute) {
+        self.route = route
+        isTripActive = true
+        destinationName = pin.name
+        tripEndDate = Date().addingTimeInterval(route.expectedTravelTime)
+
+        selectedPin = nil
+        autoCenterEnabled = false
+
+        withAnimation(.smooth(duration: 1.0)) {
+            mapPosition = .rect(route.polyline.boundingMapRect)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            guard isTripActive else { return }
+            autoCenterEnabled = true
+
+            if let coord = locationManager.userLocation {
+                centerMap(on: coord, span: followSpan)
+            }
+        }
+    }
+    
+    func getDirections(to pin: MapPin) async {
+        guard let userCoord = locationManager.userLocation else {
+            routeError = "User location is unavailable."
+            return
+        }
+
+        isCalculatingRoute = true
+        route = nil
+        routeError = nil
+
+        let request = MKDirections.Request()
+
+        request.source = MKMapItem(
+            location: CLLocation(latitude: userCoord.latitude, longitude: userCoord.longitude),
+            address: nil
+        )
+
+        request.destination = MKMapItem(
+            location: CLLocation(latitude: pin.latitude, longitude: pin.longitude),
+            address: nil
+        )
+
+        request.transportType = .walking
+        request.requestsAlternateRoutes = false
+
+        do {
+            let response = try await MKDirections(request: request).calculate()
+
+            guard let firstRoute = response.routes.first else {
+                routeError = "No route found."
+                isCalculatingRoute = false
+                return
+            }
+
+            startTrip(to: pin, using: firstRoute)
+        } catch {
+            routeError = error.localizedDescription
+        }
+
+        isCalculatingRoute = false
+    }
+    
+    func endTrip() {
+        route = nil
+        isTripActive = false
+        tripEndDate = nil
+        destinationName = nil
+        autoCenterEnabled = false
+        selectedPin = nil
     }
 }
 
@@ -301,6 +436,44 @@ struct sBar: View {
         }
         .searchable(text: $sText, prompt: "Search campus locations")
         .presentationDetents([.medium, .large])
+    }
+}
+
+struct LocationDetailSheet: View {
+    let pin: MapPin
+    let onDirections: () -> Void
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 16) {
+            Text(pin.name)
+                .font(.title2)
+                .bold()
+
+            if let category = pin.category {
+                Text(category)
+                    .foregroundColor(.secondary)
+            }
+
+            if let subtitle = pin.subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Input description here")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Button("Get Directions") {
+                onDirections()
+            }
+            .buttonStyle(.borderedProminent)
+
+            Spacer()
+        }
+        .padding()
+        .presentationDetents([.height(200)])
+        .presentationDragIndicator(.visible)
     }
 }
 

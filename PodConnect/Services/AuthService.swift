@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseStorage
 
 final class AuthService: ObservableObject {
     @Published var currentUser: User? = nil
@@ -87,9 +88,11 @@ final class AuthService: ObservableObject {
                 username_lowercase: username_lower,
                 classes: [],
                 clubs: [],
+                friends: [],
                 email: cleanEmail,
                 uid: result.user.uid,
-                bio: ""
+                bio: "",
+                profileImageURL: nil
             )
 
             try await firestoreService.saveDocument(path: "users", documentId: result.user.uid, data: profile)
@@ -167,11 +170,44 @@ final class AuthService: ObservableObject {
             throw AuthError.generic
         }
     }
-
+    
+    func fetchUserInfo(userId: String) async throws -> UserInfo? {
+        let info: UserInfo? = try await firestoreService.fetchDocument(path: "users", documentId: userId)
+        
+        return info
+    }
+    
     func signOut() throws {
         try Auth.auth().signOut()
     }
     
+    func uploadProfileImage(data: Data, uid: String) async throws -> String {
+        let storageRef = Storage.storage().reference()
+        let imageRef = storageRef.child("profilePictures/\(uid)/avatar.jpg")
+
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+
+        _ = try await imageRef.putDataAsync(data, metadata: metadata)
+        let downloadURL = try await imageRef.downloadURL()
+
+        return downloadURL.absoluteString
+    }
+    
+    func updateProfileImageURL(uid: String, imageURL: String) async throws {
+        try await firestoreService.updateDocument(
+            path: "users",
+            documentId: uid,
+            data: ["profileImageURL": imageURL]
+        )
+
+        await MainActor.run {
+            if var user = self.userInfo {
+                user.profileImageURL = imageURL
+                self.userInfo = user
+            }
+        }
+    }
     // Saves profile changes while preserving case-insensitive username lookup.
     func updateUserProfile(_ profile: UserInfo) async throws {
         let trimmedUsername = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)

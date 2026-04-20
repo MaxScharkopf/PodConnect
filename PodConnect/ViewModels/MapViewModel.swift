@@ -7,19 +7,40 @@
 
 import Combine
 import Foundation
+import CoreLocation
+import FirebaseFirestore
 
 @MainActor
 class MapViewModel: ObservableObject {
     // Store all map locations
     @Published var mapLocations: [MapLocation] = []
+    // User pins from firebase
+    @Published var userPins: [MapPin] = []
     //Dictionary mapping from ID number to
     @Published var locationCategories: [Int: String] = [:]
     @Published var isLoading = false
     @Published var errorMessage: String?
+    
+    private let mapRepository = MapRepository(firestoreService: FirestoreService())
+    
+    // Converting current pins into MapPin. Later these will be stored in firebase
+    var campusPins: [MapPin] {
+        mapLocations.compactMap { location in
+            let categoryName = location.catId.flatMap { locationCategories[$0] }
+            return location.toMapPin(categoryName: categoryName)
+        }
+    }
+    
+    var allPins: [MapPin] {
+        campusPins + userPins
+    }
 
     init() {
         // Start fetching the locations asyncronously
-        Task { await fetchMapLocations() }
+        Task {
+            await fetchMapLocations()
+            await loadUserPins()
+        }
     }
 
     func fetchMapLocations() async {
@@ -55,6 +76,44 @@ class MapViewModel: ObservableObject {
             // Set error message
             errorMessage = "Error: \(error.localizedDescription)"
             isLoading = false
+        }
+    }
+    
+    func loadUserPins() async {
+        do {
+            userPins = try await mapRepository.fetchPins(pinType: "user")
+        } catch {
+            errorMessage = "Error loading user pins: \(error.localizedDescription)"
+        }
+    }
+
+    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, ownerUserId: String?) async {
+        let pin = MapPin(
+            id: nil,
+            name: name,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            category: "User Pin",
+            subtitle: subtitle,
+            pinType: "user",
+            ownerUserId: ownerUserId,
+            createdAt: Timestamp(date: Date())
+        )
+
+        do {
+            try await mapRepository.savePin(pin)
+            await loadUserPins()
+        } catch {
+            errorMessage = "Error saving pin: \(error.localizedDescription)"
+        }
+    }
+    
+    func deleteUserPin(id: String) async {
+        do {
+            try await mapRepository.deletePin(id: id)
+            await loadUserPins()
+        } catch {
+            errorMessage = "Error deleting pin: \(error.localizedDescription)"
         }
     }
 
