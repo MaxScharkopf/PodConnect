@@ -24,6 +24,8 @@ struct MapView: View {
     @State private var destinationName: String?
     @State private var showingAddPinSheet = false
     @State private var visibleRegion: MKCoordinateRegion?
+    @State private var isAddingPin = false
+    @State private var pendingPinCoordinate: CLLocationCoordinate2D?
 
     @State private var mapPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -82,7 +84,31 @@ struct MapView: View {
                         MapPolyline(route.polyline)
                             .stroke(.blue, lineWidth: 6)
                     }
+                    
+                    
+                    if let coord = pendingPinCoordinate {
+                        Marker("New Pin", coordinate: coord)
+                            .tint(.orange)
+                    }
                 }
+                .onTapGesture { point in
+                    guard isAddingPin else {return}
+                    
+                    if let coordinate = proxy.convert(point, from: .local) {
+                        pendingPinCoordinate = coordinate
+                        showingAddPinSheet = true
+                        isAddingPin = false
+                    }
+                }
+                .overlay(alignment: .top) {
+                    if isAddingPin {
+                        Text("Tap map to place a pin")
+                            .padding()
+                            .background(.thinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+
                 
                 // Tracks visible region for center
                 .onMapCameraChange { context in
@@ -168,22 +194,27 @@ struct MapView: View {
                         VStack (spacing: 12) {
                             
                             // Add a user pin
-                            Button(action: {showingAddPinSheet = true}) {
+                            Button(action: {isAddingPin = true}) {
                                 mapButton(icon: "mappin.and.ellipse")
                             }
                             .sheet(isPresented: $showingAddPinSheet) {
-                                AddPinSheet { name, subtitle in
-                                    let center = currentMapCenter()
-                                    
-                                    Task {
-                                        await mapViewModel.addUserPin(
-                                            name: name,
-                                            subtitle: subtitle,
-                                            coordinate: center,
-                                            ownerUserId: nil
-                                        )
+                                AddPinSheet(
+                                    onSave: { name, subtitle in
+                                        let center = pendingPinCoordinate ?? currentMapCenter()
+                                        
+                                        Task {
+                                            await mapViewModel.addUserPin(
+                                                name: name,
+                                                subtitle: subtitle,
+                                                coordinate: center,
+                                                ownerUserId: nil
+                                            )
+                                        }
+                                        pendingPinCoordinate = nil
+                                    }, onCancel: {
+                                        pendingPinCoordinate = nil
                                     }
-                                }
+                                )
                             }
                             
                             // Toggle auto center
@@ -368,6 +399,8 @@ struct MapView: View {
     }
 }
 
+
+
 // Helper function keep map buttons consistent
 func mapButton(icon: String, isActive: Bool = false) -> some View {
     Image(systemName: icon)
@@ -539,6 +572,7 @@ struct AddPinSheet: View {
     @State private var subtitle = ""
     
     let onSave: (String, String?) -> Void
+    let onCancel: () -> Void
     
     var body: some View {
         NavigationStack {
@@ -549,7 +583,10 @@ struct AddPinSheet: View {
             .navigationTitle("New Pin")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
