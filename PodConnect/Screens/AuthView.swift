@@ -14,6 +14,7 @@ struct AuthView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var username = ""
+    @State private var name = ""
     @State private var errorMessage = ""
     @State private var isLoading = false
 
@@ -21,6 +22,10 @@ struct AuthView: View {
     
     private var trimmedUsername: String {
         username.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var passwordsDoNotMatch: Bool {
@@ -43,6 +48,9 @@ struct AuthView: View {
                 VStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 16) {
                         if isSignUp {
+                            TextField("Name", text: $name)
+                                .textFieldStyle(.roundedBorder)
+                            
                             TextField("Username", text: $username)
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
@@ -109,6 +117,7 @@ struct AuthView: View {
                     errorMessage = ""
                     password = ""
                     confirmPassword = ""
+                    name = ""
                 }
                 .font(.footnote)
 
@@ -124,7 +133,7 @@ struct AuthView: View {
         }
 
         if isSignUp {
-            return passwordsDoNotMatch || confirmPassword.isEmpty || trimmedUsername.isEmpty
+            return passwordsDoNotMatch || confirmPassword.isEmpty || trimmedUsername.isEmpty || trimmedName.isEmpty
         }
 
         return false
@@ -147,7 +156,8 @@ struct AuthView: View {
                 try await authService.signUp(
                     email: identifier,
                     password: password,
-                    username: trimmedUsername
+                    username: trimmedUsername,
+                    name: trimmedName
                 )
             } else {
                 try await authService.signIn(
