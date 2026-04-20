@@ -4,16 +4,13 @@
 //
 //  Created by Noah Hester on 3/29/26.
 //
-
+ 
 import SwiftUI
-
+ 
 struct MessageView: View {
-    // Recieve necessary services
     @ObservedObject var authService: AuthService
     private var firestoreService: FirestoreService
-    // Holds messaging database interaction repository
     private var messageRepository: MessageRepository
-    // View model for state updates
     @StateObject private var viewModel: MessageViewModel
     
     @State private var showThreadPopup = false
@@ -22,12 +19,8 @@ struct MessageView: View {
         self.authService = authService
         self.firestoreService = firestoreService
         
-        // Create the repository
         let messageRepository = MessageRepository(firestoreService: firestoreService, authService: authService)
-        
         self.messageRepository = messageRepository
-        
-        // Create the view model
         _viewModel = StateObject(wrappedValue: MessageViewModel(messageRepository: messageRepository))
     }
     
@@ -38,7 +31,6 @@ struct MessageView: View {
                 
                 VStack {
                     HStack {
-                        
                         Text("Messages")
                             .foregroundColor(.white)
                             .font(.title)
@@ -48,8 +40,7 @@ struct MessageView: View {
                         
                         Button(action: {
                             withAnimation { showThreadPopup = true }
-                        })
-                        {
+                        }) {
                             Image(systemName: "plus")
                                 .padding()
                                 .glassEffect()
@@ -62,7 +53,6 @@ struct MessageView: View {
                     Spacer()
                     
                     ScrollView {
-                        // Render each text thread
                         ForEach(viewModel.messageThreads) { thread in
                             NavigationLink(destination: ChatView(messageRepository: self.messageRepository, messageThread: thread, authService: self.authService)) {
                                 ZStack {
@@ -71,7 +61,6 @@ struct MessageView: View {
                                         .frame(maxWidth: .infinity)
                                     
                                     HStack {
-                                        
                                         Text(thread.threadName)
                                             .padding(20)
                                             .font(.headline)
@@ -98,11 +87,20 @@ struct MessageView: View {
                 .popover(isPresented: $showThreadPopup) {
                     ThreadCreationPopup(authService: self.authService, viewModel: viewModel)
                 }
+                .alert("Error", isPresented: Binding(
+                    get: { viewModel.errorMessage != nil },
+                    set: { _ in viewModel.errorMessage = nil }
+                )) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(viewModel.errorMessage ?? "")
+                }
             }
         }
     }
 }
-
+ 
+// Popover for creating a new message thread with a name and participants
 struct ThreadCreationPopup: View {
     var authService: AuthService
     var viewModel: MessageViewModel
@@ -122,6 +120,7 @@ struct ThreadCreationPopup: View {
         dismiss()
     }
     
+    // Fetches user info for all participants in parallel, skipping already-loaded users
     func loadUsers() async {
         await withTaskGroup(of: (String, UserInfo?).self) { group in
             for userId in participants {
@@ -178,8 +177,7 @@ struct ThreadCreationPopup: View {
                 
                 Button(action: {
                     showUserSearch = true
-                })
-                {
+                }) {
                     Image(systemName: "plus")
                         .padding()
                         .glassEffect()
@@ -195,7 +193,7 @@ struct ThreadCreationPopup: View {
                         
                         if let user = users[userId] {
                             Text(user.username)
-                        }else {
+                        } else {
                             Text("Loading...")
                         }
                     }
@@ -209,6 +207,7 @@ struct ThreadCreationPopup: View {
             
             Button(action: {
                 if let userInfo = authService.userInfo {
+                    // Include the current user as a participant before creating the thread
                     participants.append(userInfo.uid)
                     
                     Task {
@@ -216,16 +215,13 @@ struct ThreadCreationPopup: View {
                         reset()
                     }
                 }
-            })
-            {
+            }) {
                 Text("Create Thread")
                     .padding()
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.white)
                     .background(.blue)
-                    .clipShape(
-                        Capsule()
-                    )
+                    .clipShape(Capsule())
                     .glassEffect()
                     .padding()
             }
@@ -236,15 +232,25 @@ struct ThreadCreationPopup: View {
         .popover(isPresented: $showUserSearch) {
             UserSearchPopup(authService: self.authService, participants: $participants)
         }
+        // Reload users when the search popover closes, in case new participants were added
         .onChange(of: showUserSearch) { wasShowing, isShowing in
             if !isShowing {
                 Task { await loadUsers() }
             }
         }
+        .alert("Error", isPresented: Binding(
+            get: { viewModel.errorMessage != nil },
+            set: { _ in viewModel.errorMessage = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
         .dismissKeyboardOnTap()
     }
 }
-
+ 
+// Popover for browsing and selecting friends to add as participants
 struct UserSearchPopup: View {
     var authService: AuthService
     
@@ -259,6 +265,7 @@ struct UserSearchPopup: View {
         dismiss()
     }
     
+    // Fetches user info for all friends in parallel, skipping already-loaded users
     func loadUsers() async {
         if let info = authService.userInfo {
             await withTaskGroup(of: (String, UserInfo?).self) { group in
@@ -276,8 +283,7 @@ struct UserSearchPopup: View {
             }
         }
     }
-
-    
+ 
     var body: some View {
         VStack {
             ZStack {
@@ -315,28 +321,28 @@ struct UserSearchPopup: View {
                                     
                                     Spacer()
                                     
+                                    // Show a checkmark if already added, otherwise show an add button
                                     if participants.contains(user.uid) {
                                         Image(systemName: "checkmark.circle")
                                             .foregroundStyle(.green)
                                             .imageScale(.large)
-                                    }else {
+                                    } else {
                                         Button(action: {
                                             participants.append(user.uid)
-                                        })
-                                        {
+                                        }) {
                                             Image(systemName: "plus.circle.fill")
                                                 .imageScale(.large)
                                         }
                                     }
-                                    
-                                }else {
+                                } else {
                                     Text("Loading...")
                                 }
                             }
                         }
                     }
-                }else {
-                    Text("You don't have any friends, nobody likes you!")
+                } else {
+                    Text("You don't have any friends, go make some new ones!")
+                        .multilineTextAlignment(.center)
                     Spacer()
                 }
             }
@@ -346,7 +352,7 @@ struct UserSearchPopup: View {
         }
     }
 }
-
+ 
 #Preview {
     MessageView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
 }

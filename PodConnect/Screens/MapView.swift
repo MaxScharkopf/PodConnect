@@ -95,9 +95,8 @@ struct MapView: View {
                     }
             )
             // Auto centering map if toggled
-            .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
-                guard autoCenterEnabled else { return }
-                guard let coord = locationManager.userLocation else { return }
+            .onChange(of: locationManager.userLocation) { _, newCoord in
+                guard autoCenterEnabled, let coord = newCoord else { return }
                 centerMap(on: coord, span: followSpan)
             }
             // Fly to location when selected from search
@@ -445,7 +444,7 @@ struct LocationDetailSheet: View {
     let onDirections: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .center, spacing: 16) {
             Text(pin.name)
                 .font(.title2)
                 .bold()

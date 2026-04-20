@@ -8,14 +8,9 @@
 import SwiftUI
 
 struct ChatView: View {
-    // Database interaction structure
     private var messageRepository: MessageRepository
-    // Reference to the specific message thread we are viewing
     @State private var messageThread: MessageThread
-    // Reference to the authentication service for checking sender ID
     @ObservedObject var authService: AuthService
-    
-    // State variables and view model
     @StateObject private var viewModel: ChatViewModel
     
     @State private var currentMessage: String = ""
@@ -27,8 +22,6 @@ struct ChatView: View {
         self.messageRepository = messageRepository
         self.messageThread = messageThread
         self.authService = authService
-        
-        // Construct the view model as a state object
         _viewModel = StateObject(wrappedValue: ChatViewModel(messageRepository: messageRepository, messageThreadId: messageThread.id ?? ""))
     }
     
@@ -54,7 +47,7 @@ struct ChatView: View {
                     
                     Button(action: {
                         showSettings = true
-                    }){
+                    }) {
                         Image(systemName: "gearshape")
                             .font(.title3)
                     }
@@ -68,11 +61,9 @@ struct ChatView: View {
                 }
                 
                 ScrollView {
-                    // Show messages sorted by timestamp
                     ForEach(viewModel.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
-                        
                         HStack {
-                            // Render blue if sent, gray if recieved
+                            // Align sent messages to the right in blue, received to the left in gray
                             if message.sender == self.authService.userInfo?.id {
                                 Spacer()
                                 
@@ -82,19 +73,17 @@ struct ChatView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 15))
                                     .padding(.horizontal)
                                     .foregroundStyle(.white)
-                            }else {
+                            } else {
                                 Text(message.content)
                                     .padding(10)
                                     .background(Color.secondary.colorInvert())
                                     .clipShape(RoundedRectangle(cornerRadius: 15))
                                     .padding(.horizontal)
                                     .foregroundStyle(.primary)
-                                    
                                 
                                 Spacer()
                             }
                         }
-                            
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -137,10 +126,18 @@ struct ChatView: View {
         .popover(isPresented: $showSettings) {
             SettingsView(authService: authService, messageThread: $messageThread, viewModel: viewModel)
         }
-        
+        .alert("Error", isPresented: Binding(
+            get: { viewModel.errorMessage != nil },
+            set: { _ in viewModel.errorMessage = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
     }
 }
 
+// Popover for editing thread name, managing participants, and leaving or deleting the thread
 struct SettingsView: View {
     var authService: AuthService
     
@@ -150,7 +147,7 @@ struct SettingsView: View {
     
     @State private var threadName: String
     @State private var participants: [String]
-    @State private var users: [String : UserInfo] = [:]
+    @State private var users: [String: UserInfo] = [:]
     @State private var showUserSearch: Bool = false
     
     @FocusState private var inputFocus: Bool
@@ -160,11 +157,13 @@ struct SettingsView: View {
     init(authService: AuthService, messageThread: Binding<MessageThread>, viewModel: ChatViewModel) {
         self._messageThread = messageThread
         self.authService = authService
+        // Seed local state from the current thread so edits don't apply until saved
         self._threadName = State(initialValue: messageThread.wrappedValue.threadName)
         self._participants = State(initialValue: messageThread.wrappedValue.participants)
         self.viewModel = viewModel
     }
     
+    // Fetches user info for all participants in parallel, skipping already-loaded users
     func loadUsers() async {
         await withTaskGroup(of: (String, UserInfo?).self) { group in
             for userId in participants {
@@ -205,6 +204,7 @@ struct SettingsView: View {
                         .font(.headline)
                         .padding()
                 }
+                
                 TextField("Thread Name", text: $threadName)
                     .padding()
                     .background(
@@ -212,6 +212,7 @@ struct SettingsView: View {
                             .fill(Color(.secondarySystemBackground))
                     )
                     .padding()
+                
                 HStack {
                     Text("Participants:")
                         .font(.title3)
@@ -227,8 +228,10 @@ struct SettingsView: View {
                             .padding()
                     }
                 }
+                
                 List {
                     ForEach(participants, id: \.self) { userId in
+                        // Hide the current user from the participants list
                         if userId != authService.userInfo?.uid {
                             HStack {
                                 Image(systemName: "person.crop.circle")
@@ -245,12 +248,14 @@ struct SettingsView: View {
                         participants.remove(atOffsets: indexSet)
                     }
                 }
+                
                 Spacer()
+                
                 Button(action: {
                     if let threadId = messageThread.id {
                         Task {
                             await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
-                            
+                            // Reflect changes in the parent ChatView without a refetch
                             messageThread.threadName = threadName
                             messageThread.participants = participants
                             reset()
@@ -266,29 +271,24 @@ struct SettingsView: View {
                         .glassEffect()
                         .padding()
                 }
+                
                 Button(action: {
                     if let info = authService.userInfo {
-                        print(participants.count)
-                        
-                        participants.removeAll {
-                            $0 == info.uid
-                        }
-                        
+                        // Remove the current user from participants
+                        participants.removeAll { $0 == info.uid }
                         users[info.uid] = nil
-                        
-                        print(participants.count)
                         
                         Task {
                             if let threadId = messageThread.id {
+                                // Delete the thread entirely if no participants remain, otherwise just update it
                                 if participants.isEmpty {
                                     await viewModel.deleteMessageThread(threadId: threadId)
-                                }else {
+                                } else {
                                     await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
                                     messageThread.threadName = threadName
                                     messageThread.participants = participants
                                 }
                             }
-                            
                             reset()
                         }
                     }
@@ -309,8 +309,19 @@ struct SettingsView: View {
         .popover(isPresented: $showUserSearch) {
             UserSearchPopup(authService: self.authService, participants: $participants)
         }
-        .onChange(of: showUserSearch) { _, _ in
-            Task { await loadUsers() }
+        // Reload users when the search popover closes, in case new participants were added
+        .onChange(of: showUserSearch) { _, isShowing in
+            if !isShowing {
+                Task { await loadUsers() }
+            }
+        }
+        .alert("Error", isPresented: Binding(
+            get: { viewModel.errorMessage != nil },
+            set: { _ in viewModel.errorMessage = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "")
         }
     }
 }
@@ -321,4 +332,3 @@ struct SettingsView: View {
     
     ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team"), authService: auth)
 }
-
