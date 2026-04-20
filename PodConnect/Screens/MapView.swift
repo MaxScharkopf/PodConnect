@@ -107,47 +107,7 @@ struct MapView: View {
                             .background(.thinMaterial)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-            )
-            // Auto centering map if toggled
-            .onChange(of: locationManager.userLocation) { _, newCoord in
-                guard autoCenterEnabled, let coord = newCoord else { return }
-                centerMap(on: coord, span: followSpan)
-            }
-            // Fly to location when selected from search
-            .onChange(of: searchedLocation?.id) { _, _ in
-                guard let location = searchedLocation else { return }
-
-                autoCenterEnabled = false
-
-                centerMap(
-                    on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
-                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
-                )
-
-                searchedLocation = nil
-            }
-            
-            if isCalculatingRoute {
-                Text("Calculating route...")
-                    .padding()
-                    .background(.thinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            
-            if isTripActive {
-                VStack {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Directions to: \(destinationName ?? "Destination")")
-                                .font(.headline)
-                                .font(.headline)
-
-                
-                // Tracks visible region for center
-                .onMapCameraChange { context in
-                    visibleRegion = context.region
                 }
-                
                 // Toggle auto center off when user scrolls
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
@@ -230,7 +190,13 @@ struct MapView: View {
                             Button(action: {isAddingPin = true}) {
                                 mapButton(icon: "mappin.and.ellipse")
                             }
-                            .sheet(isPresented: $showingAddPinSheet) {
+                            .sheet(
+                                isPresented: $showingAddPinSheet,
+                                onDismiss: {
+                                    isAddingPin = false
+                                    pendingPinCoordinate = nil
+                                }
+                                ) {
                                 AddPinSheet(
                                     onSave: { name, subtitle in
                                         let center = pendingPinCoordinate ?? currentMapCenter()
@@ -243,8 +209,6 @@ struct MapView: View {
                                                 ownerUserId: nil
                                             )
                                         }
-                                        pendingPinCoordinate = nil
-                                    }, onCancel: {
                                         pendingPinCoordinate = nil
                                     }
                                 )
@@ -605,7 +569,6 @@ struct AddPinSheet: View {
     @State private var subtitle = ""
     
     let onSave: (String, String?) -> Void
-    let onCancel: () -> Void
     
     var body: some View {
         NavigationStack {
@@ -617,7 +580,6 @@ struct AddPinSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        onCancel()
                         dismiss()
                     }
                 }
