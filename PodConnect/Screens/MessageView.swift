@@ -16,11 +16,7 @@ struct MessageView: View {
     // View model for state updates
     @StateObject private var viewModel: MessageViewModel
     
-    @State private var searchText = ""
     @State private var showThreadPopup = false
-    @State private var showUserSearch = false
-    @State private var newThreadName = ""
-    @State private var participants: [String] = []
     
     init(authService: AuthService, firestoreService: FirestoreService) {
         self.authService = authService
@@ -38,7 +34,7 @@ struct MessageView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.gray.opacity(0.5).ignoresSafeArea()
+                Color(.systemBackground).ignoresSafeArea()
                 
                 VStack {
                     HStack {
@@ -61,7 +57,7 @@ struct MessageView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.red)
+                    .background(Color(.systemRed))
                     
                     Spacer()
                     
@@ -71,7 +67,7 @@ struct MessageView: View {
                             NavigationLink(destination: ChatView(messageRepository: self.messageRepository, messageThread: thread, authService: self.authService)) {
                                 ZStack {
                                     Rectangle()
-                                        .fill(.white)
+                                        .fill(.tertiary)
                                         .frame(maxWidth: .infinity)
                                     
                                     HStack {
@@ -79,44 +75,264 @@ struct MessageView: View {
                                         Text(thread.threadName)
                                             .padding(20)
                                             .font(.headline)
-                                            .foregroundStyle(.black)
+                                            .foregroundStyle(.primary)
                                         
                                         Spacer()
                                     }
                                 }
                             }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .onAppear() {
+                        Task {
+                            await viewModel.fetchMessageThreads()
                         }
                     }
                     .refreshable {
                         await viewModel.fetchMessageThreads()
                     }
                     
-                    
                     Spacer()
                 }
                 .popover(isPresented: $showThreadPopup) {
-                    VStack {
-                        Text("Create New Thread")
-                            .font(.headline)
-                            .padding(.top)
-                        
-                        TextField("Thread Name", text: $newThreadName)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(.secondarySystemBackground))
-                            )
-                            .padding()
-                        
-                        
-                        Spacer()
-                    }
+                    ThreadCreationPopup(authService: self.authService, viewModel: viewModel)
                 }
             }
         }
     }
 }
 
+struct ThreadCreationPopup: View {
+    var authService: AuthService
+    var viewModel: MessageViewModel
+    
+    @State private var participants: [String] = []
+    @State private var users: [String: UserInfo] = [:]
+    @State private var newThreadName = ""
+    @State private var showUserSearch = false
+    
+    @Environment(\.dismiss) var dismiss
+    
+    func reset() {
+        newThreadName = ""
+        showUserSearch = false
+        participants = []
+        users = [:]
+        dismiss()
+    }
+    
+    func loadUsers() async {
+        for userId in participants {
+            do {
+                users[userId] = try await authService.fetchUserInfo(userId: userId)
+            } catch {
+                print("Failed to load user \(userId): \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    var body: some View {
+        VStack {
+            ZStack {
+                HStack {
+                    Spacer()
+                    
+                    Button {
+                        reset()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.title2)
+                    }
+                    .padding()
+                    .buttonStyle(.plain)
+                }
+                
+                Text("Create New Thread")
+                    .font(.headline)
+                    .padding()
+            }
+            
+            TextField("Thread Name", text: $newThreadName)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .padding()
+            
+            HStack {
+                Text("Participants:")
+                    .font(.title3)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Spacer()
+                
+                Button(action: {
+                    showUserSearch = true
+                })
+                {
+                    Image(systemName: "plus")
+                        .padding()
+                        .glassEffect()
+                        .padding()
+                }
+            }
+            
+            List {
+                ForEach(participants, id: \.self) { userId in
+                    HStack {
+                        Image(systemName: "person.crop.circle")
+                            .foregroundStyle(.secondary)
+                        
+                        if let user = users[userId] {
+                            Text(user.username)
+                        }else {
+                            Text("Loading...")
+                        }
+                    }
+                }
+                .onDelete() { indexSet in
+                    participants.remove(atOffsets: indexSet)
+                }
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                if let userInfo = authService.userInfo {
+                    participants.append(userInfo.uid)
+                    
+                    Task {
+                        await viewModel.createMessageThread(threadName: newThreadName, participants: participants)
+                        reset()
+                    }
+                }
+            })
+            {
+                Text("Create Thread")
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .foregroundColor(.white)
+                    .background(.blue)
+                    .clipShape(
+                        Capsule()
+                    )
+                    .glassEffect()
+                    .padding()
+            }
+        }
+        .task {
+            await loadUsers()
+        }
+        .popover(isPresented: $showUserSearch) {
+            UserSearchPopup(authService: self.authService, participants: $participants)
+        }
+        .onChange(of: showUserSearch) {
+            Task { await loadUsers() }
+        }
+        .dismissKeyboardOnTap()
+    }
+}
+
+struct UserSearchPopup: View {
+    var authService: AuthService
+    
+    @State private var users: [String: UserInfo] = [:]
+    
+    @Binding var participants: [String]
+    
+    @Environment(\.dismiss) var dismiss
+    
+    func reset() {
+        users = [:]
+        dismiss()
+    }
+    
+    func loadUsers() async {
+        if let info = authService.userInfo {
+            
+            for userId in info.friends {
+                do {
+                    users[userId] = try await authService.fetchUserInfo(userId: userId)
+                } catch {
+                    print("Failed to load user \(userId): \(error.localizedDescription)")
+                }
+            }
+            
+        }
+    }
+
+    
+    var body: some View {
+        VStack {
+            ZStack {
+                HStack {
+                    Spacer()
+                    
+                    Button {
+                        reset()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.title2)
+                    }
+                    .padding()
+                    .buttonStyle(.plain)
+                }
+                
+                Text("Add Friend")
+                    .font(.headline)
+                    .padding()
+            }
+            
+            Spacer()
+            
+            if let info = authService.userInfo {
+                if !info.friends.isEmpty {
+                    List {
+                        ForEach(info.friends, id: \.self) { userId in
+                            HStack {
+                                Image(systemName: "person.crop.circle")
+                                    .foregroundStyle(.secondary)
+                                
+                                if let user = users[userId] {
+                                    Text(user.username)
+                                    
+                                    Spacer()
+                                    
+                                    if participants.contains(user.uid) {
+                                        Image(systemName: "checkmark.circle")
+                                            .foregroundStyle(.green)
+                                            .imageScale(.large)
+                                    }else {
+                                        Button(action: {
+                                            participants.append(user.uid)
+                                        })
+                                        {
+                                            Image(systemName: "plus.circle.fill")
+                                                .imageScale(.large)
+                                        }
+                                    }
+                                    
+                                }else {
+                                    Text("Loading...")
+                                }
+                            }
+                        }
+                    }
+                }else {
+                    Text("You don't have any friends, nobody likes you!")
+                }
+            }
+        }
+        .task {
+            await loadUsers()
+        }
+    }
+}
 
 #Preview {
     MessageView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())

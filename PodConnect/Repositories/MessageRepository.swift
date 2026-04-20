@@ -8,6 +8,7 @@
 import FirebaseAuth
 internal import FirebaseFirestoreInternal
 
+// Store core functions for messaging capabilities
 final class MessageRepository {
     private var firestoreService: FirestoreService
     private var authService: AuthService
@@ -18,8 +19,6 @@ final class MessageRepository {
     }
     
     func fetchMessageThreads() async throws -> [MessageThread] {
-        // We want to fetch the message threads pertaining to this specific user
-        
         // Check if the user is logged in
         guard let userId = authService.userInfo?.id else {
             return []
@@ -34,8 +33,6 @@ final class MessageRepository {
     }
     
     func fetchMessages(threadId: String) async throws -> [Message] {
-        // We want to fetch the message threads pertaining to this specific user
-        
         // Check if the user is logged in
         guard authService.isAuthenticated else {
             return []
@@ -61,8 +58,6 @@ final class MessageRepository {
     }
     
     func sendMessage(threadId: String, messageContent: String) async throws {
-        // We want to fetch the message threads pertaining to this specific user
-        
         // Check if the user is logged in
         guard let userId = authService.userInfo?.id else {
             return
@@ -74,8 +69,6 @@ final class MessageRepository {
     }
     
     func createMessageThread(threadName: String, participants: [String]) async throws {
-        // We want to fetch the message threads pertaining to this specific user
-        
         // Check if the user is logged in
         guard let userId = authService.userInfo?.id else {
             return
@@ -84,5 +77,25 @@ final class MessageRepository {
         let thread = MessageThread(participants: participants, threadName: threadName)
         
         try await firestoreService.saveDocument(path: "messages", data: thread)
+    }
+    
+    func updateMessageThread(threadId: String, threadName: String, participants: [String]) async throws {
+        // Check if the user is logged in
+        guard let userId = authService.userInfo?.id else {
+            return
+        }
+        
+        let thread = MessageThread(participants: participants, threadName: threadName)
+        
+        try await firestoreService.updateDocument(path: "messages", documentId: threadId, data: thread)
+    }
+    
+    func deleteMessageThread(threadId: String) async throws {
+        // Check if the user is logged in
+        guard let userId = authService.userInfo?.id else {
+            return
+        }
+        
+        try await firestoreService.removeDocument(path: "messages", documentId: threadId)
     }
 }

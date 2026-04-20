@@ -75,4 +75,30 @@ class ChatViewModel: ObservableObject {
             self.isLoading = false
         }
     }
+    
+    func updateMessageThread(threadId: String, threadName: String, participants: [String]) async {
+        isLoading = true
+        
+        do {
+            try await messageRepository.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
+            isLoading = false
+            errorMessage = nil
+        }catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+        }
+    }
+    
+    func deleteMessageThread(threadId: String) async {
+        isLoading = true
+        
+        do {
+            try await messageRepository.deleteMessageThread(threadId: threadId)
+            isLoading = false
+            errorMessage = nil
+        }catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+        }
+    }
 }

@@ -87,6 +87,7 @@ final class AuthService: ObservableObject {
                 username_lowercase: username_lower,
                 classes: [],
                 clubs: [],
+                friends: [],
                 email: cleanEmail,
                 uid: result.user.uid,
                 bio: ""
@@ -169,6 +170,12 @@ final class AuthService: ObservableObject {
     }
     
     func fetchUserInfo(userId: String) async throws -> UserInfo? {
+        let info: UserInfo? = try await firestoreService.fetchDocument(path: "users", documentId: userId)
+        
+        return info
+    }
+    
+    func fetchUsersInfo(userId: String) async throws -> UserInfo? {
         let info: UserInfo? = try await firestoreService.fetchDocument(path: "users", documentId: userId)
         
         return info
