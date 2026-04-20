@@ -124,7 +124,10 @@ struct ChatView: View {
             .dismissKeyboardOnTap()
         }
         .popover(isPresented: $showSettings) {
-            SettingsView(authService: authService, messageThread: $messageThread, viewModel: viewModel)
+            SettingsView(authService: authService, messageThread: $messageThread, viewModel: viewModel) {
+                showSettings = false
+                dismiss()
+            }
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
@@ -150,17 +153,18 @@ struct SettingsView: View {
     @State private var users: [String: UserInfo] = [:]
     @State private var showUserSearch: Bool = false
     
-    @FocusState private var inputFocus: Bool
+    var onThreadDeleted: () -> Void
     
     @Environment(\.dismiss) private var dismiss
     
-    init(authService: AuthService, messageThread: Binding<MessageThread>, viewModel: ChatViewModel) {
+    init(authService: AuthService, messageThread: Binding<MessageThread>, viewModel: ChatViewModel, onThreadDeleted: @escaping () -> Void) {
         self._messageThread = messageThread
         self.authService = authService
         // Seed local state from the current thread so edits don't apply until saved
         self._threadName = State(initialValue: messageThread.wrappedValue.threadName)
         self._participants = State(initialValue: messageThread.wrappedValue.participants)
         self.viewModel = viewModel
+        self.onThreadDeleted = onThreadDeleted
     }
     
     // Fetches user info for all participants in parallel, skipping already-loaded users
@@ -290,6 +294,7 @@ struct SettingsView: View {
                                 }
                             }
                             reset()
+                            onThreadDeleted()
                         }
                     }
                 }) {
