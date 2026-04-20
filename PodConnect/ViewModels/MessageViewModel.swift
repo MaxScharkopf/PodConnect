@@ -41,6 +41,20 @@ class MessageViewModel: ObservableObject {
         }catch {
             // Set error message
             errorMessage = error.localizedDescription
+            self.isLoading = false
+        }
+    }
+    
+    func createMessageThread(threadName: String, participants: [String]) async {
+        isLoading = true
+        
+        do {
+            try await messageRepository.createMessageThread(threadName: threadName, participants: participants)
+            isLoading = false
+            errorMessage = nil
+        }catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
         }
     }
 }

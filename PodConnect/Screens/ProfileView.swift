@@ -532,6 +532,7 @@ struct ProfileView: View {
             username_lowercase: username.lowercased(),
             classes: selectedClasses,
             clubs: selectedClubs,
+            friends: [],
             email: email,
             uid: uid,
             bio: bio,
