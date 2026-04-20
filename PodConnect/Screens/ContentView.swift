@@ -39,7 +39,9 @@ struct ContentView: View {
                     
                     
                     NavigationStack {
-                        CalendarView()
+                        CalendarView(eventRepository: EventRepository(
+                            firestoreService: firestoreService,
+                            authService: authService))
                     }
                     .tabItem {
                         Label("Calendar", systemImage: "calendar")
