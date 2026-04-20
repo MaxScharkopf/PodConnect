@@ -123,11 +123,17 @@ struct ThreadCreationPopup: View {
     }
     
     func loadUsers() async {
-        for userId in participants {
-            do {
-                users[userId] = try await authService.fetchUserInfo(userId: userId)
-            } catch {
-                print("Failed to load user \(userId): \(error.localizedDescription)")
+        await withTaskGroup(of: (String, UserInfo?).self) { group in
+            for userId in participants {
+                guard users[userId] == nil else { continue }
+                
+                group.addTask {
+                    let info = try? await self.authService.fetchUserInfo(userId: userId)
+                    return (userId, info)
+                }
+            }
+            for await (userId, info) in group {
+                if let info { users[userId] = info }
             }
         }
     }
@@ -230,8 +236,10 @@ struct ThreadCreationPopup: View {
         .popover(isPresented: $showUserSearch) {
             UserSearchPopup(authService: self.authService, participants: $participants)
         }
-        .onChange(of: showUserSearch) {
-            Task { await loadUsers() }
+        .onChange(of: showUserSearch) { wasShowing, isShowing in
+            if !isShowing {
+                Task { await loadUsers() }
+            }
         }
         .dismissKeyboardOnTap()
     }
@@ -253,15 +261,19 @@ struct UserSearchPopup: View {
     
     func loadUsers() async {
         if let info = authService.userInfo {
-            
-            for userId in info.friends {
-                do {
-                    users[userId] = try await authService.fetchUserInfo(userId: userId)
-                } catch {
-                    print("Failed to load user \(userId): \(error.localizedDescription)")
+            await withTaskGroup(of: (String, UserInfo?).self) { group in
+                for userId in info.friends {
+                    guard users[userId] == nil else { continue }
+                    
+                    group.addTask {
+                        let info = try? await self.authService.fetchUserInfo(userId: userId)
+                        return (userId, info)
+                    }
+                }
+                for await (userId, info) in group {
+                    if let info { users[userId] = info }
                 }
             }
-            
         }
     }
 
@@ -325,6 +337,7 @@ struct UserSearchPopup: View {
                     }
                 }else {
                     Text("You don't have any friends, nobody likes you!")
+                    Spacer()
                 }
             }
         }

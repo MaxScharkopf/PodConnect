@@ -166,11 +166,17 @@ struct SettingsView: View {
     }
     
     func loadUsers() async {
-        for userId in participants {
-            do {
-                users[userId] = try await authService.fetchUserInfo(userId: userId)
-            } catch {
-                print("Failed to load user \(userId): \(error.localizedDescription)")
+        await withTaskGroup(of: (String, UserInfo?).self) { group in
+            for userId in participants {
+                guard users[userId] == nil else { continue }
+                
+                group.addTask {
+                    let info = try? await self.authService.fetchUserInfo(userId: userId)
+                    return (userId, info)
+                }
+            }
+            for await (userId, info) in group {
+                if let info { users[userId] = info }
             }
         }
     }

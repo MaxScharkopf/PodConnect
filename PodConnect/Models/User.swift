@@ -28,6 +28,7 @@ struct UserInfo: Codable, Identifiable {
         username_lowercase: String,
         classes: [String],
         clubs: [String],
+        friends: [String] = [],
         email: String,
         uid: String,
         bio: String,
@@ -42,5 +43,6 @@ struct UserInfo: Codable, Identifiable {
         self.uid = uid
         self.bio = bio
         self.profileImageURL = profileImageURL
+        self.friends = friends
     }
 }
