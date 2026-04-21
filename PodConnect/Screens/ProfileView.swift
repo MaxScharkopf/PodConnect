@@ -16,6 +16,7 @@ struct ProfileView: View {
     @State private var profileImageData: Data?
     @State private var profileImageURL: String?
     @State private var isUploadingProfileImage = false
+    @State private var friendToUnfriend: UserInfo? = nil
     
     
     init(authService: AuthService, friendRepository: FriendRepository) {
@@ -251,9 +252,17 @@ struct ProfileView: View {
                                                 .padding()
                                         } else {
                                             ForEach(viewModel.friends) { friend in
-                                                UserRowView(user: friend)
-                                                    .padding(.horizontal)
-                                                    .padding(.vertical, 10)
+                                                HStack {
+                                                    UserRowView(user: friend)
+                                                    Button {
+                                                        friendToUnfriend = friend
+                                                    } label: {
+                                                        Image(systemName: "person.badge.minus")
+                                                            .foregroundColor(.red)
+                                                    }
+                                                }
+                                                .padding(.horizontal)
+                                                .padding(.vertical, 10)
                                                 Divider()
                                             }
                                         }
@@ -378,6 +387,22 @@ struct ProfileView: View {
                             .frame(height: 220)
                             .background(Color(.systemGray6))
                             .cornerRadius(16)
+                            .alert("Unfriend \(friendToUnfriend?.username ?? "")?", isPresented: Binding(
+                                get: { friendToUnfriend != nil },
+                                set: { if !$0 { friendToUnfriend = nil } }
+                            )) {
+                                Button("Unfriend", role: .destructive) {
+                                    if let friend = friendToUnfriend {
+                                        Task {
+                                            await viewModel.unfriend(uid: friend.uid)
+                                        }
+                                    }
+                                    friendToUnfriend = nil
+                                }
+                                Button("Cancel", role: .cancel) {
+                                    friendToUnfriend = nil
+                                }
+                            }
                         }
                         
                         VStack(spacing: 0) {

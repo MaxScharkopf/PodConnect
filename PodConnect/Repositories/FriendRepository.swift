@@ -201,4 +201,34 @@ class FriendRepository {
             documentId: requestId
         )
     }
+    
+    func unfriend(uid: String) async throws {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
+
+        // Check user1UID == currentUID
+        let asUser1: [Friend] = try await firestoreService.fetchCollection(
+            path: "friends",
+            configure: { query in
+                query.whereField("user1UID", isEqualTo: currentUID)
+                    .whereField("user2UID", isEqualTo: uid)
+            }
+        )
+
+        // Check user2UID == currentUID
+        let asUser2: [Friend] = try await firestoreService.fetchCollection(
+            path: "friends",
+            configure: { query in
+                query.whereField("user2UID", isEqualTo: currentUID)
+                    .whereField("user1UID", isEqualTo: uid)
+            }
+        )
+
+        let friendship = asUser1.first ?? asUser2.first
+        guard let documentId = friendship?.id else { return }
+
+        try await firestoreService.removeDocument(
+            path: "friends",
+            documentId: documentId
+        )
+    }
 }
