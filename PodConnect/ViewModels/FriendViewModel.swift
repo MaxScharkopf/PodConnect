@@ -84,6 +84,16 @@ class FriendViewModel: ObservableObject {
         }
     }
     
+    // Unfriend
+    func unfriend(uid: String) async {
+        do {
+            try await friendRepository.unfriend(uid: uid)
+            friends.removeAll { $0.uid == uid }
+        } catch {
+            print("Error unfriending: \(error)")
+        }
+    }
+    
     // Fetch incoming friend requests
     func fetchIncomingRequests() async {
         do {
