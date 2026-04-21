@@ -92,17 +92,17 @@ class FriendRepository {
                 }
             )
             if !friends.isEmpty { return .friends }
-
+            
             // Check reverse order too
             let friendsReverse: [Friend] = try await firestoreService.fetchCollection(
                 path: "friends",
                 configure: { query in
-                    query.whereField("senderUid", isEqualTo: currentUID)
-                        .whereField("receiverUid", isEqualTo: withUID)
+                    query.whereField("user2UID", isEqualTo: currentUID)
+                        .whereField("user1UID", isEqualTo: withUID)
                 }
             )
             if !friendsReverse.isEmpty { return .friends }
-
+            
             // Check if request already sent
             let requests: [FriendRequest] = try await firestoreService.fetchCollection(
                 path: "friendRequests",
@@ -151,7 +151,54 @@ class FriendRepository {
                 results.append(user)
             }
         }
-
         return results
+    }
+    
+    func fetchUser(uid: String) async -> UserInfo? {
+        return try? await firestoreService.fetchDocument(path: "users", documentId: uid)
+    }
+    
+    func fetchIncomingRequests() async throws -> [FriendRequest] {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
+
+        return try await firestoreService.fetchCollection(
+            path: "friendRequests",
+            configure: { query in
+                query.whereField("receiverUid", isEqualTo: currentUID)
+                    .whereField("status", isEqualTo: "pending")
+            }
+        )
+    }
+
+    func acceptRequest(_ request: FriendRequest) async throws {
+        guard let requestId = request.id else { return }
+
+        // Create the friendship
+        let friendship = Friend(
+            id: nil,
+            user1UID: request.senderUid,
+            user2UID: request.receiverUid,
+            since: Date()
+        )
+
+        try await firestoreService.saveDocument(
+            path: "friends",
+            data: friendship
+        )
+
+        // Delete the request
+        try await firestoreService.removeDocument(
+            path: "friendRequests",
+            documentId: requestId
+        )
+    }
+
+    func declineRequest(_ request: FriendRequest) async throws {
+        guard let requestId = request.id else { return }
+
+        try await firestoreService.removeDocument(
+            path: "friendRequests",
+            documentId: requestId
+        )
     }
 }

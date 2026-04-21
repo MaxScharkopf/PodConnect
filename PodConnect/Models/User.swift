@@ -7,7 +7,6 @@
 // Modified by: Kassidy Saffa
 //
 // Simple user structure
-import FirebaseAuth
 import FirebaseFirestore
 
 struct UserInfo: Codable, Identifiable {
