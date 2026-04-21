@@ -8,7 +8,7 @@ import SwiftUI
 import MapKit
 
 struct MapView: View {
-    @StateObject private var mapViewModel = MapViewModel()
+    @StateObject private var mapViewModel: MapViewModel
     @StateObject private var locationManager = LocationManager()
     @State private var autoCenterEnabled: Bool = false
     @State private var userMovingMap = false
@@ -50,6 +50,17 @@ struct MapView: View {
             longitudeDelta: 0.008
         )
     )
+    
+    init(authService: AuthService, firestoreService: FirestoreService) {
+        let mapRepository = MapRepository(
+            firestoreService: firestoreService,
+            authService: authService
+        )
+
+        _mapViewModel = StateObject(
+            wrappedValue: MapViewModel(mapRepository: mapRepository)
+        )
+    }
 
     // Locations filtered by active categories (empty = show all)
     private var filteredPins: [MapPin] {
@@ -206,7 +217,6 @@ struct MapView: View {
                                                 name: name,
                                                 subtitle: subtitle,
                                                 coordinate: center,
-                                                ownerUserId: nil
                                             )
                                         }
                                         pendingPinCoordinate = nil
@@ -600,5 +610,5 @@ struct AddPinSheet: View {
 
 
 #Preview {
-    MapView()
+    MapView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
 }
