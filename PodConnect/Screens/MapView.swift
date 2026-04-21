@@ -62,12 +62,31 @@ struct MapView: View {
         )
     }
 
-    // Locations filtered by active categories (empty = show all)
+    // Core campus buildings shown by default when no filters are active
+    private let coreBuildingKeywords: [String] = [
+        "Islands",        // Islands Café
+        "Student Union",  // Student Union Building
+        "Bell Tower",     // Bell Tower
+        "Broome Library", // John Spoor Broome Library
+        "Gateway Hall",   // Gateway Hall
+        "Sierra Hall",    // Sierra Hall
+        "Del Norte Hall"  // Del Norte Hall
+    ]
+
+    private func isCoreBuilding(_ pin: MapPin) -> Bool {
+        coreBuildingKeywords.contains { pin.name.localizedCaseInsensitiveContains($0) }
+    }
+
+    // When no category filters are active, show only core buildings + user pins.
+    // When filters are active, show matching campus pins + user pins.
     private var filteredPins: [MapPin] {
-        guard !activeCategories.isEmpty else { return mapViewModel.allPins }
+        if activeCategories.isEmpty {
+            return mapViewModel.allPins.filter { pin in
+                pin.pinType == "user" || isCoreBuilding(pin)
+            }
+        }
         return mapViewModel.allPins.filter { pin in
-            guard let category = pin.category else { return false }
-            return activeCategories.contains(category)
+            pin.pinType == "user" || (pin.category.map { activeCategories.contains($0) } ?? false)
         }
     }
 
@@ -443,7 +462,7 @@ struct sBar: View {
                 // Filter chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
-                        // Clear button — only shows when filters are active
+                        // Clear button — only shows when filters are active; returns to default core-buildings view
                         if !activeCategories.isEmpty {
                             Button(action: { activeCategories.removeAll() }) {
                                 Text("Clear")
