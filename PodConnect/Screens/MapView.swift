@@ -63,18 +63,18 @@ struct MapView: View {
     }
 
     // Core campus buildings shown by default when no filters are active
-    private let coreBuildingKeywords: [String] = [
-        "Islands",        // Islands Café
-        "Student Union",  // Student Union Building
-        "Bell Tower",     // Bell Tower
-        "Broome Library", // John Spoor Broome Library
-        "Gateway Hall",   // Gateway Hall
-        "Sierra Hall",    // Sierra Hall
-        "Del Norte Hall"  // Del Norte Hall
+    private let coreBuildingNames: Set<String> = [
+        "ISL - Islands Cafe",
+        "SUB - Student Union Building",
+        "BEL - Bell Tower",
+        "GAT - Gateway Hall",
+        "SIE - Sierra Hall",
+        "NOR - Del Norte Hall",
+        "BRO - Broome Library"
     ]
 
     private func isCoreBuilding(_ pin: MapPin) -> Bool {
-        coreBuildingKeywords.contains { pin.name.localizedCaseInsensitiveContains($0) }
+        coreBuildingNames.contains(pin.name)
     }
 
     // When no category filters are active, show only core buildings + user pins.
