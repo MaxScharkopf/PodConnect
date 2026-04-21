@@ -9,7 +9,18 @@ import FirebaseFirestore
 
 final class SeedRepository {
     private let db = Firestore.firestore()
-    
+
+    func seedSchoolEvents() async {
+        for event in schoolEvents {
+            do {
+                try db.collection("schoolEvents").addDocument(from: event)
+                print("Seeded: \(event.title)")
+            } catch {
+                print("Error seeding \(event.title): \(error)")
+            }
+        }
+    }
+
     func seedClubs() async {
         let clubs = [
             "DÍA: Diversity Inclusivity Accessibility",

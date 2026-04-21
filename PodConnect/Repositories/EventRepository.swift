@@ -49,16 +49,22 @@ class EventRepository {
     }
     
     func deleteEvent(event: UserEvent) async throws {
-       
+
         // Check if user is logged in
         guard let userId = authService.userInfo?.id else {
             return
         }
-        
+
         // Remove the event document using the event's unique ID
         try await firestoreService.removeDocument(path: "events", documentId: event.id.uuidString)
     }
-    
+
+    func fetchSchoolEvents() async throws -> [SchoolEvent] {
+        return try await firestoreService.fetchCollection(path: "schoolEvents") { query in
+            query.order(by: "date", descending: false)
+        }
+    }
+
 }
 
     

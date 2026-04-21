@@ -33,6 +33,7 @@ struct CalendarView: View {
             if selectedTab == 0 {
                 CalendarTabView(
                     userEvents: viewModel.userEvents,
+                    schoolEvents: viewModel.schoolEvents,
                     selectedDate: $selectedDate,
                     selectedTab: $selectedTab,
                     onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
@@ -40,6 +41,7 @@ struct CalendarView: View {
             } else {
                 EventsTabView(
                     userEvents: viewModel.userEvents,
+                    schoolEvents: viewModel.schoolEvents,
                     selectedDate: $selectedDate,
                     selectedTab: $selectedTab,
                     onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
@@ -65,10 +67,10 @@ struct CalendarView: View {
 // MARK: - Calendar Tab
 struct CalendarTabView: View {
     var userEvents: [UserEvent]
+    var schoolEvents: [SchoolEvent]
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
-
 
     // All events (school + user) on the selected date
     private var schoolEventsOnDate: [SchoolEvent] {
@@ -124,6 +126,7 @@ struct CalendarTabView: View {
 // MARK: - Events Tab
 struct EventsTabView: View {
     var userEvents: [UserEvent]
+    var schoolEvents: [SchoolEvent]
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void

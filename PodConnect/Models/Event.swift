@@ -4,10 +4,11 @@
 //
 
 import Foundation
+import FirebaseFirestore
 
 // School-provided campus event
-struct SchoolEvent: Identifiable {
-    let id = UUID()
+struct SchoolEvent: Identifiable, Codable {
+    @DocumentID var id: String?
     let title: String
     let date: Date
     let duration: TimeInterval

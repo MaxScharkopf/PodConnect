@@ -15,13 +15,25 @@ class CalendarViewModel: ObservableObject {
 
     // Holds the user-created events for the signed-in user
     @Published var userEvents: [UserEvent] = []
+    @Published var schoolEvents: [SchoolEvent] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
     init(eventRepository: EventRepository) {
         self.eventRepository = eventRepository
 
-        Task { await fetchEvents() }
+        Task {
+            await fetchEvents()
+            await fetchSchoolEvents()
+        }
+    }
+
+    func fetchSchoolEvents() async {
+        do {
+            schoolEvents = try await eventRepository.fetchSchoolEvents()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func fetchEvents() async {
