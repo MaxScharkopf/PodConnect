@@ -234,17 +234,14 @@ struct SettingsView: View {
                 }
                 
                 List {
-                    ForEach(participants, id: \.self) { userId in
-                        // Hide the current user from the participants list
-                        if userId != authService.userInfo?.uid {
-                            HStack {
-                                Image(systemName: "person.crop.circle")
-                                    .foregroundStyle(.secondary)
-                                if let user = users[userId] {
-                                    Text(user.username)
-                                } else {
-                                    Text("Loading...")
-                                }
+                    ForEach(participants.filter { $0 != authService.userInfo?.uid }, id: \.self) { userId in
+                        HStack {
+                            Image(systemName: "person.crop.circle")
+                                .foregroundStyle(.secondary)
+                            if let user = users[userId] {
+                                Text(user.username)
+                            } else {
+                                Text("Loading...")
                             }
                         }
                     }
