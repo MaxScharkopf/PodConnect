@@ -11,16 +11,18 @@ struct MessageView: View {
     @ObservedObject var authService: AuthService
     private var firestoreService: FirestoreService
     private var messageRepository: MessageRepository
+    private var friendRepository: FriendRepository
     @StateObject private var viewModel: MessageViewModel
-    
+
     @State private var showThreadPopup = false
-    
+
     init(authService: AuthService, firestoreService: FirestoreService) {
         self.authService = authService
         self.firestoreService = firestoreService
-        
+
         let messageRepository = MessageRepository(firestoreService: firestoreService, authService: authService)
         self.messageRepository = messageRepository
+        self.friendRepository = FriendRepository(firestoreService: firestoreService)
         _viewModel = StateObject(wrappedValue: MessageViewModel(messageRepository: messageRepository))
     }
     
@@ -85,7 +87,7 @@ struct MessageView: View {
                     Spacer()
                 }
                 .popover(isPresented: $showThreadPopup) {
-                    ThreadCreationPopup(authService: self.authService, viewModel: viewModel)
+                    ThreadCreationPopup(authService: self.authService, friendRepository: self.friendRepository, viewModel: viewModel)
                 }
                 .alert("Error", isPresented: Binding(
                     get: { viewModel.errorMessage != nil },
@@ -103,8 +105,9 @@ struct MessageView: View {
 // Popover for creating a new message thread with a name and participants
 struct ThreadCreationPopup: View {
     var authService: AuthService
+    var friendRepository: FriendRepository
     var viewModel: MessageViewModel
-    
+
     @State private var participants: [String] = []
     @State private var users: [String: UserInfo] = [:]
     @State private var newThreadName = ""
@@ -230,7 +233,7 @@ struct ThreadCreationPopup: View {
             await loadUsers()
         }
         .popover(isPresented: $showUserSearch) {
-            UserSearchPopup(authService: self.authService, participants: $participants)
+            UserSearchPopup(friendRepository: self.friendRepository, participants: $participants)
         }
         // Reload users when the search popover closes, in case new participants were added
         .onChange(of: showUserSearch) { wasShowing, isShowing in
@@ -252,44 +255,30 @@ struct ThreadCreationPopup: View {
  
 // Popover for browsing and selecting friends to add as participants
 struct UserSearchPopup: View {
-    var authService: AuthService
-    
-    @State private var users: [String: UserInfo] = [:]
-    
+    var friendRepository: FriendRepository
+
+    @State private var friends: [UserInfo] = []
+
     @Binding var participants: [String]
-    
+
     @Environment(\.dismiss) var dismiss
-    
+
     func reset() {
-        users = [:]
+        friends = []
         dismiss()
     }
-    
-    // Fetches user info for all friends in parallel, skipping already-loaded users
-    func loadUsers() async {
-        if let info = authService.userInfo {
-            await withTaskGroup(of: (String, UserInfo?).self) { group in
-                for userId in info.friends {
-                    guard users[userId] == nil else { continue }
-                    
-                    group.addTask {
-                        let info = try? await self.authService.fetchUserInfo(userId: userId)
-                        return (userId, info)
-                    }
-                }
-                for await (userId, info) in group {
-                    if let info { users[userId] = info }
-                }
-            }
-        }
+
+    // Fetches friends from the friends collection via FriendRepository
+    func loadFriends() async {
+        friends = (try? await friendRepository.fetchFriends()) ?? []
     }
- 
+
     var body: some View {
         VStack {
             ZStack {
                 HStack {
                     Spacer()
-                    
+
                     Button {
                         reset()
                     } label: {
@@ -300,55 +289,49 @@ struct UserSearchPopup: View {
                     .padding()
                     .buttonStyle(.plain)
                 }
-                
+
                 Text("Add Friend")
                     .font(.headline)
                     .padding()
             }
-            
+
             Spacer()
-            
-            if let info = authService.userInfo {
-                if !info.friends.isEmpty {
-                    List {
-                        ForEach(info.friends, id: \.self) { userId in
-                            HStack {
-                                Image(systemName: "person.crop.circle")
-                                    .foregroundStyle(.secondary)
-                                
-                                if let user = users[userId] {
-                                    Text(user.username)
-                                    
-                                    Spacer()
-                                    
-                                    // Show a checkmark if already added, otherwise show an add button
-                                    if participants.contains(user.uid) {
-                                        Image(systemName: "checkmark.circle")
-                                            .foregroundStyle(.green)
-                                            .imageScale(.large)
-                                    } else {
-                                        Button(action: {
-                                            participants.append(user.uid)
-                                        }) {
-                                            Image(systemName: "plus.circle.fill")
-                                                .imageScale(.large)
-                                        }
-                                    }
-                                } else {
-                                    Text("Loading...")
+
+            if friends.isEmpty {
+                Text("You don't have any friends, go make some new ones!")
+                    .multilineTextAlignment(.center)
+                Spacer()
+            } else {
+                List {
+                    ForEach(friends) { user in
+                        HStack {
+                            Image(systemName: "person.crop.circle")
+                                .foregroundStyle(.secondary)
+
+                            Text(user.username)
+
+                            Spacer()
+
+                            // Show a checkmark if already added, otherwise show an add button
+                            if participants.contains(user.uid) {
+                                Image(systemName: "checkmark.circle")
+                                    .foregroundStyle(.green)
+                                    .imageScale(.large)
+                            } else {
+                                Button(action: {
+                                    participants.append(user.uid)
+                                }) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .imageScale(.large)
                                 }
                             }
                         }
                     }
-                } else {
-                    Text("You don't have any friends, go make some new ones!")
-                        .multilineTextAlignment(.center)
-                    Spacer()
                 }
             }
         }
         .task {
-            await loadUsers()
+            await loadFriends()
         }
     }
 }
