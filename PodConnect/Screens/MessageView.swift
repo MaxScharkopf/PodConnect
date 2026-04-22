@@ -56,7 +56,7 @@ struct MessageView: View {
                     
                     ScrollView {
                         ForEach(viewModel.messageThreads) { thread in
-                            NavigationLink(destination: ChatView(messageRepository: self.messageRepository, messageThread: thread, authService: self.authService)) {
+                            NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService)) {
                                 ZStack {
                                     Rectangle()
                                         .fill(.tertiary)

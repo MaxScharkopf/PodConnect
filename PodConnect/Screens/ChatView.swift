@@ -9,17 +9,19 @@ import SwiftUI
 
 struct ChatView: View {
     private var messageRepository: MessageRepository
+    private var friendRepository: FriendRepository
     @State private var messageThread: MessageThread
     @ObservedObject var authService: AuthService
     @StateObject private var viewModel: ChatViewModel
-    
+
     @State private var currentMessage: String = ""
     @State private var showSettings = false
-    
+
     @Environment(\.dismiss) private var dismiss
-    
-    init(messageRepository: MessageRepository, messageThread: MessageThread, authService: AuthService) {
+
+    init(messageRepository: MessageRepository, friendRepository: FriendRepository, messageThread: MessageThread, authService: AuthService) {
         self.messageRepository = messageRepository
+        self.friendRepository = friendRepository
         self.messageThread = messageThread
         self.authService = authService
         _viewModel = StateObject(wrappedValue: ChatViewModel(messageRepository: messageRepository, messageThreadId: messageThread.id ?? ""))
@@ -124,7 +126,7 @@ struct ChatView: View {
             .dismissKeyboardOnTap()
         }
         .popover(isPresented: $showSettings) {
-            SettingsView(authService: authService, messageThread: $messageThread, viewModel: viewModel) {
+            SettingsView(authService: authService, friendRepository: friendRepository, messageThread: $messageThread, viewModel: viewModel) {
                 showSettings = false
                 dismiss()
             }
@@ -143,23 +145,25 @@ struct ChatView: View {
 // Popover for editing thread name, managing participants, and leaving or deleting the thread
 struct SettingsView: View {
     var authService: AuthService
-    
+    var friendRepository: FriendRepository
+
     @ObservedObject var viewModel: ChatViewModel
-    
+
     @Binding private var messageThread: MessageThread
-    
+
     @State private var threadName: String
     @State private var participants: [String]
     @State private var users: [String: UserInfo] = [:]
     @State private var showUserSearch: Bool = false
-    
+
     var onThreadDeleted: () -> Void
-    
+
     @Environment(\.dismiss) private var dismiss
-    
-    init(authService: AuthService, messageThread: Binding<MessageThread>, viewModel: ChatViewModel, onThreadDeleted: @escaping () -> Void) {
+
+    init(authService: AuthService, friendRepository: FriendRepository, messageThread: Binding<MessageThread>, viewModel: ChatViewModel, onThreadDeleted: @escaping () -> Void) {
         self._messageThread = messageThread
         self.authService = authService
+        self.friendRepository = friendRepository
         // Seed local state from the current thread so edits don't apply until saved
         self._threadName = State(initialValue: messageThread.wrappedValue.threadName)
         self._participants = State(initialValue: messageThread.wrappedValue.participants)
@@ -200,7 +204,7 @@ struct SettingsView: View {
         .task { await loadUsers() }
         .dismissKeyboardOnTap()
         .popover(isPresented: $showUserSearch) {
-            UserSearchPopup(authService: self.authService, participants: $participants)
+            UserSearchPopup(friendRepository: self.friendRepository, participants: $participants)
         }
         .onChange(of: showUserSearch) { _, isShowing in
             if !isShowing { Task { await loadUsers() } }
@@ -324,5 +328,5 @@ struct SettingsView: View {
     let firestore = FirestoreService()
     let auth = AuthService(firestoreService: firestore)
     
-    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team"), authService: auth)
+    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), friendRepository: FriendRepository(firestoreService: firestore), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team"), authService: auth)
 }
