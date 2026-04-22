@@ -99,6 +99,17 @@ struct ProfileView: View {
                             }
 
                             Divider()
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Name")
+                                    .font(.headline)
+
+                                TextField("Name", text: $name)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($nameFieldFocused)
+                            }
+
+                            Divider()
 
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Bio")
@@ -229,6 +240,16 @@ struct ProfileView: View {
                             }
 
                             Divider()
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Name")
+                                    .font(.headline)
+                                Text(name.isEmpty ? "Not set" : name)
+                                    .foregroundColor(.primary)
+                            }
+
+                            Divider()
+
 
 
                             VStack(alignment: .leading, spacing: 6) {
