@@ -8,6 +8,11 @@
 import SwiftUI
 
 struct ChatView: View {
+    var ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    var IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    @State private var participants: [String]
+    @State private var users: [String: UserInfo] = [:]
+    // Database interaction structure
     private var messageRepository: MessageRepository
     @State private var messageThread: MessageThread
     @ObservedObject var authService: AuthService
@@ -21,6 +26,10 @@ struct ChatView: View {
     init(messageRepository: MessageRepository, messageThread: MessageThread, authService: AuthService) {
         self.messageRepository = messageRepository
         self.messageThread = messageThread
+        
+        
+        self._participants = State(initialValue: messageThread.participants)
+        
         self.authService = authService
         _viewModel = StateObject(wrappedValue: ChatViewModel(messageRepository: messageRepository, messageThreadId: messageThread.id ?? ""))
     }
@@ -53,7 +62,7 @@ struct ChatView: View {
                     }
                 }
                 .padding()
-                .background(Color.red)
+                .background(IslandsBlue)
                 .foregroundColor(.white)
                 
                 if viewModel.isLoading {
@@ -63,24 +72,28 @@ struct ChatView: View {
                 ScrollView {
                     ForEach(viewModel.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
                         HStack {
-                            // Align sent messages to the right in blue, received to the left in gray
                             if message.sender == self.authService.userInfo?.id {
                                 Spacer()
                                 
                                 Text(message.content)
                                     .padding(10)
-                                    .background(.blue)
+                                    .background(IslandsBlue)
                                     .clipShape(RoundedRectangle(cornerRadius: 15))
                                     .padding(.horizontal)
                                     .foregroundStyle(.white)
-                            } else {
-                                Text(message.content)
-                                    .padding(10)
-                                    .background(Color.secondary.colorInvert())
-                                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                                    .padding(.horizontal)
-                                    .foregroundStyle(.primary)
-                                
+                            }else {
+                                VStack(alignment: .leading){
+                                        Text("Friend") //need to get actual usernames for here
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .padding(6)
+                                    Text(message.content)
+                                        .padding(10)
+                                        .background(ChannelClay)
+                                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                                        .padding(.horizontal)
+                                        .foregroundStyle(.white)
+                                }
                                 Spacer()
                             }
                         }
@@ -89,6 +102,13 @@ struct ChatView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .defaultScrollAnchor(.bottom)
             }
+            VStack(){
+                Spacer()
+                Rectangle()
+                    .fill(IslandsBlue)
+                    .frame(maxWidth: .infinity, maxHeight: 110)
+            }
+            .ignoresSafeArea()
         }
         .dismissKeyboardOnTap()
         .toolbar(.hidden, for: .tabBar)
@@ -120,7 +140,6 @@ struct ChatView: View {
             .padding(.horizontal)
             .padding(.top, 8)
             .padding(.bottom, 8)
-            .background(Color(.systemGray4).opacity(0.8).ignoresSafeArea())
             .dismissKeyboardOnTap()
         }
         .popover(isPresented: $showSettings) {
