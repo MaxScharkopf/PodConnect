@@ -62,12 +62,31 @@ struct MapView: View {
         )
     }
 
-    // Locations filtered by active categories (empty = show all)
+    // Core campus buildings shown by default when no filters are active
+    private let coreBuildingNames: Set<String> = [
+        "ISL - Islands Cafe",
+        "SUB - Student Union Building",
+        "BEL - Bell Tower",
+        "GAT - Gateway Hall",
+        "SIE - Sierra Hall",
+        "NOR - Del Norte Hall",
+        "BRO - Broome Library"
+    ]
+
+    private func isCoreBuilding(_ pin: MapPin) -> Bool {
+        coreBuildingNames.contains(pin.name)
+    }
+
+    // When no category filters are active, show only core buildings + user pins.
+    // When filters are active, show matching campus pins + user pins.
     private var filteredPins: [MapPin] {
-        guard !activeCategories.isEmpty else { return mapViewModel.allPins }
+        if activeCategories.isEmpty {
+            return mapViewModel.allPins.filter { pin in
+                pin.pinType == "user" || isCoreBuilding(pin)
+            }
+        }
         return mapViewModel.allPins.filter { pin in
-            guard let category = pin.category else { return false }
-            return activeCategories.contains(category)
+            pin.pinType == "user" || (pin.category.map { activeCategories.contains($0) } ?? false)
         }
     }
 
@@ -443,7 +462,7 @@ struct sBar: View {
                 // Filter chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
-                        // Clear button — only shows when filters are active
+                        // Clear button — only shows when filters are active; returns to default core-buildings view
                         if !activeCategories.isEmpty {
                             Button(action: { activeCategories.removeAll() }) {
                                 Text("Clear")
