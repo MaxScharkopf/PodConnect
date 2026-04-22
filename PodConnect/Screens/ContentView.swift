@@ -19,7 +19,7 @@ struct ContentView: View {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
                     
-                    MapView()
+                    MapView(authService: authService, firestoreService: firestoreService)
                         .tabItem {
                             Label("Map", systemImage: "map")
                         }
