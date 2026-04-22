@@ -18,36 +18,44 @@ struct ContentView: View {
         Group {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
-
-                    // Text("Search")
-                    //     .tabItem {
-                    //         Label("Search", systemImage: "magnifyingglass")
-                    //     }
-                    //     .tag(0)
-
-                    MapView()
+                    
+                    MapView(authService: authService, firestoreService: firestoreService)
                         .tabItem {
                             Label("Map", systemImage: "map")
                         }
-                        .tag(1)
-                    
-                    HomeView(authService: authService)
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    .tag(2)
+                        .tag(0)
                     
                     MessageView(authService: authService, firestoreService: firestoreService)
                         .tabItem {
                             Label("Messages", systemImage: "message")
                         }
-                        .tag(3)
+                        .tag(1)
+                    
+//                    HomeView(authService: authService, selectedTab: $selectedTab)
+//                        .tabItem {
+//                            Label("Home", systemImage: "house.fill")
+//                        }
+//                        .tag(2)
+
 
                     NavigationStack {
-                        CalendarView()
+                        CalendarView(eventRepository: EventRepository(
+                            firestoreService: firestoreService,
+                            authService: authService))
                     }
                     .tabItem {
                         Label("Calendar", systemImage: "calendar")
+                    }
+                    .tag(3)
+                    
+                    NavigationStack {
+                        ProfileView(authService: authService,
+                                    friendRepository:
+                                        FriendRepository(firestoreService:
+                                                            firestoreService))
+                    }
+                    .tabItem {
+                        Label("Profile", systemImage: "person")
                     }
                     .tag(4)
                 }

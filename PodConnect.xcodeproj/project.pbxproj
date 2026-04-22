@@ -10,6 +10,7 @@
 		4F8703E22F5F8FF6000FCC1D /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4F8703E12F5F8FF6000FCC1D /* FirebaseAuth */; };
 		4F8703E42F5F8FF6000FCC1D /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4F8703E32F5F8FF6000FCC1D /* FirebaseCore */; };
 		4F8703E62F5F8FF6000FCC1D /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 4F8703E52F5F8FF6000FCC1D /* FirebaseFirestore */; };
+		E2C886462F8F20A9005761D2 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = E2C886452F8F20A9005761D2 /* FirebaseStorage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +44,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4F8703E42F5F8FF6000FCC1D /* FirebaseCore in Frameworks */,
+				E2C886462F8F20A9005761D2 /* FirebaseStorage in Frameworks */,
 				4F8703E22F5F8FF6000FCC1D /* FirebaseAuth in Frameworks */,
 				4F8703E62F5F8FF6000FCC1D /* FirebaseFirestore in Frameworks */,
 			);
@@ -55,6 +57,7 @@
 			isa = PBXGroup;
 			children = (
 				E201CAA12F5E4B76009E0E90 /* PodConnect */,
+				E2C886442F8F20A9005761D2 /* Frameworks */,
 				E201CAA02F5E4B76009E0E90 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,6 +68,13 @@
 				E201CA9F2F5E4B76009E0E90 /* PodConnect.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E2C886442F8F20A9005761D2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -90,6 +100,7 @@
 				4F8703E12F5F8FF6000FCC1D /* FirebaseAuth */,
 				4F8703E32F5F8FF6000FCC1D /* FirebaseCore */,
 				4F8703E52F5F8FF6000FCC1D /* FirebaseFirestore */,
+				E2C886452F8F20A9005761D2 /* FirebaseStorage */,
 			);
 			productName = PodConnect;
 			productReference = E201CA9F2F5E4B76009E0E90 /* PodConnect.app */;
@@ -281,7 +292,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NLM232548H;
+				DEVELOPMENT_TEAM = 9594F32757;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PodConnect/Info.plist;
@@ -296,7 +307,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kassrose.PodConnect;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kaitlyn.PodConnect;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -315,7 +326,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = NLM232548H;
+				DEVELOPMENT_TEAM = 9594F32757;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PodConnect/Info.plist;
@@ -330,7 +341,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kassrose.PodConnect;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kaitlyn.PodConnect;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -391,6 +402,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4F8703E02F5F8FF6000FCC1D /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		E2C886452F8F20A9005761D2 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F8703E02F5F8FF6000FCC1D /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

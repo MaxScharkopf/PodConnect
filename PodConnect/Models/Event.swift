@@ -16,8 +16,9 @@ struct SchoolEvent: Identifiable {
 }
 
 // User-created personal event
-struct UserEvent: Identifiable {
+struct UserEvent: Identifiable, Codable {
     var id = UUID()
+    var uid: String = ""
     var title: String
     var startDate: Date
     var endDate: Date
@@ -25,7 +26,7 @@ struct UserEvent: Identifiable {
     var category: EventCategory
 }
 
-enum EventCategory: String, CaseIterable {
+enum EventCategory: String, CaseIterable, Codable {
     case academic = "Academic"
     case arts = "Arts"
     case campusLife = "Campus Life"
