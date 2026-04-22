@@ -7,7 +7,6 @@
 // Modified by: Kassidy Saffa
 //
 // Simple user structure
-import FirebaseAuth
 import FirebaseFirestore
 
 struct UserInfo: Codable, Identifiable {
@@ -17,6 +16,7 @@ struct UserInfo: Codable, Identifiable {
     var name: String
     var classes: [String]
     var clubs: [String]
+    var friends: [String]
     var email: String
     var uid: String
     var bio: String
@@ -29,6 +29,7 @@ struct UserInfo: Codable, Identifiable {
         name: String,
         classes: [String],
         clubs: [String],
+        friends: [String] = [],
         email: String,
         uid: String,
         bio: String,
@@ -44,5 +45,6 @@ struct UserInfo: Codable, Identifiable {
         self.uid = uid
         self.bio = bio
         self.profileImageURL = profileImageURL
+        self.friends = friends
     }
 }

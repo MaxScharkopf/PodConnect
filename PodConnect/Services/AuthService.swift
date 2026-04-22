@@ -89,6 +89,7 @@ final class AuthService: ObservableObject {
                 name: name,
                 classes: [],
                 clubs: [],
+                friends: [],
                 email: cleanEmail,
                 uid: result.user.uid,
                 bio: "",
@@ -170,7 +171,13 @@ final class AuthService: ObservableObject {
             throw AuthError.generic
         }
     }
-
+    
+    func fetchUserInfo(userId: String) async throws -> UserInfo? {
+        let info: UserInfo? = try await firestoreService.fetchDocument(path: "users", documentId: userId)
+        
+        return info
+    }
+    
     func signOut() throws {
         try Auth.auth().signOut()
     }
