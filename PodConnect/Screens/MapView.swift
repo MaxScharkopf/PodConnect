@@ -8,7 +8,7 @@ import SwiftUI
 import MapKit
 
 struct MapView: View {
-    @StateObject private var mapViewModel = MapViewModel()
+    @StateObject private var mapViewModel: MapViewModel
     @StateObject private var locationManager = LocationManager()
     @State private var autoCenterEnabled: Bool = false
     @State private var userMovingMap = false
@@ -22,6 +22,10 @@ struct MapView: View {
     @State private var isTripActive = false
     @State private var tripEndDate: Date?
     @State private var destinationName: String?
+    @State private var showingAddPinSheet = false
+    @State private var visibleRegion: MKCoordinateRegion?
+    @State private var isAddingPin = false
+    @State private var pendingPinCoordinate: CLLocationCoordinate2D?
 
     @State private var mapPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -46,6 +50,17 @@ struct MapView: View {
             longitudeDelta: 0.008
         )
     )
+    
+    init(authService: AuthService, firestoreService: FirestoreService) {
+        let mapRepository = MapRepository(
+            firestoreService: firestoreService,
+            authService: authService
+        )
+
+        _mapViewModel = StateObject(
+            wrappedValue: MapViewModel(mapRepository: mapRepository)
+        )
+    }
 
     // Locations filtered by active categories (empty = show all)
     private var filteredPins: [MapPin] {
@@ -57,152 +72,198 @@ struct MapView: View {
     }
 
     var body: some View {
-        ZStack {
-            Map(position: $mapPosition, selection: $selectedPin) {
-                UserAnnotation()
-
-                ForEach(filteredPins) { pin in
-                    let style = markerStyle(for: pin.category ?? "")
-
-                    if pin.category != "Classrooms" {
-                        Marker(
-                            pin.name,
-                            systemImage: style.icon,
-                            coordinate: pin.coordinate
-                        )
-                        .tint(pin.pinType == "user" ? .orange : style.color)
-                        .tag(pin)
-                    }
-                }
-
-                if let route {
-                    MapPolyline(route.polyline)
-                        .stroke(.blue, lineWidth: 6)
-                }
-            }
-            
-            // Toggle auto center off when user scrolls
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if !userMovingMap {
-                            userMovingMap = true
-                            autoCenterEnabled = false
+        MapReader { proxy in
+            ZStack {
+                Map(position: $mapPosition, selection: $selectedPin) {
+                    UserAnnotation()
+                    
+                    ForEach(filteredPins) { pin in
+                        let style = markerStyle(for: pin.category ?? "")
+                        
+                        if pin.category != "Classrooms" {
+                            Marker(
+                                pin.name,
+                                systemImage: style.icon,
+                                coordinate: pin.coordinate
+                            )
+                            .tint(pin.pinType == "user" ? .orange : style.color)
+                            .tag(pin)
                         }
                     }
-                    .onEnded { _ in
-                        userMovingMap = false
+                    
+                    if let route {
+                        MapPolyline(route.polyline)
+                            .stroke(.blue, lineWidth: 6)
                     }
-            )
-            // Auto centering map if toggled
-            .onChange(of: locationManager.userLocation) { _, newCoord in
-                guard autoCenterEnabled, let coord = newCoord else { return }
-                centerMap(on: coord, span: followSpan)
-            }
-            // Fly to location when selected from search
-            .onChange(of: searchedLocation?.id) { _, _ in
-                guard let location = searchedLocation else { return }
-
-                autoCenterEnabled = false
-
-                centerMap(
-                    on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
-                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
-                )
-
-                searchedLocation = nil
-            }
-            
-            if isCalculatingRoute {
-                Text("Calculating route...")
-                    .padding()
-                    .background(.thinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            
-            if isTripActive {
-                VStack {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Directions to: \(destinationName ?? "Destination")")
-                                .font(.headline)
-                                .font(.headline)
-
-                            if let route {
-                                Text("Estimated time: \(Int(route.expectedTravelTime / 60)) min")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                    
+                    
+                    if let coord = pendingPinCoordinate {
+                        Marker("New Pin", coordinate: coord)
+                            .tint(.orange)
+                    }
+                }
+                .onTapGesture { point in
+                    guard isAddingPin else {return}
+                    
+                    if let coordinate = proxy.convert(point, from: .local) {
+                        pendingPinCoordinate = coordinate
+                        showingAddPinSheet = true
+                        isAddingPin = false
+                    }
+                }
+                .overlay(alignment: .top) {
+                    if isAddingPin {
+                        Text("Tap map to place a pin")
+                            .padding()
+                            .background(.thinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+                // Toggle auto center off when user scrolls
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if !userMovingMap {
+                                userMovingMap = true
+                                autoCenterEnabled = false
                             }
                         }
-
-                        Spacer()
-
-                        Button("End Trip") {
-                            endTrip()
+                        .onEnded { _ in
+                            userMovingMap = false
                         }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding()
-                    .background(.thinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .padding(.horizontal)
-                    .padding(.top, 12)
-
-                    Spacer()
+                )
+                // Auto centering map if toggled
+                .onChange(of: "\(locationManager.userLocation?.latitude ?? 0),\(locationManager.userLocation?.longitude ?? 0)") { _, _ in
+                    guard autoCenterEnabled else { return }
+                    guard let coord = locationManager.userLocation else { return }
+                    centerMap(on: coord, span: followSpan)
                 }
-            }
-
-            // Search button and autocenter overlay
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
+                // Fly to location when selected from search
+                .onChange(of: searchedLocation?.id) { _, _ in
+                    guard let location = searchedLocation else { return }
+                    
+                    autoCenterEnabled = false
+                    
+                    centerMap(
+                        on: CLLocationCoordinate2D(latitude: location.lat, longitude: location.lng),
+                        span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+                    )
+                    
+                    searchedLocation = nil
+                }
+                
+                if isCalculatingRoute {
+                    Text("Calculating route...")
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                
+                if isTripActive {
                     VStack {
-                        // Toggle auto center
-                        Button(action: {
-                            if autoCenterEnabled {
-                                autoCenterEnabled = false
-                            } else {
-                                autoCenterEnabled = true
-
-                                if let coord = locationManager.userLocation {
-                                    centerMap(on: coord, span: followSpan)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Directions to: \(destinationName ?? "Destination")")
+                                    .font(.headline)
+                                
+                                if let route {
+                                    Text("Estimated time: \(Int(route.expectedTravelTime / 60)) min")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
                             }
-                        }) {
-                            Image(systemName: autoCenterEnabled ? "location.fill" : "location")
-                                .padding(10)
-                                .font(.system(size: 25))
-                                .background(Color.white.opacity(0.6))
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
+                            
+                            Spacer()
+                            
+                            Button("End Trip") {
+                                endTrip()
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal)
+                        .padding(.top, 12)
                         
-                        Button(action: { showSearch = true }) {
-                            Image(systemName: "magnifyingglass")
-                                .padding(10)
-                                .font(.system(size: 25))
-                                .background(Color.white.opacity(0.6))
-                                .clipShape(Circle())
-                                .shadow(radius: 5)
-                        }
-                        .sheet(isPresented: $showSearch) {
-                            sBar(
-                                locations: mapViewModel.mapLocations,
-                                categories: mapViewModel.locationCategories,
-                                activeCategories: $activeCategories,
-                                selectedLocation: $searchedLocation
-                            )
-                        }
-                        .padding(20)
+                        Spacer()
                     }
                 }
-            }
-            if mapViewModel.isLoading {
-                Text("Loading campus locations...")
-                    .padding()
-                    .background(.thinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                // Search button, autocenter overlay, new pin button
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        VStack (spacing: 12) {
+                            
+                            // Add a user pin
+                            Button(action: {isAddingPin = true}) {
+                                mapButton(icon: "mappin.and.ellipse")
+                            }
+                            .sheet(
+                                isPresented: $showingAddPinSheet,
+                                onDismiss: {
+                                    isAddingPin = false
+                                    pendingPinCoordinate = nil
+                                }
+                                ) {
+                                AddPinSheet(
+                                    onSave: { name, subtitle in
+                                        let center = pendingPinCoordinate ?? currentMapCenter()
+                                        
+                                        Task {
+                                            await mapViewModel.addUserPin(
+                                                name: name,
+                                                subtitle: subtitle,
+                                                coordinate: center,
+                                            )
+                                        }
+                                        pendingPinCoordinate = nil
+                                    }
+                                )
+                            }
+                            
+                            // Toggle auto center
+                            Button(action: {
+                                if autoCenterEnabled {
+                                    autoCenterEnabled = false
+                                } else {
+                                    autoCenterEnabled = true
+                                    
+                                    if let coord = locationManager.userLocation {
+                                        centerMap(on: coord, span: followSpan)
+                                    }
+                                }
+                            }) {
+                                mapButton(icon: autoCenterEnabled ? "location.fill" : "location")
+                                
+                            }
+                            
+                            // Search button
+                            Button(action: { showSearch = true }) {
+                                mapButton(icon: "magnifyingglass")
+                                
+                            }
+                            .sheet(isPresented: $showSearch) {
+                                sBar(
+                                    locations: mapViewModel.mapLocations,
+                                    categories: mapViewModel.locationCategories,
+                                    activeCategories: $activeCategories,
+                                    selectedLocation: $searchedLocation
+                                )
+                            }
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 20)
+                    }
+                }
+                if mapViewModel.isLoading {
+                    Text("Loading campus locations...")
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
         }
         .sheet(item: $selectedPin) { pin in
@@ -212,7 +273,15 @@ struct MapView: View {
                     Task {
                         await getDirections(to: pin)
                     }
-                }
+                },
+                onDelete: pin.pinType == "user" ? {
+                    Task {
+                        if let id = pin.id {
+                            await mapViewModel.deleteUserPin(id: id)
+                            selectedPin = nil
+                        }
+                    }
+                } : nil
             )
         }
         .alert("Error",
@@ -237,6 +306,11 @@ struct MapView: View {
                 )
             )
         }
+    }
+    
+    // Get center of the map for creating a pin
+    func currentMapCenter() -> CLLocationCoordinate2D {
+        visibleRegion?.center ?? defaultRegion.center
     }
     
     func markerStyle(for category: String) -> (icon: String, color: Color) {
@@ -265,6 +339,7 @@ struct MapView: View {
         selectedPin = nil
         autoCenterEnabled = false
 
+        // Zooms out to show whole path
         withAnimation(.smooth(duration: 1.0)) {
             mapPosition = .rect(route.polyline.boundingMapRect)
         }
@@ -329,6 +404,18 @@ struct MapView: View {
         autoCenterEnabled = false
         selectedPin = nil
     }
+}
+
+
+
+// Helper function keep map buttons consistent
+func mapButton(icon: String, isActive: Bool = false) -> some View {
+    Image(systemName: icon)
+        .font(.system(size: 22))
+        .frame(width: 44, height: 44)
+        .background(Color.white.opacity(0.6))
+        .clipShape(Circle())
+        .shadow(radius: 5)
 }
 
 struct sBar: View {
@@ -442,6 +529,7 @@ struct sBar: View {
 struct LocationDetailSheet: View {
     let pin: MapPin
     let onDirections: () -> Void
+    let onDelete: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .center, spacing: 16) {
@@ -468,15 +556,59 @@ struct LocationDetailSheet: View {
                 onDirections()
             }
             .buttonStyle(.borderedProminent)
+            
+            if let onDelete {
+                Button("Delete Pin", role: .destructive) {
+                    onDelete()
+                }
+                .buttonStyle(.bordered)
+            }
 
             Spacer()
         }
         .padding()
-        .presentationDetents([.height(200)])
+        .presentationDetents([.height(240)])
         .presentationDragIndicator(.visible)
     }
 }
 
+struct AddPinSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var name = ""
+    @State private var subtitle = ""
+    
+    let onSave: (String, String?) -> Void
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Pin name", text: $name)
+                TextField("Description", text: $subtitle)
+            }
+            .navigationTitle("New Pin")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(name, subtitle.isEmpty ? nil : subtitle)
+                        dismiss()
+                    }
+                    .disabled(name.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(220)])         
+        .presentationDragIndicator(.visible)
+    }
+}
+
+
 #Preview {
-    MapView()
+    MapView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
 }

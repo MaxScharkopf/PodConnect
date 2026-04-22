@@ -21,8 +21,8 @@ class MapViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    private let mapRepository = MapRepository(firestoreService: FirestoreService())
-    
+    private var mapRepository: MapRepository
+
     // Converting current pins into MapPin. Later these will be stored in firebase
     var campusPins: [MapPin] {
         mapLocations.compactMap { location in
@@ -35,7 +35,8 @@ class MapViewModel: ObservableObject {
         campusPins + userPins
     }
 
-    init() {
+    init(mapRepository: MapRepository) {
+        self.mapRepository = mapRepository
         // Start fetching the locations asyncronously
         Task {
             await fetchMapLocations()
@@ -81,27 +82,19 @@ class MapViewModel: ObservableObject {
     
     func loadUserPins() async {
         do {
-            userPins = try await mapRepository.fetchPins(pinType: "user")
+            userPins = try await mapRepository.fetchCurrentUserPins()
         } catch {
             errorMessage = "Error loading user pins: \(error.localizedDescription)"
         }
     }
 
-    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, ownerUserId: String?) async {
-        let pin = MapPin(
-            id: nil,
-            name: name,
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
-            category: "User Pin",
-            subtitle: subtitle,
-            pinType: "user",
-            ownerUserId: ownerUserId,
-            createdAt: Timestamp(date: Date())
-        )
-
+    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D) async {
         do {
-            try await mapRepository.savePin(pin)
+            try await mapRepository.createUserPin(
+                name: name,
+                subtitle: subtitle,
+                coordinate: coordinate
+            )
             await loadUserPins()
         } catch {
             errorMessage = "Error saving pin: \(error.localizedDescription)"
