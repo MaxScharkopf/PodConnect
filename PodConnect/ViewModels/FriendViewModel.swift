@@ -21,6 +21,8 @@ class FriendViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var friends: [UserInfo] = []
     @Published var relationshipStatus: RelationshipStatus = .none
+    @Published var incomingRequests: [FriendRequest] = []
+    @Published var requestErrorMessage: String = ""
 
     init(friendRepository: FriendRepository) {
         self.friendRepository = friendRepository
@@ -81,4 +83,45 @@ class FriendViewModel: ObservableObject {
             print("Error fetching friends: \(error)")
         }
     }
+    
+    // Unfriend
+    func unfriend(uid: String) async {
+        do {
+            try await friendRepository.unfriend(uid: uid)
+            friends.removeAll { $0.uid == uid }
+        } catch {
+            print("Error unfriending: \(error)")
+        }
+    }
+    
+    // Fetch incoming friend requests
+    func fetchIncomingRequests() async {
+        do {
+            incomingRequests = try await friendRepository.fetchIncomingRequests()
+        } catch {
+            print("Error fetching incoming requests: \(error)")
+        }
+    }
+
+    // Accept
+    func acceptRequest(_ request: FriendRequest) async {
+        do {
+            try await friendRepository.acceptRequest(request)
+            incomingRequests.removeAll { $0.id == request.id }
+            await fetchFriends()
+        } catch {
+            requestErrorMessage = error.localizedDescription
+        }
+    }
+
+    // Decline
+    func declineRequest(_ request: FriendRequest) async {
+        do {
+            try await friendRepository.declineRequest(request)
+            incomingRequests.removeAll { $0.id == request.id }
+        } catch {
+            requestErrorMessage = error.localizedDescription
+        }
+    }
+    
 }
