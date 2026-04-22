@@ -22,63 +22,67 @@ struct AccountSettingsView: View {
     @FocusState private var confirmNewPasswordFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.footnote)
-                }
-
-                if !successMessage.isEmpty {
-                    Text(successMessage)
-                        .foregroundColor(.green)
-                        .font(.footnote)
-                }
-
-                VStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Change Password")
-                            .font(.headline)
-
-                        SecureField("Current Password", text: $currentPassword)
-                            .textFieldStyle(.roundedBorder)
-                            .focused($currentPasswordFocused)
-
-                        SecureField("New Password", text: $newPassword)
-                            .textFieldStyle(.roundedBorder)
-                            .focused($newPasswordFocused)
-
-                        SecureField("Confirm New Password", text: $confirmNewPassword)
-                            .textFieldStyle(.roundedBorder)
-                            .focused($confirmNewPasswordFocused)
+        ZStack{
+            Color(.white)
+                .ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .font(.footnote)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(16)
-
-                    VStack(spacing: 0) {
-                        Button("Update Password") {
-                            dismissKeyboard()
-                            Task {
-                                await updatePassword()
-                            }
+                    
+                    if !successMessage.isEmpty {
+                        Text(successMessage)
+                            .foregroundColor(.green)
+                            .font(.footnote)
+                    }
+                    
+                    VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Change Password")
+                                .font(.headline)
+                            
+                            SecureField("Current Password", text: $currentPassword)
+                                .textFieldStyle(.roundedBorder)
+                                .focused($currentPasswordFocused)
+                            
+                            SecureField("New Password", text: $newPassword)
+                                .textFieldStyle(.roundedBorder)
+                                .focused($newPasswordFocused)
+                            
+                            SecureField("Confirm New Password", text: $confirmNewPassword)
+                                .textFieldStyle(.roundedBorder)
+                                .focused($confirmNewPasswordFocused)
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
+                        
+                        VStack(spacing: 0) {
+                            Button("Update Password") {
+                                dismissKeyboard()
+                                Task {
+                                    await updatePassword()
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        }
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
                     }
-                    .background(Color(.systemGray6))
-                    .cornerRadius(16)
+                }
+                .padding()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    dismissKeyboard()
                 }
             }
-            .padding()
-            .contentShape(Rectangle())
-            .onTapGesture {
-                dismissKeyboard()
-            }
+            .navigationTitle("Account Settings")
         }
-        .navigationTitle("Account Settings")
     }
 
     private func dismissKeyboard() {

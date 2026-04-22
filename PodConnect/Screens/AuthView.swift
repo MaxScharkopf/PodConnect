@@ -9,6 +9,8 @@
 import SwiftUI
 
 struct AuthView: View {
+    var ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    var IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     @State private var isSignUp = false
     @State private var identifier = ""
     @State private var password = ""
@@ -31,99 +33,127 @@ struct AuthView: View {
     private var passwordsDoNotMatch: Bool {
         isSignUp && !confirmPassword.isEmpty && password != confirmPassword
     }
-
+    
+    private var appTitle1: AttributedString{
+        var result = AttributedString("Pod")
+        result.foregroundColor = .white
+        return result
+    }
+    
+    private var appTitle2: AttributedString{
+        var result = AttributedString("Connect")
+        result.foregroundColor = ChannelClay
+        return result
+    }
+   
+    
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                Spacer(minLength: 80)
+        ZStack {
+            Color(IslandsBlue)
+                .ignoresSafeArea()
+            ScrollView {
+                VStack {
+                    Spacer(minLength: 40)
+                    HStack {
+                        Text(appTitle1 + appTitle2)
+                            .font(.system(size: 40))
+                    }
+                    Image("appLogo")
+                        .resizable()
+                        .frame(width: 150, height: 100)
+                }
+                VStack(spacing: 20) {
+                    Spacer(minLength: 5)
 
-                Text(isSignUp ? "Create Account" : "Welcome Back")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    Text(isSignUp ? "Create Account" : "Welcome Back")
+                        .foregroundColor(.white)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
 
-                Text(isSignUp ? "Create your PodConnect account" : "Sign in with email or username")
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                    Text(isSignUp ? "Create your PodConnect account" : "Sign in with email or username")
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
 
-                VStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if isSignUp {
-                            TextField("Name", text: $name)
-                                .textFieldStyle(.roundedBorder)
-                            
-                            TextField("Username", text: $username)
+                    VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            if isSignUp {
+                                TextField("Name", text: $name)
+                                    .textFieldStyle(.roundedBorder)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+
+                                TextField("Username", text: $username)
+                                    .textFieldStyle(.roundedBorder)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                            }
+
+                            TextField(isSignUp ? "Email" : "Email or Username", text: $identifier)
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
-                        }
 
-                        TextField(isSignUp ? "Email" : "Email or Username", text: $identifier)
-                            .textFieldStyle(.roundedBorder)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-
-                        SecureField("Password", text: $password)
-                            .textFieldStyle(.roundedBorder)
-
-                        if isSignUp {
-                            SecureField("Confirm Password", text: $confirmPassword)
+                            SecureField("Password", text: $password)
                                 .textFieldStyle(.roundedBorder)
 
-                            if passwordsDoNotMatch {
-                                Text("Passwords do not match")
-                                    .foregroundColor(.red)
-                                    .font(.caption)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            if isSignUp {
+                                SecureField("Confirm Password", text: $confirmPassword)
+                                    .textFieldStyle(.roundedBorder)
+
+                                if passwordsDoNotMatch {
+                                    Text("Passwords do not match")
+                                        .foregroundColor(.red)
+                                        .font(.caption)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
                             }
                         }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
 
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-
-                    VStack(spacing: 0) {
-                        Button {
-                            Task {
-                                await submit()
-                            }
-                        } label: {
-                            if isLoading {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                            } else {
-                                Text(isSignUp ? "Create Account" : "Sign In")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                            }
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .foregroundColor(.red)
+                                .font(.footnote)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
                         }
-                        .disabled(buttonDisabled)
+
+                        VStack(spacing: 0) {
+                            Button {
+                                Task { await submit() }
+                            } label: {
+                                if isLoading {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                } else {
+                                    Text(isSignUp ? "Create Account" : "Sign In")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                }
+                            }
+                            .disabled(buttonDisabled)
+                        }
+                        .background(Color(.systemGray6))
+                        .cornerRadius(16)
                     }
-                    .background(Color(.systemGray6))
-                    .cornerRadius(16)
-                }
 
-                Button(isSignUp ? "Already have an account? Sign In" : "Need an account? Create One") {
-                    isSignUp.toggle()
-                    errorMessage = ""
-                    password = ""
-                    confirmPassword = ""
-                    name = ""
-                }
-                .font(.footnote)
+                    Button(isSignUp ? "Already have an account? Sign In" : "Need an account? Create One") {
+                        isSignUp.toggle()
+                        errorMessage = ""
+                        password = ""
+                        confirmPassword = ""
+                        name = ""
+                    }
+                    .font(.footnote)
 
-                Spacer(minLength: 80)
+                    Spacer(minLength: 80)
+                }
+                .padding(24)
             }
-            .padding(24)
         }
     }
 
