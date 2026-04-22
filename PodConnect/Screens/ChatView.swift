@@ -189,133 +189,21 @@ struct SettingsView: View {
     }
     
     var body: some View {
-        Group {
-            VStack {
-                ZStack {
-                    HStack {
-                        Spacer()
-                        Button {
-                            reset()
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                                .font(.title2)
-                        }
-                        .padding()
-                        .buttonStyle(.plain)
-                    }
-                    Text("Edit Thread")
-                        .font(.headline)
-                        .padding()
-                }
-                
-                TextField("Thread Name", text: $threadName)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(.secondarySystemBackground))
-                    )
-                    .padding()
-                
-                HStack {
-                    Text("Participants:")
-                        .font(.title3)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Spacer()
-                    Button(action: {
-                        showUserSearch = true
-                    }) {
-                        Image(systemName: "plus")
-                            .padding()
-                            .glassEffect()
-                            .padding()
-                    }
-                }
-                
-                List {
-                    ForEach(participants.filter { $0 != authService.userInfo?.uid }, id: \.self) { userId in
-                        HStack {
-                            Image(systemName: "person.crop.circle")
-                                .foregroundStyle(.secondary)
-                            if let user = users[userId] {
-                                Text(user.username)
-                            } else {
-                                Text("Loading...")
-                            }
-                        }
-                    }
-                    .onDelete { indexSet in
-                        participants.remove(atOffsets: indexSet)
-                    }
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    if let threadId = messageThread.id {
-                        Task {
-                            await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
-                            // Reflect changes in the parent ChatView without a refetch
-                            messageThread.threadName = threadName
-                            messageThread.participants = participants
-                            reset()
-                        }
-                    }
-                }) {
-                    Text("Save Changes")
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .foregroundColor(.white)
-                        .background(.blue)
-                        .clipShape(Capsule())
-                        .glassEffect()
-                        .padding()
-                }
-                
-                Button(action: {
-                    if let info = authService.userInfo {
-                        // Remove the current user from participants
-                        participants.removeAll { $0 == info.uid }
-                        users[info.uid] = nil
-                        
-                        Task {
-                            if let threadId = messageThread.id {
-                                // Delete the thread entirely if no participants remain, otherwise just update it
-                                if participants.isEmpty {
-                                    await viewModel.deleteMessageThread(threadId: threadId)
-                                } else {
-                                    await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
-                                    messageThread.threadName = threadName
-                                    messageThread.participants = participants
-                                }
-                            }
-                            reset()
-                            onThreadDeleted()
-                        }
-                    }
-                }) {
-                    Text("Delete Thread")
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .foregroundColor(.red)
-                        .background(.red.secondary)
-                        .clipShape(Capsule())
-                        .glassEffect()
-                        .padding()
-                }
-            }
+        VStack {
+            settingsHeader
+            threadNameField
+            participantsSection
+            Spacer()
+            saveButton
+            deleteButton
         }
         .task { await loadUsers() }
         .dismissKeyboardOnTap()
         .popover(isPresented: $showUserSearch) {
             UserSearchPopup(authService: self.authService, participants: $participants)
         }
-        // Reload users when the search popover closes, in case new participants were added
         .onChange(of: showUserSearch) { _, isShowing in
-            if !isShowing {
-                Task { await loadUsers() }
-            }
+            if !isShowing { Task { await loadUsers() } }
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
@@ -324,6 +212,110 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+    }
+
+    private var settingsHeader: some View {
+        ZStack {
+            HStack {
+                Spacer()
+                Button { reset() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.title2)
+                }
+                .padding()
+                .buttonStyle(.plain)
+            }
+            Text("Edit Thread")
+                .font(.headline)
+                .padding()
+        }
+    }
+
+    private var threadNameField: some View {
+        TextField("Thread Name", text: $threadName)
+            .padding()
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color(.secondarySystemBackground)))
+            .padding()
+    }
+
+    private var participantsSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Participants:")
+                    .font(.title3)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
+                Button(action: { showUserSearch = true }) {
+                    Image(systemName: "plus")
+                        .padding()
+                        .glassEffect()
+                        .padding()
+                }
+            }
+            List {
+                ForEach(participants.filter { $0 != authService.userInfo?.uid }, id: \.self) { userId in
+                    HStack {
+                        Image(systemName: "person.crop.circle")
+                            .foregroundStyle(.secondary)
+                        Text(users[userId]?.username ?? "Loading...")
+                    }
+                }
+                .onDelete { indexSet in participants.remove(atOffsets: indexSet) }
+            }
+        }
+    }
+
+    private var saveButton: some View {
+        Button(action: {
+            guard let threadId = messageThread.id else { return }
+            Task {
+                await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
+                messageThread.threadName = threadName
+                messageThread.participants = participants
+                reset()
+            }
+        }) {
+            Text("Save Changes")
+                .padding()
+                .frame(maxWidth: .infinity)
+                .foregroundColor(.white)
+                .background(.blue)
+                .clipShape(Capsule())
+                .glassEffect()
+                .padding()
+        }
+    }
+
+    private var deleteButton: some View {
+        Button(action: {
+            guard let info = authService.userInfo else { return }
+            participants.removeAll { $0 == info.uid }
+            users[info.uid] = nil
+            Task {
+                if let threadId = messageThread.id {
+                    if participants.isEmpty {
+                        await viewModel.deleteMessageThread(threadId: threadId)
+                    } else {
+                        await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
+                        messageThread.threadName = threadName
+                        messageThread.participants = participants
+                    }
+                }
+                reset()
+                onThreadDeleted()
+            }
+        }) {
+            Text("Delete Thread")
+                .padding()
+                .frame(maxWidth: .infinity)
+                .foregroundColor(.red)
+                .background(.red.secondary)
+                .clipShape(Capsule())
+                .glassEffect()
+                .padding()
         }
     }
 }
