@@ -34,6 +34,23 @@ struct ChatView: View {
         _viewModel = StateObject(wrappedValue: ChatViewModel(messageRepository: messageRepository, messageThreadId: messageThread.id ?? ""))
     }
     
+    // Fetch user info for all participants in parallel
+    func loadUsers() async {
+        await withTaskGroup(of: (String, UserInfo?).self) { group in
+            for userId in participants {
+                guard users[userId] == nil else { continue }
+                
+                group.addTask {
+                    let info = try? await self.authService.fetchUserInfo(userId: userId)
+                    return (userId, info)
+                }
+            }
+            for await (userId, info) in group {
+                if let info { users[userId] = info }
+            }
+        }
+    }
+    
     var body: some View {
         ZStack {
             Color(uiColor: .systemBackground).ignoresSafeArea()
@@ -83,7 +100,7 @@ struct ChatView: View {
                                     .foregroundStyle(.white)
                             }else {
                                 VStack(alignment: .leading){
-                                        Text("Friend") //need to get actual usernames for here
+                                    Text(users[message.sender]?.name ?? "Unknown")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                             .padding(6)
@@ -110,6 +127,7 @@ struct ChatView: View {
             }
             .ignoresSafeArea()
         }
+        .task { await loadUsers() }
         .dismissKeyboardOnTap()
         .toolbar(.hidden, for: .tabBar)
         .navigationBarBackButtonHidden(true)
