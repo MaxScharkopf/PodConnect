@@ -83,7 +83,7 @@ struct ChatView: View {
                                     .foregroundStyle(.white)
                             }else {
                                 VStack(alignment: .leading){
-                                        Text("Friend") //need to get actual usernames
+                                        Text("Friend") //need to get actual usernames for here
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                             .padding(6)
