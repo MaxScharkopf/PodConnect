@@ -55,12 +55,12 @@ final class AuthService: ObservableObject {
     }
     
     // Creates a new Firebase Auth user and corresponding Firestore profile.
-    func signUp(email: String, password: String, username: String?) async throws {
+    func signUp(email: String, password: String, username: String, name: String) async throws {
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let cleanUsername = username?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Check for users that already have that name
-        guard let cleanUsername, !cleanUsername.isEmpty else {
+        guard !cleanUsername.isEmpty else {
             throw AuthError.usernameNotFound
         }
 
@@ -86,6 +86,7 @@ final class AuthService: ObservableObject {
                 id: nil,
                 username: cleanUsername,
                 username_lowercase: username_lower,
+                name: name,
                 classes: [],
                 clubs: [],
                 friends: [],
