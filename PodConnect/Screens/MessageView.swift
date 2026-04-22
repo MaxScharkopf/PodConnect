@@ -8,6 +8,9 @@
 import SwiftUI
  
 struct MessageView: View {
+    var ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    var IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    // Recieve necessary services
     @ObservedObject var authService: AuthService
     private var firestoreService: FirestoreService
     private var messageRepository: MessageRepository
@@ -30,14 +33,17 @@ struct MessageView: View {
                 Color(.systemBackground).ignoresSafeArea()
                 
                 VStack {
-                    HStack {
+                    HStack{
+                        Spacer()
+                        Spacer()
                         Text("Messages")
                             .foregroundColor(.white)
                             .font(.title)
                             .padding()
+                            .underline()
+                        
                         
                         Spacer()
-                        
                         Button(action: {
                             withAnimation { showThreadPopup = true }
                         }) {
@@ -48,7 +54,7 @@ struct MessageView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.systemRed))
+                    .background(IslandsBlue)
                     
                     Spacer()
                     
@@ -57,8 +63,10 @@ struct MessageView: View {
                             NavigationLink(destination: ChatView(messageRepository: self.messageRepository, messageThread: thread, authService: self.authService)) {
                                 ZStack {
                                     Rectangle()
-                                        .fill(.tertiary)
-                                        .frame(maxWidth: .infinity)
+                                        .fill(.white)
+                                        .frame(maxWidth: 400, maxHeight: 55)
+                                        .clipShape(Capsule())
+                                        .shadow(color: Color.black.opacity(0.2), radius: 5)
                                     
                                     HStack {
                                         Text(thread.threadName)
@@ -95,6 +103,13 @@ struct MessageView: View {
                 } message: {
                     Text(viewModel.errorMessage ?? "")
                 }
+                VStack(){
+                    Spacer()
+                    Rectangle()
+                        .fill(IslandsBlue)
+                        .frame(maxWidth: .infinity, maxHeight: 120)
+                }
+                .ignoresSafeArea()
             }
         }
     }
