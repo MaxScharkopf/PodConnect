@@ -25,14 +25,35 @@ final class MapRepository {
             return []
         }
 
-        return try await firestoreService.fetchCollection(path: pinsPath) { collection in
+        let ownedPins: [MapPin] = try await firestoreService.fetchCollection(path: pinsPath) { collection in
             collection
                 .whereField("pinType", isEqualTo: "user")
                 .whereField("ownerUserId", isEqualTo: userId)
         }
+        
+        let sharedPins: [MapPin] = try await firestoreService.fetchCollection(path: pinsPath) { collection in
+            collection
+                .whereField("pinType", isEqualTo: "user")
+                .whereField("sharedWith", arrayContains: userId)
+        }
+        
+        let combinedPins = ownedPins + sharedPins
+        
+        var seenIDs = Set<String>()
+        let uniquePins = combinedPins.filter { pin in
+            guard let id = pin.id else { return true }
+            if seenIDs.contains(id) {
+                return false
+            } else {
+                seenIDs.insert(id)
+                return true
+            }
+        }
+
+        return uniquePins
     }
     
-    func createUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D) async throws {
+    func createUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async throws {
         guard let userId = authService.userInfo?.id else {
             throw NSError(
                 domain: "MapRepository",
@@ -50,7 +71,8 @@ final class MapRepository {
             subtitle: subtitle,
             pinType: "user",
             ownerUserId: userId,
-            createdAt: Timestamp(date: Date())
+            createdAt: Timestamp(date: Date()),
+            sharedWith: sharedWith
         )
         
         try await firestoreService.saveDocument(path: pinsPath, data: pin)

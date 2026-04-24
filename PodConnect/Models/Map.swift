@@ -59,7 +59,9 @@ struct MapPin: Identifiable, Codable, Hashable {
     var pinType: String
     var ownerUserId: String?
     var createdAt: Timestamp?
+    var sharedWith: [String] = []
 }
+
 extension MapPin {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
