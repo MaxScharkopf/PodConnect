@@ -8,6 +8,7 @@
 import FirebaseFirestore
 import Foundation
 import CoreLocation
+import FirebaseAuth
 
 final class MapRepository {
     
@@ -21,7 +22,7 @@ final class MapRepository {
     }
     
     func fetchCurrentUserPins() async throws -> [MapPin] {
-        guard let userId = authService.userInfo?.id else {
+        guard let userId = Auth.auth().currentUser?.uid else {
             return []
         }
 
@@ -54,7 +55,7 @@ final class MapRepository {
     }
     
     func createUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async throws {
-        guard let userId = authService.userInfo?.id else {
+        guard let userId = Auth.auth().currentUser?.uid else {
             throw NSError(
                 domain: "MapRepository",
                 code: 401,

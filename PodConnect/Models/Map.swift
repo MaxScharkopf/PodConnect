@@ -59,7 +59,7 @@ struct MapPin: Identifiable, Codable, Hashable {
     var pinType: String
     var ownerUserId: String?
     var createdAt: Timestamp?
-    var sharedWith: [String] = []
+    var sharedWith: [String]?
 }
 
 extension MapPin {
