@@ -42,6 +42,9 @@ struct ProfileView: View {
     @FocusState private var bioFieldFocused: Bool
     @FocusState private var usernameFieldFocused: Bool
     @FocusState private var nameFieldFocused: Bool
+    
+    @State private var classesVisibility: VisibilityLevel = .public
+    @State private var clubsVisibility: VisibilityLevel = .public
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
@@ -86,7 +89,7 @@ struct ProfileView: View {
                             }
 
                             if isEditing {
-                                originalEditSection
+                                editSection
                                 saveProfileCard
                             } else {
                                 profileInfoCard
@@ -176,7 +179,7 @@ struct ProfileView: View {
         .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
     }
 
-    private var originalEditSection: some View {
+    private var editSection: some View {
         VStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -251,6 +254,13 @@ struct ProfileView: View {
                         .background(Color(.systemBackground))
                         .cornerRadius(10)
                     }
+
+                    Picker("Clubs Visibility", selection: $clubsVisibility) {
+                        ForEach(VisibilityLevel.allCases, id: \.self) { level in
+                            Text(level.rawValue).tag(level)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
 
                 Divider()
@@ -287,6 +297,13 @@ struct ProfileView: View {
                         .background(Color(.systemBackground))
                         .cornerRadius(10)
                     }
+
+                    Picker("Classes Visibility", selection: $classesVisibility) {
+                        ForEach(VisibilityLevel.allCases, id: \.self) { level in
+                            Text(level.rawValue).tag(level)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -511,7 +528,12 @@ struct ProfileView: View {
             print("ProfileView: userInfo not ready yet.")
             return
         }
-
+        
+        print("classes:", userInfo.classes)
+        print("clubs:", userInfo.clubs)
+        print("classesVisibility:", userInfo.classesVisibility.rawValue)
+        print("clubsVisibility:", userInfo.clubsVisibility.rawValue)
+        
         email = userInfo.email
         username = userInfo.username
         name = userInfo.name
@@ -520,7 +542,10 @@ struct ProfileView: View {
         selectedClubs = userInfo.clubs
         selectedClasses = userInfo.classes
         profileImageURL = userInfo.profileImageURL
+        classesVisibility = userInfo.classesVisibility
+        clubsVisibility = userInfo.clubsVisibility
         isLoadingProfile = false
+        
     }
 
     func saveProfile() async {
@@ -538,7 +563,9 @@ struct ProfileView: View {
             email: email,
             uid: uid,
             bio: bio,
-            profileImageURL: profileImageURL
+            profileImageURL: profileImageURL,
+            classesVisibility: classesVisibility,
+            clubsVisibility: clubsVisibility
         )
 
         do {

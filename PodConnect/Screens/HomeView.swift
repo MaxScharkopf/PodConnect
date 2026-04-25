@@ -20,20 +20,25 @@ struct HomeView: View {
         _selectedTab = selectedTab
     }
     
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                
+
                 Spacer()
-                
+
                 Text("More features coming soon")
                     .font(.footnote)
                     .foregroundColor(.gray)
-                
+
                 Spacer()
             }
             .padding()
             .navigationTitle("Home")
+        }
+        .task {
+            let seedRepo = SeedRepository()
+            await seedRepo.seedUserVisibilityDefaults()
         }
     }
 }
