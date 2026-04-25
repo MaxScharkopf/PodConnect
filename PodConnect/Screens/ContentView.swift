@@ -31,13 +31,13 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
-                    HomeView(authService: authService, selectedTab: $selectedTab)
-                        .tabItem {
-                            Label("Home", systemImage: "house.fill")
-                        }
-                        .tag(2)
-                    
-                    
+//                    HomeView(authService: authService, selectedTab: $selectedTab)
+//                        .tabItem {
+//                            Label("Home", systemImage: "house.fill")
+//                        }
+//                        .tag(2)
+
+
                     NavigationStack {
                         CalendarView(eventRepository: EventRepository(
                             firestoreService: firestoreService,

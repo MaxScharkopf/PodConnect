@@ -81,6 +81,8 @@ struct AuthView: View {
                                 if isSignUp {
                                     TextField("Name", text: $name)
                                         .textFieldStyle(.roundedBorder)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
 
                                     TextField("Username", text: $username)
                                         .textFieldStyle(.roundedBorder)
@@ -123,9 +125,7 @@ struct AuthView: View {
 
                             VStack(spacing: 0) {
                                 Button {
-                                    Task {
-                                        await submit()
-                                    }
+                                    Task { await submit() }
                                 } label: {
                                     if isLoading {
                                         ProgressView()
