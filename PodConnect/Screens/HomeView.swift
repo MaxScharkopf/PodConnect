@@ -36,10 +36,11 @@ struct HomeView: View {
             .padding()
             .navigationTitle("Home")
         }
-        .task {
+        /*.task {
             let seedRepo = SeedRepository()
             await seedRepo.seedUserVisibilityDefaults()
         }
+         */
     }
 }
 #Preview {
