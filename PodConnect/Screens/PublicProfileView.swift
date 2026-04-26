@@ -18,16 +18,13 @@ struct PublicProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showUnfriendAlert = false
     @State private var isSendingRequest = false
-    @State private var didSendRequest = false
+    @State private var relationshipStatus: RelationshipStatus = .none
+    @State private var isLoadingRelationship = true
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
     private var isOwnProfile: Bool {
         user.uid == currentUID
-    }
-
-    private var effectiveIsRequested: Bool {
-        isRequested || didSendRequest
     }
 
     private func canView(_ visibility: VisibilityLevel) -> Bool {
@@ -37,7 +34,7 @@ struct PublicProfileView: View {
         case .public:
             return true
         case .friendsOnly:
-            return isFriend
+            return relationshipStatus == .friends || isFriend
         case .private:
             return false
         }
@@ -59,34 +56,6 @@ struct PublicProfileView: View {
         shouldShowBio || shouldShowClubs || shouldShowClasses
     }
 
-    private var relationshipButtonTitle: String {
-        if isOwnProfile { return "" }
-        if isFriend { return "Unfriend" }
-        if effectiveIsRequested { return "Pending" }
-        if isSendingRequest { return "Sending..." }
-        return "Send Request"
-    }
-
-    private var relationshipButtonBackground: Color {
-        if isFriend {
-            return Color.white
-        }
-        if effectiveIsRequested || isSendingRequest {
-            return Color(.systemGray5)
-        }
-        return IslandsBlue
-    }
-
-    private var relationshipButtonTextColor: Color {
-        if isFriend {
-            return .red
-        }
-        if effectiveIsRequested || isSendingRequest {
-            return .secondary
-        }
-        return .white
-    }
-
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
@@ -99,29 +68,7 @@ struct PublicProfileView: View {
                         profileImageSection
 
                         if !isOwnProfile {
-                            Button(relationshipButtonTitle) {
-                                if isFriend {
-                                    showUnfriendAlert = true
-                                } else if !effectiveIsRequested && !isSendingRequest {
-                                    Task {
-                                        isSendingRequest = true
-                                        do {
-                                            try await friendRepository.sendFriendRequest(toUID: user.uid)
-                                            didSendRequest = true
-                                        } catch {
-                                            print("Failed to send request: \(error)")
-                                        }
-                                        isSendingRequest = false
-                                    }
-                                }
-                            }
-                            .disabled(effectiveIsRequested || isSendingRequest)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(relationshipButtonBackground)
-                            .foregroundColor(relationshipButtonTextColor)
-                            .cornerRadius(16)
-                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                            relationshipActionSection
                         }
 
                         if shouldShowBio {
@@ -165,6 +112,116 @@ struct PublicProfileView: View {
                 }
             }
             Button("Cancel", role: .cancel) { }
+        }
+        .task {
+            await loadRelationshipStatus()
+        }
+    }
+
+    private var relationshipActionSection: some View {
+        Group {
+            if isLoadingRelationship {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+
+            } else {
+                switch relationshipStatus {
+                case .none:
+                    Button {
+                        Task {
+                            isSendingRequest = true
+                            do {
+                                try await friendRepository.sendFriendRequest(toUID: user.uid)
+                                relationshipStatus = .requestSent
+                            } catch {
+                                print("Failed to send request: \(error)")
+                            }
+                            isSendingRequest = false
+                        }
+                    } label: {
+                        Text(isSendingRequest ? "Sending..." : "Send Request")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(IslandsBlue)
+                            .foregroundColor(.white)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                    }
+                    .disabled(isSendingRequest)
+
+                case .requestSent:
+                    Text("Pending")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(.systemGray5))
+                        .foregroundColor(.secondary)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+
+                case .requestReceived:
+                    HStack(spacing: 16) {
+                        Button {
+                            Task {
+                                do {
+                                    let requests = try await friendRepository.fetchIncomingRequests()
+                                    if let request = requests.first(where: { $0.senderUid == user.uid }) {
+                                        try await friendRepository.acceptRequest(request)
+                                        relationshipStatus = .friends
+                                    }
+                                } catch {
+                                    print("Failed to accept request: \(error)")
+                                }
+                            }
+                        } label: {
+                            Text("Accept")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(.systemGray5))
+                                .foregroundColor(IslandsBlue)
+                                .cornerRadius(16)
+                        }
+
+                        Button {
+                            Task {
+                                do {
+                                    let requests = try await friendRepository.fetchIncomingRequests()
+                                    if let request = requests.first(where: { $0.senderUid == user.uid }) {
+                                        try await friendRepository.declineRequest(request)
+                                        relationshipStatus = .none
+                                    }
+                                } catch {
+                                    print("Failed to decline request: \(error)")
+                                }
+                            }
+                        } label: {
+                            Text("Decline")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red.opacity(0.12))
+                                .foregroundColor(.red)
+                                .cornerRadius(16)
+                        }
+                    }
+                    .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+
+                case .friends:
+                    Button {
+                        showUnfriendAlert = true
+                    } label: {
+                        Text("Unfriend")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.white)
+                            .foregroundColor(.red)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                    }
+                }
+            }
         }
     }
 
@@ -243,6 +300,28 @@ struct PublicProfileView: View {
         .background(Color.white)
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+    }
+
+    private func loadRelationshipStatus() async {
+        if isOwnProfile {
+            isLoadingRelationship = false
+            return
+        }
+
+        if isFriend {
+            relationshipStatus = .friends
+            isLoadingRelationship = false
+            return
+        }
+
+        if isRequested {
+            relationshipStatus = .requestSent
+            isLoadingRelationship = false
+            return
+        }
+
+        relationshipStatus = await friendRepository.getRelationshipStatus(withUID: user.uid)
+        isLoadingRelationship = false
     }
 }
 
