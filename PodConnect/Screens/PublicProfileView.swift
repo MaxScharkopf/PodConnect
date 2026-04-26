@@ -103,7 +103,7 @@ struct PublicProfileView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         .alert("Unfriend \(user.username)?", isPresented: $showUnfriendAlert) {
             Button("Unfriend", role: .destructive) {
                 Task {
@@ -226,21 +226,37 @@ struct PublicProfileView: View {
     }
 
     private var topHeader: some View {
-        VStack(spacing: 2) {
-            Text(user.name.isEmpty ? user.username : user.name)
-                .foregroundColor(.white)
-                .font(.title2)
-                .fontWeight(.bold)
-                .multilineTextAlignment(.center)
+        HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .foregroundColor(.white)
+                    .font(.system(size: 20, weight: .semibold))
+            }
 
-            Text("@\(user.username)")
-                .foregroundColor(.white.opacity(0.9))
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
+            Spacer()
+
+            VStack(spacing: 1) {
+                Text(user.name.isEmpty ? user.username : user.name)
+                    .foregroundColor(.white)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .lineLimit(1)
+
+                Text("@\(user.username)")
+                    .foregroundColor(.white.opacity(0.9))
+                    .font(.subheadline)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Color.clear
+                .frame(width: 18, height: 18)
         }
-        .frame(maxWidth: .infinity)
         .padding(.horizontal)
-        .padding(.vertical, 14)
+        .frame(height: 66)
         .background(IslandsBlue)
     }
 

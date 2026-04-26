@@ -10,6 +10,7 @@ import SwiftUI
 import FirebaseAuth
 
 struct AccountSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var currentPassword = ""
     @State private var newPassword = ""
     @State private var confirmNewPassword = ""
@@ -101,14 +102,26 @@ struct AccountSettingsView: View {
 
     private var topHeader: some View {
         HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .foregroundColor(.white)
+                    .font(.system(size: 19, weight: .semibold))
+                    .padding(8)
+            }
+
             Text("Account Settings")
                 .foregroundColor(.white)
                 .font(.title)
                 .fontWeight(.bold)
 
             Spacer()
+
+            Color.clear
+                .frame(width: 50, height: 50)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 9)
         .padding(.vertical, 18)
         .background(IslandsBlue)
     }

@@ -11,14 +11,17 @@ import SwiftUI
 struct ConnectionsView: View {
     @ObservedObject var authService: AuthService
     @StateObject private var viewModel: FriendViewModel
+    @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
     @State private var searchResults: [UserInfo] = []
     @State private var isLoadingSearch = false
     @State private var searchErrorMessage = ""
+    @State private var searchTask: Task<Void, Never>?
     @State private var requestedUserIds: Set<String> = []
     @State private var friendUserIds: Set<String> = []
     @State private var currentUID = ""
+    
 
     @State private var isSearchMode = false
     @State private var isLoadingConnections = true
@@ -83,11 +86,19 @@ struct ConnectionsView: View {
 
     private var topHeader: some View {
         HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .foregroundColor(.white)
+                    .font(.system(size: 20, weight: .semibold))
+                    .padding(8)
+            }
+
             Text("Connections")
                 .foregroundColor(.white)
                 .font(.title)
                 .fontWeight(.bold)
-                .padding(.leading)
 
             Spacer()
 
@@ -101,6 +112,7 @@ struct ConnectionsView: View {
                     searchResults = []
                     searchErrorMessage = ""
                     isSearchFieldFocused = false
+                    searchTask?.cancel()
                 } else {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         isSearchFieldFocused = true
@@ -108,12 +120,13 @@ struct ConnectionsView: View {
                 }
             } label: {
                 Image(systemName: isSearchMode ? "xmark" : "magnifyingglass")
+                    .foregroundColor(.white)
                     .padding()
                     .glassEffect()
             }
-            .padding(.trailing, 9)
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, 9)
         .padding(.vertical, 18)
         .background(IslandsBlue)
     }
@@ -232,6 +245,26 @@ struct ConnectionsView: View {
                         .focused($isSearchFieldFocused)
                         .onSubmit {
                             Task { await performSearch() }
+                        }
+                        .onChange(of: searchText) { _, newValue in
+                            searchTask?.cancel()
+
+                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                            if trimmed.isEmpty {
+                                searchResults = []
+                                searchErrorMessage = ""
+                                isLoadingSearch = false
+                                return
+                            }
+
+                            searchTask = Task {
+                                try? await Task.sleep(nanoseconds: 300_000_000)
+
+                                if !Task.isCancelled {
+                                    await performSearch()
+                                }
+                            }
                         }
 
                     if !searchText.isEmpty {
