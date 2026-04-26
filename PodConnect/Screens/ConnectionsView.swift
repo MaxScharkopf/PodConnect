@@ -19,6 +19,7 @@ struct ConnectionsView: View {
     @State private var isLoadingSearch = false
     @State private var searchErrorMessage = ""
     @State private var requestedUserIds: Set<String> = []
+    @State private var friendUserIds: Set<String> = []
     @State private var currentUID = ""
 
     @State private var isSearchMode = false
@@ -143,40 +144,49 @@ struct ConnectionsView: View {
                 .foregroundColor(.primary)
 
             ForEach(viewModel.incomingRequests) { request in
-                VStack(alignment: .leading, spacing: 12) {
-                    SenderUsernameView(
+                NavigationLink(
+                    destination: RequestProfileLoaderView(
                         senderUid: request.senderUid,
-                        friendRepository: viewModel.friendRepository
+                        friendRepository: viewModel.friendRepository,
+                        currentUID: currentUID
                     )
+                ) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SenderUsernameView(
+                            senderUid: request.senderUid,
+                            friendRepository: viewModel.friendRepository
+                        )
 
-                    HStack(spacing: 12) {
-                        Button("Accept") {
-                            Task {
-                                await viewModel.acceptRequest(request)
+                        HStack(spacing: 12) {
+                            Button("Accept") {
+                                Task {
+                                    await viewModel.acceptRequest(request)
+                                }
                             }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(IslandsBlue.opacity(0.12))
-                        .foregroundColor(IslandsBlue)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(IslandsBlue.opacity(0.12))
+                            .foregroundColor(IslandsBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                        Button("Decline") {
-                            Task {
-                                await viewModel.declineRequest(request)
+                            Button("Decline") {
+                                Task {
+                                    await viewModel.declineRequest(request)
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.red.opacity(0.1))
+                            .foregroundColor(.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.red.opacity(0.1))
-                        .foregroundColor(.red)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .padding()
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
                 }
-                .padding()
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 24))
-                .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
+                .buttonStyle(.plain)
             }
         }
     }
@@ -205,7 +215,16 @@ struct ConnectionsView: View {
                 VStack(spacing: 16) {
                     ForEach(viewModel.friends) { friend in
                         HStack(spacing: 12) {
-                            UserRowView(user: friend)
+                            NavigationLink(
+                                destination: PublicProfileView(
+                                    user: friend,
+                                    isFriend: true,
+                                    currentUID: currentUID
+                                )
+                            ) {
+                                UserRowView(user: friend)
+                            }
+                            .buttonStyle(.plain)
 
                             Button {
                                 friendToUnfriend = friend
@@ -304,16 +323,26 @@ struct ConnectionsView: View {
 
             ForEach(searchResults) { user in
                 if user.uid != currentUID {
-                    UserSearchResultCard(
-                        user: user,
-                        isRequested: requestedUserIds.contains(user.uid),
-                        onSendRequest: {
-                            Task {
-                                await sendFriendRequest(to: user.uid)
-                            }
-                        },
-                        accentColor: IslandsBlue
-                    )
+                    NavigationLink(
+                        destination: PublicProfileView(
+                            user: user,
+                            isFriend: friendUserIds.contains(user.uid),
+                            currentUID: currentUID
+                        )
+                    ) {
+                        UserSearchResultCard(
+                            user: user,
+                            isRequested: requestedUserIds.contains(user.uid),
+                            isFriend: friendUserIds.contains(user.uid),
+                            onSendRequest: {
+                                Task {
+                                    await sendFriendRequest(to: user.uid)
+                                }
+                            },
+                            accentColor: IslandsBlue
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -330,14 +359,18 @@ struct ConnectionsView: View {
         isLoadingSearch = true
         searchErrorMessage = ""
         requestedUserIds.removeAll()
+        friendUserIds.removeAll()
 
         do {
             searchResults = try await viewModel.friendRepository.searchUsers(by: trimmed)
 
             for user in searchResults {
                 let status = await viewModel.friendRepository.getRelationshipStatus(withUID: user.uid)
-                if status == .requestSent || status == .friends {
+
+                if status == .requestSent {
                     requestedUserIds.insert(user.uid)
+                } else if status == .friends {
+                    friendUserIds.insert(user.uid)
                 }
             }
         } catch {
@@ -475,6 +508,7 @@ struct UserRowView: View {
 struct UserSearchResultCard: View {
     let user: UserInfo
     let isRequested: Bool
+    let isFriend: Bool
     let onSendRequest: () -> Void
     let accentColor: Color
 
@@ -502,20 +536,41 @@ struct UserSearchResultCard: View {
                 Spacer()
             }
 
-            Button(isRequested ? "Requested" : "Send Request") {
+            Button(buttonTitle) {
                 onSendRequest()
             }
-            .disabled(isRequested)
+            .disabled(isRequested || isFriend)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(isRequested ? Color(.systemGray5) : accentColor)
-            .foregroundColor(isRequested ? .secondary : .white)
+            .background(buttonBackground)
+            .foregroundColor(buttonTextColor)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding()
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
+    }
+    
+    
+    private var buttonTitle: String {
+        if isFriend { return "Friends" }
+        if isRequested { return "Requested" }
+        return "Send Request"
+    }
+
+    private var buttonBackground: Color {
+        if isFriend || isRequested {
+            return Color(.systemGray5)
+        }
+        return accentColor
+    }
+
+    private var buttonTextColor: Color {
+        if isFriend || isRequested {
+            return .secondary
+        }
+        return .white
     }
 
     private var profileImageView: some View {
@@ -555,6 +610,40 @@ struct UserSearchResultCard: View {
         .frame(width: 56, height: 56)
         .background(Color(.systemBackground))
         .clipShape(Circle())
+    }
+}
+
+struct RequestProfileLoaderView: View {
+    let senderUid: String
+    let friendRepository: FriendRepository
+    let currentUID: String
+
+    @State private var user: UserInfo? = nil
+
+    var body: some View {
+        Group {
+            if let user = user {
+                PublicProfileView(
+                    user: user,
+                    isFriend: false,
+                    currentUID: currentUID
+                )
+            } else {
+                ZStack {
+                    Color(.systemGroupedBackground).ignoresSafeArea()
+
+                    VStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading profile...")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .task {
+            user = await friendRepository.fetchUser(uid: senderUid)
+        }
     }
 }
 
