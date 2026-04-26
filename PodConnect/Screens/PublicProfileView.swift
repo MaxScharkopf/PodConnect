@@ -11,12 +11,23 @@ import SwiftUI
 struct PublicProfileView: View {
     let user: UserInfo
     let isFriend: Bool
+    let isRequested: Bool
     let currentUID: String
+    let friendRepository: FriendRepository
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var showUnfriendAlert = false
+    @State private var isSendingRequest = false
+    @State private var didSendRequest = false
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
     private var isOwnProfile: Bool {
         user.uid == currentUID
+    }
+
+    private var effectiveIsRequested: Bool {
+        isRequested || didSendRequest
     }
 
     private func canView(_ visibility: VisibilityLevel) -> Bool {
@@ -48,6 +59,34 @@ struct PublicProfileView: View {
         shouldShowBio || shouldShowClubs || shouldShowClasses
     }
 
+    private var relationshipButtonTitle: String {
+        if isOwnProfile { return "" }
+        if isFriend { return "Unfriend" }
+        if effectiveIsRequested { return "Pending" }
+        if isSendingRequest { return "Sending..." }
+        return "Send Request"
+    }
+
+    private var relationshipButtonBackground: Color {
+        if isFriend {
+            return Color.white
+        }
+        if effectiveIsRequested || isSendingRequest {
+            return Color(.systemGray5)
+        }
+        return IslandsBlue
+    }
+
+    private var relationshipButtonTextColor: Color {
+        if isFriend {
+            return .red
+        }
+        if effectiveIsRequested || isSendingRequest {
+            return .secondary
+        }
+        return .white
+    }
+
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
@@ -58,6 +97,32 @@ struct PublicProfileView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         profileImageSection
+
+                        if !isOwnProfile {
+                            Button(relationshipButtonTitle) {
+                                if isFriend {
+                                    showUnfriendAlert = true
+                                } else if !effectiveIsRequested && !isSendingRequest {
+                                    Task {
+                                        isSendingRequest = true
+                                        do {
+                                            try await friendRepository.sendFriendRequest(toUID: user.uid)
+                                            didSendRequest = true
+                                        } catch {
+                                            print("Failed to send request: \(error)")
+                                        }
+                                        isSendingRequest = false
+                                    }
+                                }
+                            }
+                            .disabled(effectiveIsRequested || isSendingRequest)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(relationshipButtonBackground)
+                            .foregroundColor(relationshipButtonTextColor)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                        }
 
                         if shouldShowBio {
                             infoCard(title: "Bio", content: user.bio)
@@ -92,10 +157,19 @@ struct PublicProfileView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .alert("Unfriend \(user.username)?", isPresented: $showUnfriendAlert) {
+            Button("Unfriend", role: .destructive) {
+                Task {
+                    try? await friendRepository.unfriend(uid: user.uid)
+                    dismiss()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
     }
 
     private var topHeader: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             Text(user.name.isEmpty ? user.username : user.name)
                 .foregroundColor(.white)
                 .font(.title2)
@@ -109,7 +183,7 @@ struct PublicProfileView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
-        .padding(.vertical, 18)
+        .padding(.vertical, 14)
         .background(IslandsBlue)
     }
 
@@ -191,7 +265,9 @@ struct PublicProfileView: View {
                 clubsVisibility: .friendsOnly
             ),
             isFriend: true,
-            currentUID: "2"
+            isRequested: false,
+            currentUID: "2",
+            friendRepository: FriendRepository(firestoreService: FirestoreService())
         )
     }
 }
