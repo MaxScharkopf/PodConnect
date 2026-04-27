@@ -4,7 +4,7 @@
 //
 //  Created by Desiree Astabie on 3/11/26.
 //
-// Modified by: Kassidy Saffa,
+// Modified by: Kassidy Saffa, Maxwell Scharkopf
 //
 
 import SwiftUI
@@ -14,7 +14,7 @@ struct HomeView: View {
     private var authService: AuthService
     @Binding var selectedTab: Int
     @StateObject private var viewModel: HomeViewModel
-    @State private var showConnections = false
+    @State private var showNotifications = false
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
@@ -24,7 +24,8 @@ struct HomeView: View {
         _selectedTab = selectedTab
         _viewModel = StateObject(
             wrappedValue: HomeViewModel(
-                friendRepository: FriendRepository(firestoreService: FirestoreService())
+                friendRepository: FriendRepository(firestoreService: FirestoreService()),
+                messageRepository: MessageRepository(firestoreService: FirestoreService(), authService: authService)
             )
         )
     }
@@ -40,10 +41,6 @@ struct HomeView: View {
 
                     ScrollView {
                         VStack(spacing: 20) {
-                            if viewModel.hasNotifications {
-                                notificationHubCard
-                            }
-
                             if !viewModel.errorMessage.isEmpty {
                                 Text(viewModel.errorMessage)
                                     .foregroundColor(.red)
@@ -59,17 +56,16 @@ struct HomeView: View {
                 }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $showConnections) {
-                NavigationStack {
-                    ConnectionsView(
-                        authService: authService,
-                        friendRepository: FriendRepository(firestoreService: FirestoreService())
-                    )
-                }
+            .onAppear {
+                Task { await viewModel.loadNotifications() }
             }
-        }
-        .task {
-            await viewModel.loadNotifications()
+            .sheet(isPresented: $showNotifications) {
+                NotificationSheetView(
+                    viewModel: viewModel,
+                    selectedTab: $selectedTab,
+                    isPresented: $showNotifications
+                )
+            }
         }
     }
 
@@ -82,21 +78,25 @@ struct HomeView: View {
 
             Spacer()
 
-            if viewModel.pendingRequestCount > 0 {
+            Button {
+                showNotifications = true
+            } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell.fill")
                         .foregroundColor(.white)
                         .font(.title2)
 
-                    Text("\(viewModel.pendingRequestCount)")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(ChannelClay)
-                        .clipShape(Capsule())
-                        .offset(x: 10, y: -8)
+                    if viewModel.totalCount > 0 {
+                        Text("\(viewModel.totalCount)")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(ChannelClay)
+                            .clipShape(Capsule())
+                            .offset(x: 10, y: -8)
+                    }
                 }
             }
         }
@@ -104,47 +104,198 @@ struct HomeView: View {
         .padding(.vertical, 23)
         .background(IslandsBlue)
     }
+}
 
-    private var notificationHubCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Notification Hub")
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
+// MARK: - Notification Sheet
 
-            if viewModel.pendingRequestCount > 0 {
-                Button {
-                    showConnections = true
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Pending Friend Requests")
-                                .font(.headline)
-                                .foregroundColor(.white)
+private struct NotificationSheetView: View {
+    @ObservedObject var viewModel: HomeViewModel
+    @Binding var selectedTab: Int
+    @Binding var isPresented: Bool
 
-                            Text("\(viewModel.pendingRequestCount) request\(viewModel.pendingRequestCount == 1 ? "" : "s") waiting")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.9))
-                        }
+    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 
-                        Spacer()
+    var filteredRequests: [FriendRequest] {
+        switch viewModel.activeFilter {
+        case .all, .friendRequests: return viewModel.pendingRequests
+        case .messages: return []
+        }
+    }
 
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                    .padding(.vertical, 4)
+    var filteredThreads: [MessageThread] {
+        switch viewModel.activeFilter {
+        case .all, .messages: return viewModel.unreadThreads
+        case .friendRequests: return []
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                filterChips
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+
+                Divider()
+
+                if !viewModel.hasNotifications {
+                    emptyState
+                } else {
+                    notificationList
                 }
-                .buttonStyle(.plain)
+            }
+            .navigationTitle("Notifications")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { isPresented = false }
+                        .foregroundColor(IslandsBlue)
+                }
+            }
+        }
+    }
+
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(NotificationFilter.allCases, id: \.self) { filter in
+                    let isActive = viewModel.activeFilter == filter
+                    Button {
+                        viewModel.activeFilter = filter
+                    } label: {
+                        Text(filter.rawValue)
+                            .font(.subheadline)
+                            .fontWeight(isActive ? .semibold : .regular)
+                            .foregroundColor(isActive ? .white : IslandsBlue)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(isActive ? IslandsBlue : IslandsBlue.opacity(0.1))
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+    }
+
+    private var notificationList: some View {
+        List {
+            if !filteredRequests.isEmpty {
+                Section("Friend Requests") {
+                    ForEach(filteredRequests) { request in
+                        FriendRequestRow(
+                            request: request,
+                            sender: viewModel.requestSenders[request.senderUid],
+                            onAccept: {
+                                Task { await viewModel.acceptRequest(request) }
+                            },
+                            onDecline: {
+                                Task { await viewModel.declineRequest(request) }
+                            }
+                        )
+                    }
+                }
             }
 
-            // Future notification rows go here, like Messages
-            // Only show them when their count is greater than 0
+            if !filteredThreads.isEmpty {
+                Section("Messages") {
+                    ForEach(filteredThreads) { thread in
+                        Button {
+                            isPresented = false
+                            selectedTab = 1
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "message.fill")
+                                    .foregroundColor(IslandsBlue)
+                                    .frame(width: 36, height: 36)
+                                    .background(IslandsBlue.opacity(0.1))
+                                    .clipShape(Circle())
+
+                                Text(thread.threadName)
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(IslandsBlue)
-        .clipShape(RoundedRectangle(cornerRadius: 28))
-        .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+        .listStyle(.insetGrouped)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "bell.slash")
+                .font(.system(size: 44))
+                .foregroundColor(.secondary)
+            Text("No notifications")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Friend Request Row
+
+private struct FriendRequestRow: View {
+    let request: FriendRequest
+    let sender: UserInfo?
+    let onAccept: () -> Void
+    let onDecline: () -> Void
+
+    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 36))
+                .foregroundColor(IslandsBlue.opacity(0.6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(sender?.username ?? "Unknown User")
+                    .font(.body)
+                    .fontWeight(.medium)
+                Text("Sent you a friend request")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button("Accept") { onAccept() }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(IslandsBlue)
+                    .clipShape(Capsule())
+                    .buttonStyle(.borderless)
+
+                Button("Decline") { onDecline() }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(ChannelClay)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(ChannelClay.opacity(0.1))
+                    .clipShape(Capsule())
+                    .buttonStyle(.borderless)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
