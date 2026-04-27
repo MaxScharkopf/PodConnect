@@ -10,6 +10,7 @@ import FirebaseFirestore
 final class SeedRepository {
     private let db = Firestore.firestore()
     
+    /*
     func seedClubs() async {
         let clubs = [
             "DÍA: Diversity Inclusivity Accessibility",
@@ -132,6 +133,74 @@ final class SeedRepository {
             } catch {
                 print("Error adding \(club): \(error)")
             }
+        }
+    }*/
+    
+    func seedUserVisibilityDefaults() async {
+        do {
+            let snapshot = try await db.collection("users").getDocuments()
+
+            for document in snapshot.documents {
+                let data = document.data()
+                let userId = document.documentID
+
+                let username = data["username"] as? String ?? ""
+                let usernameLower = data["username_lowercase"] as? String ?? username.lowercased()
+                let name = data["name"] as? String ?? ""
+                let email = data["email"] as? String ?? ""
+                let uid = data["uid"] as? String ?? userId
+                let bio = data["bio"] as? String ?? ""
+                let profileImageURL = data["profileImageURL"] as? String
+                let friends = data["friends"] as? [String] ?? []
+
+                var fixedClasses: [String] = []
+                if let arr = data["classes"] as? [String] {
+                    fixedClasses = arr
+                } else if let arrAny = data["classes"] as? [Any] {
+                    fixedClasses = arrAny.compactMap { $0 as? String }
+                } else if let map = data["classes"] as? [String: Any] {
+                    fixedClasses = map.values.compactMap { $0 as? String }
+                }
+
+                var fixedClubs: [String] = []
+                if let arr = data["clubs"] as? [String] {
+                    fixedClubs = arr
+                } else if let arrAny = data["clubs"] as? [Any] {
+                    fixedClubs = arrAny.compactMap { $0 as? String }
+                } else if let map = data["clubs"] as? [String: Any] {
+                    fixedClubs = map.values.compactMap { $0 as? String }
+                }
+
+                // First delete the bad fields entirely
+                try await db.collection("users").document(userId).updateData([
+                    "classes": FieldValue.delete(),
+                    "clubs": FieldValue.delete(),
+                    "classesVisibility": FieldValue.delete(),
+                    "clubsVisibility": FieldValue.delete()
+                ])
+
+                // Then write them back cleanly
+                try await db.collection("users").document(userId).setData([
+                    "username": username,
+                    "username_lowercase": usernameLower,
+                    "name": name,
+                    "classes": fixedClasses,
+                    "clubs": fixedClubs,
+                    "friends": friends,
+                    "email": email,
+                    "uid": uid,
+                    "bio": bio,
+                    "profileImageURL": profileImageURL as Any,
+                    "classesVisibility": "Public",
+                    "clubsVisibility": "Public"
+                ], merge: true)
+
+                print("Rebuilt user \(userId)")
+            }
+
+            print("Finished full migration")
+        } catch {
+            print("Error seeding user visibility: \(error)")
         }
     }
 }

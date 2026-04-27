@@ -6,8 +6,14 @@
 //
 // Modified by: Kassidy Saffa
 //
-// Simple user structure
+
 import FirebaseFirestore
+
+enum VisibilityLevel: String, Codable, CaseIterable {
+    case `public` = "Public"
+    case friendsOnly = "Friends Only"
+    case `private` = "Private"
+}
 
 struct UserInfo: Codable, Identifiable {
     @DocumentID var id: String?
@@ -22,6 +28,9 @@ struct UserInfo: Codable, Identifiable {
     var bio: String
     var profileImageURL: String?
 
+    var classesVisibility: VisibilityLevel
+    var clubsVisibility: VisibilityLevel
+
     init(
         id: String? = nil,
         username: String,
@@ -33,7 +42,9 @@ struct UserInfo: Codable, Identifiable {
         email: String,
         uid: String,
         bio: String,
-        profileImageURL: String? = nil
+        profileImageURL: String? = nil,
+        classesVisibility: VisibilityLevel = .public,
+        clubsVisibility: VisibilityLevel = .public
     ) {
         self.id = id
         self.username = username
@@ -46,5 +57,7 @@ struct UserInfo: Codable, Identifiable {
         self.bio = bio
         self.profileImageURL = profileImageURL
         self.friends = friends
+        self.classesVisibility = classesVisibility
+        self.clubsVisibility = clubsVisibility
     }
 }

@@ -35,17 +35,15 @@ struct MessageView: View {
                 Color(.systemBackground).ignoresSafeArea()
                 
                 VStack {
-                    HStack{
-                        Spacer()
-                        Spacer()
+                    HStack {
                         Text("Messages")
                             .foregroundColor(.white)
                             .font(.title)
-                            .padding()
-                            .underline()
-                        
-                        
+                            .fontWeight(.bold)
+                            .padding(.leading, 0)
+
                         Spacer()
+
                         Button(action: {
                             withAnimation { showThreadPopup = true }
                         }) {

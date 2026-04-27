@@ -10,4 +10,4 @@ DerivedData/
 
 # Firebase local config
 **/GoogleService-Info.plist
-PodConnect/Resources/GoogleService-Info.plist
+serviceAccountKey.json

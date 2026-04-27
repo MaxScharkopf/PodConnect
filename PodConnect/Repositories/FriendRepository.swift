@@ -80,10 +80,12 @@ class FriendRepository {
     }
     
     func getRelationshipStatus(withUID: String) async -> RelationshipStatus {
-        guard let currentUID = Auth.auth().currentUser?.uid else { return .none }
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            return .none
+        }
 
         do {
-            // Check if already friends
+            // 1. Check if already friends (user1 → user2)
             let friends: [Friend] = try await firestoreService.fetchCollection(
                 path: "friends",
                 configure: { query in
@@ -92,8 +94,8 @@ class FriendRepository {
                 }
             )
             if !friends.isEmpty { return .friends }
-            
-            // Check reverse order too
+
+            // 2. Check reverse (user2 → user1)
             let friendsReverse: [Friend] = try await firestoreService.fetchCollection(
                 path: "friends",
                 configure: { query in
@@ -102,9 +104,9 @@ class FriendRepository {
                 }
             )
             if !friendsReverse.isEmpty { return .friends }
-            
-            // Check if request already sent
-            let requests: [FriendRequest] = try await firestoreService.fetchCollection(
+
+            // 3. Check if YOU sent a request
+            let sentRequests: [FriendRequest] = try await firestoreService.fetchCollection(
                 path: "friendRequests",
                 configure: { query in
                     query.whereField("senderUid", isEqualTo: currentUID)
@@ -112,8 +114,20 @@ class FriendRepository {
                         .whereField("status", isEqualTo: "pending")
                 }
             )
-            if !requests.isEmpty { return .requestSent }
+            if !sentRequests.isEmpty { return .requestSent }
 
+            // 4. Check if THEY sent YOU a request
+            let receivedRequests: [FriendRequest] = try await firestoreService.fetchCollection(
+                path: "friendRequests",
+                configure: { query in
+                    query.whereField("senderUid", isEqualTo: withUID)
+                        .whereField("receiverUid", isEqualTo: currentUID)
+                        .whereField("status", isEqualTo: "pending")
+                }
+            )
+            if !receivedRequests.isEmpty { return .requestReceived }
+
+            // 5. Nothing exists
             return .none
 
         } catch {

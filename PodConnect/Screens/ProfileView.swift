@@ -5,6 +5,13 @@
 //  Created by Kassidy Barbara-Rose Saffa on 3/28/26.
 //
 
+//
+//  ProfileView.swift
+//  PodConnect
+//
+//  Created by Kassidy Barbara-Rose Saffa on 3/28/26.
+//
+
 import SwiftUI
 import FirebaseAuth
 import PhotosUI
@@ -12,472 +19,120 @@ import PhotosUI
 struct ProfileView: View {
     @ObservedObject var authService: AuthService
     @StateObject private var viewModel: FriendViewModel
+
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var profileImageData: Data?
     @State private var profileImageURL: String?
     @State private var isUploadingProfileImage = false
-    @State private var friendToUnfriend: UserInfo? = nil
-    
-    
-    init(authService: AuthService, friendRepository: FriendRepository) {
-        _authService = ObservedObject(wrappedValue: authService)
-        _viewModel = StateObject(wrappedValue: FriendViewModel(friendRepository: friendRepository))
-    }
-    
+
     @State private var email = ""
     @State private var username = ""
     @State private var bio = ""
     @State private var name = ""
 
-    
     @State private var selectedClubs: [String] = []
     @State private var selectedClasses: [String] = []
     @State private var clubOptions: [String] = []
-    
+
     @State private var isEditing = false
     @State private var errorMessage = ""
-    
     @State private var currentUID = ""
-    @State private var selectedSocialTab = 0
-    
-    @State private var searchText = ""
-    @State private var searchResults: [UserInfo] = []
-    @State private var isLoadingSearch = false
-    @State private var searchErrorMessage = ""
-    @State private var requestedUserIds: Set<String> = []
-    @FocusState private var isSearchFieldFocused: Bool
-    
+    @State private var isLoadingProfile = true
+
     @FocusState private var bioFieldFocused: Bool
     @FocusState private var usernameFieldFocused: Bool
     @FocusState private var nameFieldFocused: Bool
+    
+    @State private var classesVisibility: VisibilityLevel = .public
+    @State private var clubsVisibility: VisibilityLevel = .public
 
-    
-    let classes = ["COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350", "COMP 362", "COMP 354", "COMP 429", "MATH 240", "MATH 300", "ENGL 101"]
-    
+    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+
+    let classes = [
+        "COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350",
+        "COMP 362", "COMP 354", "COMP 429", "MATH 240", "MATH 300", "ENGL 101"
+    ]
+
+    init(authService: AuthService, friendRepository: FriendRepository) {
+        _authService = ObservedObject(wrappedValue: authService)
+        _viewModel = StateObject(wrappedValue: FriendViewModel(friendRepository: friendRepository))
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                
-                profileImageSection
-                
-                Text(email)
-                    .foregroundColor(.gray)
-                
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                
-                if isEditing {
-                    VStack(spacing: 12) {
-                        
-        
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
 
-                        VStack(alignment: .leading, spacing: 16) {
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Username")
-                                    .font(.headline)
-                                
-                                TextField("Username", text: $username)
-                                    .textFieldStyle(.roundedBorder)
-                                    .focused($usernameFieldFocused)
-                            }
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Name")
-                                    .font(.headline)
+            VStack(spacing: 0) {
+                topHeader
 
-                                TextField("Name", text: $name)
-                                    .textFieldStyle(.roundedBorder)
-                                    .focused($nameFieldFocused)
-                            }
-
-                            Divider()
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Bio")
-                                    .font(.headline)
-                                
-                                TextEditor(text: $bio)
-                                    .frame(height: 120)
-                                    .padding(8)
-                                    .background(Color(.systemBackground))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.gray.opacity(0.4))
-                                    )
-                                    .cornerRadius(8)
-                                    .focused($bioFieldFocused)
-                            }
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Clubs")
-                                    .font(.headline)
-                                
-                                Menu {
-                                    ForEach(clubOptions, id: \.self) { club in
-                                        Button {
-                                            toggleSelection(club, in: &selectedClubs)
-                                        } label: {
-                                            HStack {
-                                                Text(club)
-                                                if selectedClubs.contains(club) {
-                                                    Image(systemName: "checkmark")
-                                                }
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text(selectedClubs.isEmpty ? "Select clubs" : selectedClubs.joined(separator: ", "))
-                                            .foregroundColor(selectedClubs.isEmpty ? .gray : .primary)
-                                            .lineLimit(2)
-                                        
-                                        Spacer()
-                                        
-                                        Image(systemName: "chevron.down")
-                                            .foregroundColor(.gray)
-                                    }
-                                    .padding()
-                                    .background(Color(.systemBackground))
-                                    .cornerRadius(10)
-                                }
-                            }
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Classes")
-                                    .font(.headline)
-                                
-                                Menu {
-                                    ForEach(classes, id: \.self) { course in
-                                        Button {
-                                            toggleSelection(course, in: &selectedClasses)
-                                        } label: {
-                                            HStack {
-                                                Text(course)
-                                                if selectedClasses.contains(course) {
-                                                    Image(systemName: "checkmark")
-                                                }
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text(selectedClasses.isEmpty ? "Select classes" : selectedClasses.joined(separator: ", "))
-                                            .foregroundColor(selectedClasses.isEmpty ? .gray : .primary)
-                                            .lineLimit(2)
-                                        
-                                        Spacer()
-                                        
-                                        Image(systemName: "chevron.down")
-                                            .foregroundColor(.gray)
-                                    }
-                                    .padding()
-                                    .background(Color(.systemBackground))
-                                    .cornerRadius(10)
-                                }
-                            }
+                ScrollView {
+                    if isLoadingProfile {
+                        VStack(spacing: 10) {
+                            ProgressView()
+                            Text("Loading profile...")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
                         .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(16)
-                        
-                        VStack(spacing: 0) {
-                            Button("Save Profile") {
-                                dismissKeyboard()
-                                Task {
-                                    await saveProfile()
+                    } else {
+                        VStack(spacing: 20) {
+                            profileHeaderSection
+
+                            if !errorMessage.isEmpty {
+                                Text(errorMessage)
+                                    .foregroundColor(.red)
+                                    .font(.footnote)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                            }
+
+                            if isEditing {
+                                editSection
+                                saveProfileCard
+                            } else {
+                                profileInfoCard
+                                connectionsCard
+                                actionCard
+                            }
+
+                            Button("Sign Out") {
+                                do {
+                                    try authService.signOut()
+                                } catch {
+                                    errorMessage = error.localizedDescription
                                 }
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                            .foregroundColor(.red)
+
+                            Spacer(minLength: 30)
                         }
-                        .background(Color(.systemGray6))
-                        .cornerRadius(16)
-                    }
-                } else {
-                    VStack(spacing: 12) {
-                        
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Username")
-                                    .font(.headline)
-                                Text(username.isEmpty ? "Not set" : username)
-                                    .foregroundColor(.primary)
-                            }
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Name")
-                                    .font(.headline)
-                                Text(name.isEmpty ? "Not set" : name)
-                                    .foregroundColor(.primary)
-                            }
-
-                            Divider()
-                    
-
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Bio")
-                                    .font(.headline)
-                                Text(bio.isEmpty ? "No bio yet" : bio)
-                                    .foregroundColor(.primary)
-                            }
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Clubs")
-                                    .font(.headline)
-                                Text(selectedClubs.isEmpty ? "None selected" : selectedClubs.joined(separator: ", "))
-                                    .foregroundColor(.primary)
-                            }
-                            
-                            Divider()
-                            
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Classes")
-                                    .font(.headline)
-                                Text(selectedClasses.isEmpty ? "None selected" : selectedClasses.joined(separator: ", "))
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(16)
-                        
-                        // Connections section
-                        VStack(spacing: 8) {
-                            Picker("", selection: $selectedSocialTab) {
-                                Text("Friends").tag(0)
-                                Text("Requests").tag(1)
-                                Text("Search").tag(2)
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(maxWidth: .infinity)
-                            
-                            ScrollView {
-                                VStack(spacing: 0) {
-                                    if selectedSocialTab == 0 {
-                                        if viewModel.friends.isEmpty {
-                                            Text("No friends yet")
-                                                .foregroundColor(.secondary)
-                                                .padding()
-                                        } else {
-                                            ForEach(viewModel.friends) { friend in
-                                                HStack {
-                                                    UserRowView(user: friend)
-                                                    Button {
-                                                        friendToUnfriend = friend
-                                                    } label: {
-                                                        Image(systemName: "person.badge.minus")
-                                                            .foregroundColor(.red)
-                                                    }
-                                                }
-                                                .padding(.horizontal)
-                                                .padding(.vertical, 10)
-                                                Divider()
-                                            }
-                                        }
-                                    } else if selectedSocialTab == 1 {
-                                        if viewModel.incomingRequests.isEmpty {
-                                            Text("No pending requests")
-                                                .foregroundColor(.secondary)
-                                                .padding()
-                                        } else {
-                                            ForEach(viewModel.incomingRequests) { request in
-                                                VStack(alignment: .leading, spacing: 8) {
-                                                    SenderUsernameView(
-                                                        senderUid: request.senderUid,
-                                                        friendRepository: viewModel.friendRepository
-                                                    )
-                                                    HStack(spacing: 12) {
-                                                        Button("Accept") {
-                                                            Task {
-                                                                await viewModel.acceptRequest(request)
-                                                            }
-                                                        }
-                                                        .frame(maxWidth: .infinity)
-                                                        .padding(.vertical, 8)
-                                                        .background(Color.blue.opacity(0.1))
-                                                        .foregroundColor(.blue)
-                                                        .cornerRadius(8)
-                                                        
-                                                        Button("Decline") {
-                                                            Task {
-                                                                await viewModel.declineRequest(request)
-                                                            }
-                                                        }
-                                                        .frame(maxWidth: .infinity)
-                                                        .padding(.vertical, 8)
-                                                        .background(Color.red.opacity(0.1))
-                                                        .foregroundColor(.red)
-                                                        .cornerRadius(8)
-                                                    }
-                                                }
-                                                .padding(.horizontal)
-                                                .padding(.vertical, 10)
-                                                Divider()
-                                            }
-                                        }
-                                    } else {                                        VStack(alignment: .leading, spacing: 12) {
-                                        HStack(spacing: 8) {
-                                            HStack {
-                                                Image(systemName: "magnifyingglass")
-                                                    .foregroundColor(.gray)
-                                                TextField("Search users...", text: $searchText)
-                                                    .textInputAutocapitalization(.never)
-                                                    .autocorrectionDisabled()
-                                                    .focused($isSearchFieldFocused)
-                                                    .onSubmit {
-                                                        Task {
-                                                            await performSearch()
-                                                            isSearchFieldFocused = false
-                                                        }
-                                                    }
-                                                if !searchText.isEmpty {
-                                                    Button {
-                                                        searchText = ""
-                                                        searchResults = []
-                                                        searchErrorMessage = ""
-                                                        isSearchFieldFocused = false
-                                                    } label: {
-                                                        Image(systemName: "xmark.circle.fill")
-                                                            .foregroundColor(.gray)
-                                                    }
-                                                }
-                                            }
-                                            .padding(10)
-                                            .background(Color(.systemBackground))
-                                            .cornerRadius(12)
-                                            
-                                            Button("Search") {
-                                                Task {
-                                                    await performSearch()
-                                                    isSearchFieldFocused = false
-                                                }
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 10)
-                                            .background(Color(.systemBackground))
-                                            .cornerRadius(12)
-                                        }
-                                        
-                                        if isLoadingSearch {
-                                            HStack {
-                                                Spacer()
-                                                ProgressView()
-                                                Spacer()
-                                            }
-                                        }
-                                        
-                                        if !searchErrorMessage.isEmpty {
-                                            Text(searchErrorMessage)
-                                                .foregroundColor(.red)
-                                                .font(.footnote)
-                                        }
-                                        
-                                        ForEach(searchResults) { user in
-                                            if user.uid != currentUID {
-                                                UserSearchResultCard(
-                                                    user: user,
-                                                    isRequested: requestedUserIds.contains(user.uid),
-                                                    onSendRequest: {
-                                                        Task {
-                                                            await sendFriendRequest(to: user.uid)
-                                                        }
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .padding(.top, 8)
-                                    }
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 220)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(16)
-                            .alert("Unfriend \(friendToUnfriend?.username ?? "")?", isPresented: Binding(
-                                get: { friendToUnfriend != nil },
-                                set: { if !$0 { friendToUnfriend = nil } }
-                            )) {
-                                Button("Unfriend", role: .destructive) {
-                                    if let friend = friendToUnfriend {
-                                        Task {
-                                            await viewModel.unfriend(uid: friend.uid)
-                                        }
-                                    }
-                                    friendToUnfriend = nil
-                                }
-                                Button("Cancel", role: .cancel) {
-                                    friendToUnfriend = nil
-                                }
-                            }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            dismissKeyboard()
                         }
-                        
-                        VStack(spacing: 0) {
-                            Button("Edit Profile") {
-                                isEditing = true
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            
-                            Divider()
-                            
-                            NavigationLink(destination: AccountSettingsView()) {
-                                Text("Account Settings")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                            }
-                            .foregroundColor(.primary)
-                        }
-                        .background(Color(.systemGray6))
-                        .cornerRadius(16)
                     }
                 }
-                
-                Button("Sign Out") {
-                    do {
-                        try authService.signOut()
-                    } catch {
-                        errorMessage = error.localizedDescription
-                    }
-                }
-                .foregroundColor(.red)
-                
-                Spacer(minLength: 30)
-            }
-            .padding()
-            .contentShape(Rectangle())
-            .onTapGesture {
-                dismissKeyboard()
             }
         }
-        .navigationTitle("Profile")
+        .navigationBarHidden(true)
         .task {
-            await loadProfile()
             await loadClubOptions()
-            await viewModel.fetchFriends()
-            await viewModel.fetchIncomingRequests()
+
+            for _ in 0..<10 {
+                if authService.userInfo != nil {
+                    await loadProfile()
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+
+            if isLoadingProfile {
+                print("ProfileView: userInfo still not ready after waiting.")
+                isLoadingProfile = false
+            }
         }
         .onChange(of: selectedPhotoItem) { _, newItem in
             guard newItem != nil else { return }
@@ -486,7 +141,282 @@ struct ProfileView: View {
             }
         }
     }
-    
+
+    private var topHeader: some View {
+        HStack {
+            Text("Profile")
+                .foregroundColor(.white)
+                .font(.title)
+                .fontWeight(.bold)
+
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 23)
+        .background(IslandsBlue)
+    }
+
+    private var profileHeaderSection: some View {
+        VStack(spacing: 14) {
+            profileImageSection
+
+            VStack(spacing: 4) {
+                Text(name.isEmpty ? " " : name)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+
+                Text(username.isEmpty ? " " : "@\(username)")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.9))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal)
+        .padding(.vertical, 24)
+        .background(IslandsBlue)
+        .clipShape(RoundedRectangle(cornerRadius: 28))
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+    }
+
+    private var editSection: some View {
+        VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Username")
+                        .font(.headline)
+
+                    TextField("Username", text: $username)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($usernameFieldFocused)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Name")
+                        .font(.headline)
+
+                    TextField("Name", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($nameFieldFocused)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Bio")
+                        .font(.headline)
+
+                    TextEditor(text: $bio)
+                        .frame(height: 120)
+                        .padding(8)
+                        .background(Color(.systemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.4))
+                        )
+                        .cornerRadius(8)
+                        .focused($bioFieldFocused)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Clubs")
+                        .font(.headline)
+
+                    Menu {
+                        ForEach(clubOptions, id: \.self) { club in
+                            Button {
+                                toggleSelection(club, in: &selectedClubs)
+                            } label: {
+                                HStack {
+                                    Text(club)
+                                    if selectedClubs.contains(club) {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(selectedClubs.isEmpty ? "Select clubs" : selectedClubs.joined(separator: ", "))
+                                .foregroundColor(selectedClubs.isEmpty ? .gray : .primary)
+                                .lineLimit(2)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.down")
+                                .foregroundColor(.gray)
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(10)
+                    }
+
+                    Picker("Clubs Visibility", selection: $clubsVisibility) {
+                        ForEach(VisibilityLevel.allCases, id: \.self) { level in
+                            Text(level.rawValue).tag(level)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Classes")
+                        .font(.headline)
+
+                    Menu {
+                        ForEach(classes, id: \.self) { course in
+                            Button {
+                                toggleSelection(course, in: &selectedClasses)
+                            } label: {
+                                HStack {
+                                    Text(course)
+                                    if selectedClasses.contains(course) {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(selectedClasses.isEmpty ? "Select classes" : selectedClasses.joined(separator: ", "))
+                                .foregroundColor(selectedClasses.isEmpty ? .gray : .primary)
+                                .lineLimit(2)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.down")
+                                .foregroundColor(.gray)
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(10)
+                    }
+
+                    Picker("Classes Visibility", selection: $classesVisibility) {
+                        ForEach(VisibilityLevel.allCases, id: \.self) { level in
+                            Text(level.rawValue).tag(level)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+        }
+    }
+
+    private var saveProfileCard: some View {
+        VStack(spacing: 0) {
+            Button("Save Profile") {
+                dismissKeyboard()
+                Task {
+                    await saveProfile()
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+        }
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+    }
+
+    private var profileInfoCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Bio")
+                    .font(.headline)
+                Text(bio.isEmpty ? "No bio yet" : bio)
+                    .foregroundColor(.primary)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Clubs")
+                    .font(.headline)
+                Text(selectedClubs.isEmpty ? "None selected" : selectedClubs.joined(separator: ", "))
+                    .foregroundColor(.primary)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Classes")
+                    .font(.headline)
+                Text(selectedClasses.isEmpty ? "None selected" : selectedClasses.joined(separator: ", "))
+                    .foregroundColor(.primary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+    }
+
+    private var connectionsCard: some View {
+        NavigationLink(
+            destination: ConnectionsView(
+                authService: authService,
+                friendRepository: viewModel.friendRepository
+            )
+        ) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Connections")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("Friends, requests, and search users")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var actionCard: some View {
+        VStack(spacing: 0) {
+            Button("Edit Profile") {
+                isEditing = true
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+
+            Divider()
+
+            NavigationLink(destination: AccountSettingsView()) {
+                Text("Account Settings")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            }
+            .foregroundColor(.primary)
+        }
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+    }
+
     private var profileImageSection: some View {
         VStack(spacing: 10) {
             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
@@ -532,54 +462,53 @@ struct ProfileView: View {
                     .frame(width: 110, height: 110)
                     .background(Color(.systemGray6))
                     .clipShape(Circle())
-                    
+
                     Circle()
-                        .fill(Color.blue)
-                        .frame(width: 28, height: 28)
+                        .fill(Color.white.opacity(0.95))
+                        .frame(width: 30, height: 30)
                         .overlay(
                             Image(systemName: "camera.fill")
-                                .foregroundColor(.white)
+                                .foregroundColor(IslandsBlue)
                                 .font(.system(size: 12, weight: .semibold))
                         )
                 }
             }
-            
+
             if isUploadingProfileImage {
                 ProgressView()
+                    .tint(.white)
             }
         }
     }
-    
-    
+
     func handleSelectedPhoto() async {
         guard let item = selectedPhotoItem else { return }
-        
+
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 errorMessage = "Failed to load selected image."
                 return
             }
-            
+
             profileImageData = data
             isUploadingProfileImage = true
-            
+
             guard let uid = Auth.auth().currentUser?.uid else {
                 errorMessage = "User not authenticated."
                 isUploadingProfileImage = false
                 return
             }
-            
+
             let imageURL = try await authService.uploadProfileImage(data: data, uid: uid)
             profileImageURL = imageURL
             try await authService.updateProfileImageURL(uid: uid, imageURL: imageURL)
-            
         } catch {
             errorMessage = error.localizedDescription
         }
-        
+
         isUploadingProfileImage = false
     }
-    
+
     func toggleSelection(_ item: String, in array: inout [String]) {
         if array.contains(item) {
             array.removeAll { $0 == item }
@@ -587,38 +516,42 @@ struct ProfileView: View {
             array.append(item)
         }
     }
-    
+
     func dismissKeyboard() {
         bioFieldFocused = false
         usernameFieldFocused = false
         nameFieldFocused = false
     }
-    
-    // Loads the user's profile data through AuthService.
+
     func loadProfile() async {
-        do {
-            guard let userInfo = authService.userInfo else {
-                throw AuthError.generic
-            }
-            
-            email = userInfo.email
-            username = userInfo.username
-            name = userInfo.name
-            bio = userInfo.bio
-            currentUID = userInfo.uid
-            selectedClubs = userInfo.clubs
-            selectedClasses = userInfo.classes
-            profileImageURL = userInfo.profileImageURL
-        } catch {
-            errorMessage = error.localizedDescription
+        guard let userInfo = authService.userInfo else {
+            print("ProfileView: userInfo not ready yet.")
+            return
         }
+        
+        print("classes:", userInfo.classes)
+        print("clubs:", userInfo.clubs)
+        print("classesVisibility:", userInfo.classesVisibility.rawValue)
+        print("clubsVisibility:", userInfo.clubsVisibility.rawValue)
+        
+        email = userInfo.email
+        username = userInfo.username
+        name = userInfo.name
+        bio = userInfo.bio
+        currentUID = userInfo.uid
+        selectedClubs = userInfo.clubs
+        selectedClasses = userInfo.classes
+        profileImageURL = userInfo.profileImageURL
+        classesVisibility = userInfo.classesVisibility
+        clubsVisibility = userInfo.clubsVisibility
+        isLoadingProfile = false
+        
     }
-    
-    // Saves profile changes through AuthService.
+
     func saveProfile() async {
         guard !currentUID.isEmpty else { return }
         let uid = currentUID
-        
+
         let profile = UserInfo(
             id: uid,
             username: username,
@@ -630,9 +563,11 @@ struct ProfileView: View {
             email: email,
             uid: uid,
             bio: bio,
-            profileImageURL: profileImageURL
+            profileImageURL: profileImageURL,
+            classesVisibility: classesVisibility,
+            clubsVisibility: clubsVisibility
         )
-        
+
         do {
             try await authService.updateUserProfile(profile)
             isEditing = false
@@ -642,225 +577,14 @@ struct ProfileView: View {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func loadClubOptions() async {
         do {
             let profileRepo = ProfileRepository(firestoreService: FirestoreService())
             clubOptions = try await profileRepo.fetchClubOptions()
         } catch {
-            errorMessage = "Failed to load clubs."
+            print("Failed to load clubs: \(error)")
         }
-    }
-    
-    func performSearch() async {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            searchResults = []
-            searchErrorMessage = ""
-            return
-        }
-        isLoadingSearch = true
-        searchErrorMessage = ""
-        do {
-            searchResults = try await viewModel.friendRepository.searchUsers(by: trimmed)
-            for user in searchResults {
-                let status = await viewModel.friendRepository.getRelationshipStatus(withUID: user.uid)
-                if status == .requestSent || status == .friends {
-                    requestedUserIds.insert(user.uid)
-                }
-            }
-        } catch {
-            searchErrorMessage = "Failed to search users."
-        }
-        isLoadingSearch = false
-    }
-    
-    func sendFriendRequest(to receiverUid: String) async {
-        searchErrorMessage = ""
-        do {
-            try await viewModel.friendRepository.sendFriendRequest(toUID: receiverUid)
-        } catch {
-            if !error.localizedDescription.contains("already") {
-                searchErrorMessage = error.localizedDescription
-            }
-        }
-        requestedUserIds.insert(receiverUid)
-    }
-}
-
-struct SenderUsernameView: View {
-    let senderUid: String
-    let friendRepository: FriendRepository
-    
-    @State private var user: UserInfo? = nil
-    
-    var body: some View {
-        Group {
-            if let user = user {
-                HStack(spacing: 12) {
-                    Group {
-                        if let urlString = user.profileImageURL,
-                           let url = URL(string: urlString) {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image.resizable().scaledToFill()
-                                default:
-                                    Image(systemName: "person.crop.circle.fill")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                        } else {
-                            Image(systemName: "person.crop.circle.fill")
-                                .resizable()
-                                .scaledToFit()
-                                .foregroundColor(.gray)
-                        }
-                    }
-                    .frame(width: 40, height: 40)
-                    .clipShape(Circle())
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(user.username)
-                            .font(.body)
-                        if !user.bio.isEmpty {
-                            Text(user.bio)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    Spacer()
-                }
-            } else {
-                Text("Loading...")
-                    .foregroundColor(.secondary)
-            }
-        }
-        .task {
-            user = await friendRepository.fetchUser(uid: senderUid)
-        }
-    }
-}
-
-struct UserRowView: View {
-    let user: UserInfo
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Group {
-                if let urlString = user.profileImageURL,
-                   let url = URL(string: urlString) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        default:
-                            Image(systemName: "person.crop.circle.fill")
-                                .resizable()
-                                .scaledToFit()
-                                .foregroundColor(.gray)
-                        }
-                    }
-                } else {
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.gray)
-                }
-            }
-            .frame(width: 40, height: 40)
-            .clipShape(Circle())
-            
-            Text(user.username)
-                .font(.body)
-            
-            Spacer()
-        }
-    }
-}
-
-struct UserSearchResultCard: View {
-    let user: UserInfo
-    let isRequested: Bool
-    let onSendRequest: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                profileImageView
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(user.username)
-                        .font(.headline)
-                    
-                    if !user.name.isEmpty {
-                        Text(user.name)
-                    }
-                    
-                    if !user.bio.isEmpty {
-                        Text(user.bio)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-            }
-            
-            Button(isRequested ? "Requested" : "Send Request") {
-                onSendRequest()
-            }
-            .disabled(isRequested)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
-    }
-    
-    private var profileImageView: some View {
-        Group {
-            if let profileImageURL = user.profileImageURL,
-               let url = URL(string: profileImageURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .empty:
-                        ProgressView()
-                    case .failure:
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundColor(.gray)
-                            .padding(6)
-                    @unknown default:
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundColor(.gray)
-                            .padding(6)
-                    }
-                }
-            } else {
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundColor(.gray)
-                    .padding(6)
-            }
-        }
-        .frame(width: 56, height: 56)
-        .background(Color(.systemBackground))
-        .clipShape(Circle())
     }
 }
 
