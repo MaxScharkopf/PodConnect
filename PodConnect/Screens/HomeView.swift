@@ -257,29 +257,29 @@ private struct FriendRequestRow: View {
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 36))
-                .foregroundColor(IslandsBlue.opacity(0.6))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundColor(IslandsBlue.opacity(0.6))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(sender?.username ?? "Unknown User")
-                    .font(.body)
-                    .fontWeight(.medium)
-                Text("Sent you a friend request")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sender?.username ?? "Unknown User")
+                        .font(.body)
+                        .fontWeight(.medium)
+                    Text("Sent you a friend request")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-
-            Spacer()
 
             HStack(spacing: 8) {
                 Button("Accept") { onAccept() }
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                     .background(IslandsBlue)
                     .clipShape(Capsule())
                     .buttonStyle(.borderless)
@@ -288,8 +288,8 @@ private struct FriendRequestRow: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(ChannelClay)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                     .background(ChannelClay.opacity(0.1))
                     .clipShape(Capsule())
                     .buttonStyle(.borderless)
