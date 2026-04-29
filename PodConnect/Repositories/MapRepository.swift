@@ -16,6 +16,12 @@ final class MapRepository {
     private var authService: AuthService
     private let pinsPath = "pins"
     
+    private struct PinUpdate: Encodable {
+        let name: String
+        let subtitle: String?
+        let sharedWith: [String]
+    }
+    
     init(firestoreService: FirestoreService, authService: AuthService) {
         self.firestoreService = firestoreService
         self.authService = authService
@@ -77,6 +83,24 @@ final class MapRepository {
         )
         
         try await firestoreService.saveDocument(path: pinsPath, data: pin)
+    }
+    
+    func updatePin(id: String, name: String, subtitle: String?, sharedWith: [String]) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw NSError(
+                domain: "MapRepository",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "User not authenticated."]
+            )
+        }
+        
+        let update = PinUpdate(name: name, subtitle: subtitle, sharedWith: sharedWith)
+        
+        try await firestoreService.updateDocument(
+            path: pinsPath,
+            documentId: id,
+            data: update
+            )
     }
     
     func deletePin(id: String) async throws {

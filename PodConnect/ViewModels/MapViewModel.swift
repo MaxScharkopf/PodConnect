@@ -104,6 +104,22 @@ class MapViewModel: ObservableObject {
         }
     }
     
+    func updateUserPin(id: String, name: String, subtitle: String?, sharedWith: [String]) async {
+        do {
+            try await mapRepository.updatePin(
+                id: id,
+                name: name,
+                subtitle: subtitle,
+                sharedWith: sharedWith
+            )
+            
+            await loadUserPins()
+            
+        } catch {
+            errorMessage = "Error updating pin: \(error.localizedDescription)"
+        }
+    }
+    
     func deleteUserPin(id: String) async {
         do {
             try await mapRepository.deletePin(id: id)

@@ -25,6 +25,7 @@ struct MapView: View {
     @State private var showingAddPinSheet = false
     @State private var visibleRegion: MKCoordinateRegion?
     @State private var isAddingPin = false
+    @State private var editingPin: MapPin?
     @State private var pendingPinCoordinate: CLLocationCoordinate2D?
     @State private var friends: [UserInfo] = []
     private let friendRepository: FriendRepository
@@ -237,6 +238,7 @@ struct MapView: View {
                                 }
                                 ) {
                                 AddPinSheet(
+                                    pin: nil,
                                     friends: friends,
                                     onSave: { name, subtitle, sharedWith in
                                         let center = pendingPinCoordinate ?? currentMapCenter()
@@ -314,7 +316,31 @@ struct MapView: View {
                             selectedPin = nil
                         }
                     }
+                } : nil,
+                onEdit: pin.pinType == "user" ? {
+                    selectedPin = nil
+                    editingPin = pin
                 } : nil
+            )
+        }
+        .sheet(item: $editingPin) { pin in
+            AddPinSheet(
+                pin: pin,
+                friends: friends,
+                onSave: { name, subtitle, sharedWith in
+                    guard let id = pin.id else { return }
+
+                    Task {
+                        await mapViewModel.updateUserPin(
+                            id: id,
+                            name: name,
+                            subtitle: subtitle,
+                            sharedWith: sharedWith
+                        )
+                        editingPin = nil
+                        selectedPin = nil
+                    }
+                }
             )
         }
         .alert("Error",
@@ -565,7 +591,7 @@ struct sBar: View {
             }
         }
         .searchable(text: $sText, prompt: "Search campus locations")
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(270), .medium])
     }
 }
 
@@ -573,12 +599,16 @@ struct LocationDetailSheet: View {
     let pin: MapPin
     let onDirections: () -> Void
     let onDelete: (() -> Void)?
+    let onEdit: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .center, spacing: 16) {
+        VStack(alignment: .center, spacing: 8) {
             Text(pin.name)
                 .font(.title2)
                 .bold()
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
 
             if let category = pin.category {
                 Text(category)
@@ -589,16 +619,27 @@ struct LocationDetailSheet: View {
                 Text(subtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Input description here")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Button("Get Directions") {
                 onDirections()
             }
             .buttonStyle(.borderedProminent)
+            
+            if let onEdit {
+                Button("Edit Pin") {
+                    onEdit()
+                }
+                .buttonStyle(.bordered)
+            }
             
             if let onDelete {
                 Button("Delete Pin", role: .destructive) {
@@ -609,8 +650,10 @@ struct LocationDetailSheet: View {
 
             Spacer()
         }
-        .padding()
-        .presentationDetents([.height(240)])
+        .padding(.top, 20)
+        .presentationDetents([.height(270), .medium])
+        .fixedSize(horizontal: false, vertical: false
+        )
         .presentationDragIndicator(.visible)
     }
 }
@@ -618,12 +661,27 @@ struct LocationDetailSheet: View {
 struct AddPinSheet: View {
     @Environment(\.dismiss) private var dismiss
     
-    @State private var name = ""
-    @State private var subtitle = ""
-    @State private var selectedFriendIDs: Set<String> = []
+    @State private var name: String
+    @State private var subtitle: String
+    @State private var selectedFriendIDs: Set<String>
     
+    let pin: MapPin?
     let friends: [UserInfo]
     let onSave: (String, String?, [String]) -> Void
+    
+    init(
+        pin: MapPin?,
+        friends: [UserInfo],
+        onSave: @escaping (String, String?, [String]) -> Void
+    ) {
+        self.pin = pin
+        self.friends = friends
+        self.onSave = onSave
+        
+        _name = State(initialValue: pin?.name ?? "")
+        _subtitle = State(initialValue: pin?.subtitle ?? "")
+        _selectedFriendIDs = State(initialValue: Set(pin?.sharedWith ?? []))
+    }
     
     var body: some View {
         NavigationStack {
@@ -673,7 +731,8 @@ struct AddPinSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(350)])
+        .presentationDetents([.height(270), .medium])
+        .fixedSize(horizontal: false, vertical: false)
         .presentationDragIndicator(.visible)
     }
     
@@ -693,7 +752,6 @@ struct AddPinSheet: View {
         }
     }
 }
-
 
 #Preview {
     MapView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
