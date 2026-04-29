@@ -76,11 +76,11 @@ class ChatViewModel: ObservableObject {
         }
     }
     
-    func updateMessageThread(threadId: String, threadName: String, participants: [String]) async {
+    func updateMessageThreadWithPending(threadId: String, threadName: String, participants: [String], pendingParticipants: [String]) async {
         isLoading = true
         
         do {
-            try await messageRepository.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
+            try await messageRepository.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants)
             isLoading = false
             errorMessage = nil
         }catch {

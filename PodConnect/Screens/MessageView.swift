@@ -61,35 +61,107 @@ struct MessageView: View {
                     Spacer()
                     
                     ScrollView {
-                        ForEach(viewModel.messageThreads) { thread in
-                            NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService)) {
-                                ZStack {
-                                    Rectangle()
-                                        .fill(.white)
-                                        .frame(maxWidth: 400, maxHeight: 55)
-                                        .clipShape(Capsule())
-                                        .shadow(color: Color.black.opacity(0.2), radius: 5)
-                                    
-                                    HStack {
-                                        Text(thread.threadName)
-                                            .padding(20)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
-                                        
-                                        Spacer()
+                        if !viewModel.messageRequests.isEmpty {
+                            VStack(alignment: .leading) {
+                                Text("Message Requests")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                    .padding(.top)
+                                
+                                ForEach(viewModel.messageRequests) { thread in
+                                    NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService, isRequest: true)) {
+                                        ZStack {
+                                            Rectangle()
+                                                .fill(.white.opacity(0.8))
+                                                .frame(maxWidth: 400, maxHeight: 55)
+                                                .clipShape(Capsule())
+                                                .shadow(color: Color.black.opacity(0.1), radius: 3)
+                                                .padding(.horizontal)
+
+                                            HStack {
+                                                Text(thread.threadName)
+                                                    .padding(20)
+                                                    .font(.headline)
+                                                    .foregroundStyle(.primary)
+                                                    .padding(.leading)
+
+                                                Spacer()
+
+                                                if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
+                                                    Text("\(count)")
+                                                        .font(.caption2.bold())
+                                                        .foregroundColor(.white)
+                                                        .padding(6)
+                                                        .background(.red)
+                                                        .clipShape(Circle())
+                                                }
+                                                
+                                                Text("New")
+                                                    .font(.caption)
+                                                    .padding(6)
+                                                    .background(.blue)
+                                                    .foregroundColor(.white)
+                                                    .clipShape(Capsule())
+                                                    .padding(.trailing, 32)
+                                            }
+                                        }
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .buttonStyle(.plain)
+                            Divider().padding()
+                        }
+
+                        VStack(alignment: .leading) {
+                            if !viewModel.messageThreads.isEmpty {
+                                Text("Messages")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                    .padding(.top)
+                            }
+                            
+                            ForEach(viewModel.messageThreads) { thread in
+                                NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService)) {
+                                    ZStack {
+                                        Rectangle()
+                                            .fill(.white)
+                                            .frame(maxWidth: 400, maxHeight: 55)
+                                            .clipShape(Capsule())
+                                            .shadow(color: Color.black.opacity(0.2), radius: 5)
+                                            .padding(.horizontal)
+
+                                        HStack {
+                                            Text(thread.threadName)
+                                                .padding(20)
+                                                .font(.headline)
+                                                .foregroundStyle(.primary)
+                                                .padding(.leading)
+
+                                            Spacer()
+
+                                            if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
+                                                Text("\(count)")
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.white)
+                                                    .padding(6)
+                                                    .background(.red)
+                                                    .clipShape(Circle())
+                                                    .padding(.trailing, 32)
+                                            }
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                     .onAppear() {
                         Task {
-                            await viewModel.fetchMessageThreads()
+                            await viewModel.fetchData()
                         }
                     }
                     .refreshable {
-                        await viewModel.fetchMessageThreads()
+                        await viewModel.fetchData()
                     }
                     
                     Spacer()
