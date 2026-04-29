@@ -36,16 +36,19 @@ class ChatViewModel: ObservableObject {
     private func listenForMessages() {
         // Set loading flag
         self.isLoading = true
-        
+
         messageListenerTask = Task {
             do {
+                // Mark thread as read when opening
+                try? await messageRepository.markThreadAsRead(threadId: self.messageThreadId)
+
                 // Retrieve user message threads
                 let stream = messageRepository.messageFetchStream(threadId: self.messageThreadId)
-                
+
                 for try await messages in stream {
                     // Set the message threads for view access
                     self.messages = messages
-                    
+
                     // Set loading and error
                     self.isLoading = false
                     self.errorMessage = nil
