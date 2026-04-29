@@ -23,6 +23,7 @@ final class HomeViewModel: ObservableObject {
 
     private let friendRepository: FriendRepository
     private let messageRepository: MessageRepository
+    private var friendRequestListenerTask: Task<Void, Never>?
     private var threadListenerTask: Task<Void, Never>?
 
     init(friendRepository: FriendRepository, messageRepository: MessageRepository) {
@@ -31,6 +32,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     deinit {
+        friendRequestListenerTask?.cancel()
         threadListenerTask?.cancel()
     }
 
@@ -42,18 +44,27 @@ final class HomeViewModel: ObservableObject {
     func loadNotifications() async {
         errorMessage = ""
 
-        // One-time fetch for friend requests
-        do {
-            let requests = try await friendRepository.fetchIncomingRequests()
-            pendingRequests = requests
-            for request in requests {
-                if let user = await friendRepository.fetchUser(uid: request.senderUid) {
-                    requestSenders[request.senderUid] = user
+        // Start real-time listener for friend requests (only once)
+        if friendRequestListenerTask == nil {
+            friendRequestListenerTask = Task {
+                do {
+                    let stream = friendRepository.incomingRequestsStream()
+                    for try await requests in stream {
+                        pendingRequests = requests
+
+                        var senders: [String: UserInfo] = [:]
+                        for request in requests {
+                            if let user = await friendRepository.fetchUser(uid: request.senderUid) {
+                                senders[request.senderUid] = user
+                            }
+                        }
+                        requestSenders = senders
+                    }
+                } catch {
+                    errorMessage = "Failed to load notifications."
+                    print("HomeViewModel friend request stream error: \(error)")
                 }
             }
-        } catch {
-            errorMessage = "Failed to load notifications."
-            print("HomeViewModel loadNotifications error: \(error)")
         }
 
         // Start real-time listener for message threads (only once)
