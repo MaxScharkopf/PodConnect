@@ -19,8 +19,9 @@ class FriendRepository {
     func searchUsers(by usernameQuery: String) async throws -> [UserInfo] {
         let cleaned = usernameQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !cleaned.isEmpty else { return [] }
+        guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
 
-        return try await firestoreService.fetchCollection(
+        let users: [UserInfo] = try await firestoreService.fetchCollection(
             path: "users",
             configure: { query in
                 query.order(by: "username_lowercase")
@@ -28,6 +29,8 @@ class FriendRepository {
                     .end(at: [cleaned + "\u{f8ff}"])
             }
         )
+
+        return users.filter { $0.uid != currentUID }
     }
     
     func sendFriendRequest(toUID: String) async throws {
@@ -80,10 +83,12 @@ class FriendRepository {
     }
     
     func getRelationshipStatus(withUID: String) async -> RelationshipStatus {
-        guard let currentUID = Auth.auth().currentUser?.uid else { return .none }
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            return .none
+        }
 
         do {
-            // Check if already friends
+            // 1. Check if already friends (user1 → user2)
             let friends: [Friend] = try await firestoreService.fetchCollection(
                 path: "friends",
                 configure: { query in
@@ -92,8 +97,8 @@ class FriendRepository {
                 }
             )
             if !friends.isEmpty { return .friends }
-            
-            // Check reverse order too
+
+            // 2. Check reverse (user2 → user1)
             let friendsReverse: [Friend] = try await firestoreService.fetchCollection(
                 path: "friends",
                 configure: { query in
@@ -102,9 +107,9 @@ class FriendRepository {
                 }
             )
             if !friendsReverse.isEmpty { return .friends }
-            
-            // Check if request already sent
-            let requests: [FriendRequest] = try await firestoreService.fetchCollection(
+
+            // 3. Check if YOU sent a request
+            let sentRequests: [FriendRequest] = try await firestoreService.fetchCollection(
                 path: "friendRequests",
                 configure: { query in
                     query.whereField("senderUid", isEqualTo: currentUID)
@@ -112,8 +117,20 @@ class FriendRepository {
                         .whereField("status", isEqualTo: "pending")
                 }
             )
-            if !requests.isEmpty { return .requestSent }
+            if !sentRequests.isEmpty { return .requestSent }
 
+            // 4. Check if THEY sent YOU a request
+            let receivedRequests: [FriendRequest] = try await firestoreService.fetchCollection(
+                path: "friendRequests",
+                configure: { query in
+                    query.whereField("senderUid", isEqualTo: withUID)
+                        .whereField("receiverUid", isEqualTo: currentUID)
+                        .whereField("status", isEqualTo: "pending")
+                }
+            )
+            if !receivedRequests.isEmpty { return .requestReceived }
+
+            // 5. Nothing exists
             return .none
 
         } catch {
@@ -156,6 +173,18 @@ class FriendRepository {
     
     func fetchUser(uid: String) async -> UserInfo? {
         return try? await firestoreService.fetchDocument(path: "users", documentId: uid)
+    }
+
+    func fetchOtherUsers(limit: Int = 10) async throws -> [UserInfo] {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
+        
+        // Fetch a sample of users from the collection
+        let users: [UserInfo] = try await firestoreService.fetchCollection(path: "users") { query in
+            query.limit(to: limit + 1)
+        }
+        
+        // Filter out the current user and limit the results
+        return Array(users.filter { $0.uid != currentUID }.prefix(limit))
     }
     
     func fetchIncomingRequests() async throws -> [FriendRequest] {

@@ -19,46 +19,72 @@ struct CalendarView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Sub-tab picker: Calendar view vs Events list
-            Picker("", selection: $selectedTab) {
-                Text("Calendar").tag(0)
-                Text("Events").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding()
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
 
-            Divider()
+            VStack(spacing: 0) {
+                topHeader
 
-            if selectedTab == 0 {
-                CalendarTabView(
-                    userEvents: viewModel.userEvents,
-                    selectedDate: $selectedDate,
-                    selectedTab: $selectedTab,
-                    onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
-                )
-            } else {
-                EventsTabView(
-                    userEvents: viewModel.userEvents,
-                    selectedDate: $selectedDate,
-                    selectedTab: $selectedTab,
-                    onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
-                )
+                VStack(spacing: 0) {
+                    Picker("", selection: $selectedTab) {
+                        Text("Calendar").tag(0)
+                        Text("Events").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding()
+
+                    Divider()
+
+                    if selectedTab == 0 {
+                        CalendarTabView(
+                            userEvents: viewModel.userEvents,
+                            selectedDate: $selectedDate,
+                            selectedTab: $selectedTab,
+                            onDeleteEvent: { event in
+                                Task { await viewModel.deleteEvent(event: event) }
+                            }
+                        )
+                    } else {
+                        EventsTabView(
+                            userEvents: viewModel.userEvents,
+                            selectedDate: $selectedDate,
+                            selectedTab: $selectedTab,
+                            onDeleteEvent: { event in
+                                Task { await viewModel.deleteEvent(event: event) }
+                            }
+                        )
+                    }
+                }
             }
         }
-        .navigationTitle("Calendar")
-        .tint(islandsBlue)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showAddEvent = true } label: { Image(systemName: "plus") }
-                    .foregroundColor(channelClay)
-            }
-        }
+        .navigationBarHidden(true)
         .sheet(isPresented: $showAddEvent) {
             AddEventSheet(initialDate: selectedDate) { newEvent in
                 Task { await viewModel.saveEvent(event: newEvent) }
             }
         }
+    }
+
+    private var topHeader: some View {
+        HStack {
+            Text("Calendar")
+                .foregroundColor(.white)
+                .font(.title)
+                .fontWeight(.bold)
+
+            Spacer()
+
+            Button {
+                showAddEvent = true
+            } label: {
+                Image(systemName: "plus")
+                    .padding()
+                    .glassEffect()
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 18)
+        .background(islandsBlue)
     }
 }
 
@@ -69,8 +95,6 @@ struct CalendarTabView: View {
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
 
-
-    // All events (school + user) on the selected date
     private var schoolEventsOnDate: [SchoolEvent] {
         schoolEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
     }
@@ -95,7 +119,6 @@ struct CalendarTabView: View {
                 Spacer()
             } else {
                 List {
-                    // User events shown first
                     if !userEventsOnDate.isEmpty {
                         Section("My Events") {
                             ForEach(userEventsOnDate) { event in
@@ -106,7 +129,7 @@ struct CalendarTabView: View {
                             }
                         }
                     }
-                    // School events below
+
                     if !schoolEventsOnDate.isEmpty {
                         Section("Campus Events") {
                             ForEach(schoolEventsOnDate) { event in
@@ -133,26 +156,24 @@ struct EventsTabView: View {
 
     private let allCategories = ["Academic", "Arts", "Campus Life", "Wellness", "Personal", "Work", "Other"]
 
-    // School events filtered by active category chips and search bar
     private var filteredSchoolEvents: [SchoolEvent] {
-            let categoryFiltered: [SchoolEvent]
+        let categoryFiltered: [SchoolEvent]
 
-            if activeCategories.isEmpty {
-                categoryFiltered = schoolEvents
-            } else {
-                categoryFiltered = schoolEvents.filter { activeCategories.contains($0.category) }
-            }
-
-            guard !searchText.isEmpty else { return categoryFiltered }
-
-            return categoryFiltered.filter { event in
-                event.title.localizedCaseInsensitiveContains(searchText) ||
-                event.notes.localizedCaseInsensitiveContains(searchText) ||
-                event.category.localizedCaseInsensitiveContains(searchText)
-            }
+        if activeCategories.isEmpty {
+            categoryFiltered = schoolEvents
+        } else {
+            categoryFiltered = schoolEvents.filter { activeCategories.contains($0.category) }
         }
-    
-    // Users events filtered by active category chips and search bar
+
+        guard !searchText.isEmpty else { return categoryFiltered }
+
+        return categoryFiltered.filter { event in
+            event.title.localizedCaseInsensitiveContains(searchText) ||
+            event.notes.localizedCaseInsensitiveContains(searchText) ||
+            event.category.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
     private var filteredUserEvents: [UserEvent] {
         let categoryFiltered: [UserEvent]
 
@@ -170,8 +191,7 @@ struct EventsTabView: View {
             event.category.rawValue.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
-    // Group filtered school events by date for section headers
+
     private var groupedSchoolEvents: [(String, [SchoolEvent])] {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
@@ -189,7 +209,6 @@ struct EventsTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Category filter chips
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
                     if !activeCategories.isEmpty {
@@ -203,6 +222,7 @@ struct EventsTabView: View {
                                 .clipShape(Capsule())
                         }
                     }
+
                     ForEach(allCategories, id: \.self) { category in
                         let isActive = activeCategories.contains(category)
                         Button(action: {
@@ -229,7 +249,6 @@ struct EventsTabView: View {
             Divider()
 
             List {
-                // User events section
                 if !filteredUserEvents.isEmpty {
                     Section("My Events") {
                         ForEach(filteredUserEvents) { event in
@@ -247,7 +266,6 @@ struct EventsTabView: View {
                     }
                 }
 
-                // School events grouped by date
                 ForEach(groupedSchoolEvents, id: \.0) { dateString, events in
                     Section(dateString) {
                         ForEach(events) { event in
@@ -261,6 +279,7 @@ struct EventsTabView: View {
                         }
                     }
                 }
+
                 if filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
                     Text("No matching events")
                         .foregroundColor(.secondary)
@@ -275,7 +294,6 @@ struct EventsTabView: View {
         )
     }
 
-    // Color per category for filter chips
     func categoryColor(_ category: String) -> Color {
         switch category {
         case "Academic": return islandsBlue
@@ -295,16 +313,20 @@ struct SchoolEventRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(event.title)
                 .font(.body)
+
             HStack {
                 Text(event.date, style: .time)
                     .font(.caption)
                     .foregroundColor(islandsBlue)
+
                 Text("·")
                     .foregroundColor(.secondary)
+
                 Text(event.category)
                     .font(.caption)
                     .foregroundColor(categoryColor(event.category))
             }
+
             if !event.notes.isEmpty {
                 Label(event.notes, systemImage: "mappin")
                     .font(.caption)
@@ -332,19 +354,22 @@ struct UserEventRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(event.title)
                 .font(.body)
+
             HStack {
                 Text(event.startDate, style: .date)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 Text(event.startDate, style: .time)
                 Text("–")
                 Text(event.endDate, style: .time)
             }
             .font(.caption)
             .foregroundColor(.gray)
+
             Text(event.category.rawValue)
                 .font(.caption)
                 .foregroundColor(channelClay)
+
             if !event.notes.isEmpty {
                 Text(event.notes)
                     .font(.caption)
@@ -370,7 +395,6 @@ struct AddEventSheet: View {
     init(initialDate: Date, onSave: @escaping (UserEvent) -> Void) {
         self.initialDate = initialDate
         self.onSave = onSave
-        // Default start to initialDate, end to 1 hour later
         _startDate = State(initialValue: initialDate)
         _endDate = State(initialValue: initialDate.addingTimeInterval(3600))
     }
@@ -383,6 +407,7 @@ struct AddEventSheet: View {
                     DatePicker("Start", selection: $startDate)
                     DatePicker("End", selection: $endDate)
                 }
+
                 Section("Category") {
                     Picker("Category", selection: $category) {
                         ForEach(EventCategory.allCases, id: \.self) { category in
@@ -391,6 +416,7 @@ struct AddEventSheet: View {
                     }
                     .pickerStyle(.menu)
                 }
+
                 Section("Notes") {
                     TextField("Add notes...", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
@@ -404,10 +430,16 @@ struct AddEventSheet: View {
                     Button("Cancel") { dismiss() }
                         .foregroundColor(channelClay)
                 }
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let event = UserEvent(title: title, startDate: startDate, endDate: endDate, notes: notes,
-                            category: category)
+                        let event = UserEvent(
+                            title: title,
+                            startDate: startDate,
+                            endDate: endDate,
+                            notes: notes,
+                            category: category
+                        )
                         onSave(event)
                         dismiss()
                     }
@@ -421,8 +453,11 @@ struct AddEventSheet: View {
 
 #Preview {
     NavigationStack {
-        CalendarView(eventRepository: EventRepository(
-            firestoreService: FirestoreService(),
-            authService: AuthService(firestoreService: FirestoreService())))
+        CalendarView(
+            eventRepository: EventRepository(
+                firestoreService: FirestoreService(),
+                authService: AuthService(firestoreService: FirestoreService())
+            )
+        )
     }
 }

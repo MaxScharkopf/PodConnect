@@ -72,7 +72,10 @@ struct ChatView: View {
                     Spacer()
                     
                     Text(messageThread.threadName)
+                        .foregroundColor(.white)
                         .font(.title)
+                        .fontWeight(.bold)
+                        .padding(.leading, 0)
                     
                     Spacer()
                     
@@ -153,10 +156,22 @@ struct ChatView: View {
             }
             .ignoresSafeArea()
         }
+        .onChange(of: viewModel.messages.count) { _, _ in
+            if !isRequest {
+                Task { try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "") }
+            }
+        }
         .task { 
             await loadUsers() 
             if !isRequest {
                 try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "")
+            }
+        }
+        .onDisappear {
+            if !isRequest {
+                Task {
+                    try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "")
+                }
             }
         }
         .dismissKeyboardOnTap()
@@ -457,5 +472,5 @@ struct SettingsView: View {
     let firestore = FirestoreService()
     let auth = AuthService(firestoreService: firestore)
     
-    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), friendRepository: FriendRepository(firestoreService: firestore), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team"), authService: auth)
+    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), friendRepository: FriendRepository(firestoreService: firestore), messageThread: MessageThread(id: "messageThreadID", participants: [], pendingParticipants: [], threadName: "The Dev Team"), authService: auth)
 }

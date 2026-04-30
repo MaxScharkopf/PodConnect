@@ -6,6 +6,7 @@
 //
 
 import FirebaseAuth
+import FirebaseFirestore
 internal import FirebaseFirestoreInternal
 
 // Store core functions for messaging capabilities
@@ -21,10 +22,13 @@ final class MessageRepository {
     func getUserId() -> String? {
         return authService.userInfo?.id
     }
+
+    func fetchUser(uid: String) async -> UserInfo? {
+        return try? await firestoreService.fetchDocument(path: "users", documentId: uid)
+    }
     
     func fetchMessageThreads() async throws -> [MessageThread] {
-        // Check if the user is logged in
-        guard let userId = authService.userInfo?.id else {
+        guard let userId = Auth.auth().currentUser?.uid else {
             return []
         }
         
@@ -88,10 +92,13 @@ final class MessageRepository {
         
         try await firestoreService.saveDocument(path: "messages/\(threadId)/messages", data: message)
         
-        // Update the thread's last message timestamp
+        // Update the thread's last message timestamp and the sender's last read timestamp
         if let thread: MessageThread = try await firestoreService.fetchDocument(path: "messages", documentId: threadId) {
             var updatedThread = thread
             updatedThread.lastMessageAt = now
+            var lastReadAt = updatedThread.lastReadAt ?? [:]
+            lastReadAt[userId] = now
+            updatedThread.lastReadAt = lastReadAt
             try await firestoreService.updateDocument(path: "messages", documentId: threadId, data: updatedThread)
         }
     }
@@ -117,6 +124,30 @@ final class MessageRepository {
         
         return try await firestoreService.getCount(path: "messages/\(threadId)/messages") { query in
             query.whereField("timestamp", isGreaterThan: lastRead)
+        }
+    }
+
+    func fetchUnreadMessageThreads() async throws -> [MessageThread] {
+        guard let userId = Auth.auth().currentUser?.uid else { return [] }
+
+        let allThreads = try await fetchMessageThreads()
+        return allThreads.filter { thread in
+            guard let lastMessageAt = thread.lastMessageAt else { return false }
+            guard let lastReadAt = thread.lastReadAt?[userId] else { return true }
+            return lastMessageAt > lastReadAt
+        }
+    }
+
+    func messageThreadsStream() -> AsyncThrowingStream<[MessageThread], Error> {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            return AsyncThrowingStream { continuation in
+                continuation.yield([])
+                continuation.finish()
+            }
+        }
+
+        return firestoreService.createCollectionListener(path: "messages") { collection in
+            collection.whereField("participants", arrayContains: userId)
         }
     }
     

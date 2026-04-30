@@ -26,6 +26,8 @@ struct MapView: View {
     @State private var visibleRegion: MKCoordinateRegion?
     @State private var isAddingPin = false
     @State private var pendingPinCoordinate: CLLocationCoordinate2D?
+    @State private var friends: [UserInfo] = []
+    private let friendRepository: FriendRepository
 
     @State private var mapPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -52,13 +54,20 @@ struct MapView: View {
     )
     
     init(authService: AuthService, firestoreService: FirestoreService) {
+        
         let mapRepository = MapRepository(
             firestoreService: firestoreService,
             authService: authService
         )
+        
+        let friendRepository = FriendRepository(
+            firestoreService: firestoreService
+        )
+        
+        self.friendRepository = friendRepository
 
         _mapViewModel = StateObject(
-            wrappedValue: MapViewModel(mapRepository: mapRepository)
+            wrappedValue: MapViewModel(mapRepository: mapRepository, friendRepository: friendRepository)
         )
     }
 
@@ -228,7 +237,8 @@ struct MapView: View {
                                 }
                                 ) {
                                 AddPinSheet(
-                                    onSave: { name, subtitle in
+                                    friends: friends,
+                                    onSave: { name, subtitle, sharedWith in
                                         let center = pendingPinCoordinate ?? currentMapCenter()
                                         
                                         Task {
@@ -236,6 +246,7 @@ struct MapView: View {
                                                 name: name,
                                                 subtitle: subtitle,
                                                 coordinate: center,
+                                                sharedWith: sharedWith
                                             )
                                         }
                                         pendingPinCoordinate = nil
@@ -284,6 +295,9 @@ struct MapView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
+            .task {
+                await loadFriends()
+            }
         }
         .sheet(item: $selectedPin) { pin in
             LocationDetailSheet(
@@ -330,6 +344,16 @@ struct MapView: View {
     // Get center of the map for creating a pin
     func currentMapCenter() -> CLLocationCoordinate2D {
         visibleRegion?.center ?? defaultRegion.center
+    }
+    
+    func loadFriends() async {
+        do {
+            friends = try await friendRepository.fetchFriends()
+            print("Loaded friends")
+        }
+        catch {
+            print("Faild to load friends")
+        }
     }
     
     func markerStyle(for category: String) -> (icon: String, color: Color) {
@@ -596,14 +620,41 @@ struct AddPinSheet: View {
     
     @State private var name = ""
     @State private var subtitle = ""
+    @State private var selectedFriendIDs: Set<String> = []
     
-    let onSave: (String, String?) -> Void
+    let friends: [UserInfo]
+    let onSave: (String, String?, [String]) -> Void
     
     var body: some View {
         NavigationStack {
             Form {
                 TextField("Pin name", text: $name)
                 TextField("Description", text: $subtitle)
+                Section("Share With Friends") {
+                    Menu {
+                        ForEach(friends, id: \.id) { friend in
+                            if let uid = friend.id {
+                                Button {
+                                    toggleFriend(uid)
+                                } label: {
+                                    HStack {
+                                        Text(friend.username)
+                                        if selectedFriendIDs.contains(uid) {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text("Shared With")
+                            Spacer()
+                            Text(sharedFriendsText)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             .navigationTitle("New Pin")
             .toolbar {
@@ -612,18 +663,34 @@ struct AddPinSheet: View {
                         dismiss()
                     }
                 }
-
+                
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave(name, subtitle.isEmpty ? nil : subtitle)
+                        onSave(name, subtitle.isEmpty ? nil : subtitle, Array(selectedFriendIDs))
                         dismiss()
                     }
                     .disabled(name.isEmpty)
                 }
             }
         }
-        .presentationDetents([.height(220)])         
+        .presentationDetents([.height(350)])
         .presentationDragIndicator(.visible)
+    }
+    
+    private func toggleFriend(_ uid: String) {
+        if selectedFriendIDs.contains(uid) {
+            selectedFriendIDs.remove(uid)
+        } else {
+            selectedFriendIDs.insert(uid)
+        }
+    }
+    
+    private var sharedFriendsText: String {
+        if selectedFriendIDs.isEmpty {
+            return "None"
+        } else {
+            return "\(selectedFriendIDs.count) selected"
+        }
     }
 }
 

@@ -17,6 +17,7 @@ class MessageViewModel: ObservableObject {
     @Published var messageThreads: [MessageThread] = []
     @Published var messageRequests: [MessageThread] = []
     @Published var unreadCounts: [String: Int] = [:]
+    @Published var users: [String: UserInfo] = [:]
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -33,7 +34,52 @@ class MessageViewModel: ObservableObject {
             group.addTask { await self.fetchMessageRequests() }
         }
         await fetchAllUnreadCounts()
+        await fetchAllParticipants()
         self.isLoading = false
+    }
+
+    func fetchAllParticipants() async {
+        let allThreads = messageThreads + messageRequests
+        var allParticipantIds = Set<String>()
+        for thread in allThreads {
+            allParticipantIds.formUnion(thread.participants)
+            allParticipantIds.formUnion(thread.pendingParticipants)
+        }
+        
+        // Skip current user and already loaded users
+        if let currentId = messageRepository.getUserId() {
+            allParticipantIds.remove(currentId)
+        }
+        
+        await withTaskGroup(of: (String, UserInfo?).self) { group in
+            for id in allParticipantIds {
+                guard users[id] == nil else { continue }
+                group.addTask {
+                    let user = await self.messageRepository.fetchUser(uid: id)
+                    return (id, user)
+                }
+            }
+            
+            for await (id, user) in group {
+                if let user = user {
+                    self.users[id] = user
+                }
+            }
+        }
+    }
+
+    func getParticipantSummary(for thread: MessageThread) -> String {
+        let currentUserId = messageRepository.getUserId()
+        let allIds = thread.participants + thread.pendingParticipants
+        let otherIds = allIds.filter { $0 != currentUserId }
+        
+        let names = otherIds.compactMap { users[$0]?.name ?? users[$0]?.username }
+        
+        if names.isEmpty {
+            return "No other participants"
+        }
+        
+        return names.joined(separator: ", ")
     }
     
     func fetchMessageThreads() async {

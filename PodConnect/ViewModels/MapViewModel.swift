@@ -22,6 +22,7 @@ class MapViewModel: ObservableObject {
     @Published var errorMessage: String?
     
     private var mapRepository: MapRepository
+    private var friendRepository: FriendRepository
 
     // Converting current pins into MapPin. Later these will be stored in firebase
     var campusPins: [MapPin] {
@@ -35,8 +36,9 @@ class MapViewModel: ObservableObject {
         campusPins + userPins
     }
 
-    init(mapRepository: MapRepository) {
+    init(mapRepository: MapRepository, friendRepository: FriendRepository) {
         self.mapRepository = mapRepository
+        self.friendRepository = friendRepository
         // Start fetching the locations asyncronously
         Task {
             await fetchMapLocations()
@@ -88,12 +90,13 @@ class MapViewModel: ObservableObject {
         }
     }
 
-    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D) async {
+    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async {
         do {
             try await mapRepository.createUserPin(
                 name: name,
                 subtitle: subtitle,
-                coordinate: coordinate
+                coordinate: coordinate,
+                sharedWith: sharedWith
             )
             await loadUserPins()
         } catch {
