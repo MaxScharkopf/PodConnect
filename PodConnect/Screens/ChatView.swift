@@ -21,16 +21,19 @@ struct ChatView: View {
 
     @State private var currentMessage: String = ""
     @State private var showSettings = false
+    @State private var isRequest: Bool
 
     @Environment(\.dismiss) private var dismiss
 
-    init(messageRepository: MessageRepository, friendRepository: FriendRepository, messageThread: MessageThread, authService: AuthService) {
+    init(messageRepository: MessageRepository, friendRepository: FriendRepository, messageThread: MessageThread, authService: AuthService, isRequest: Bool = false) {
         self.messageRepository = messageRepository
         self.friendRepository = friendRepository
         self.messageThread = messageThread
+        self.isRequest = isRequest
         
-        
-        self._participants = State(initialValue: messageThread.participants)
+        var combinedParticipants = messageThread.participants
+        combinedParticipants.append(contentsOf: messageThread.pendingParticipants)
+        self._participants = State(initialValue: combinedParticipants)
         
         self.authService = authService
         _viewModel = StateObject(wrappedValue: ChatViewModel(messageRepository: messageRepository, messageThreadId: messageThread.id ?? ""))
@@ -69,7 +72,10 @@ struct ChatView: View {
                     Spacer()
                     
                     Text(messageThread.threadName)
+                        .foregroundColor(.white)
                         .font(.title)
+                        .fontWeight(.bold)
+                        .padding(.leading, 0)
                     
                     Spacer()
                     
@@ -88,38 +94,59 @@ struct ChatView: View {
                     ProgressView()
                 }
                 
-                ScrollView {
-                    ForEach(viewModel.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
-                        HStack {
-                            if message.sender == self.authService.userInfo?.id {
-                                Spacer()
-                                
-                                Text(message.content)
-                                    .padding(10)
-                                    .background(IslandsBlue)
-                                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                                    .padding(.horizontal)
-                                    .foregroundStyle(.white)
-                            }else {
-                                VStack(alignment: .leading){
-                                    Text(users[message.sender]?.name ?? "Unknown")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .padding(6)
+                if isRequest {
+                    VStack(spacing: 20) {
+                        Spacer()
+                        Image(systemName: "envelope.badge.shield.half.filled")
+                            .font(.system(size: 80))
+                            .foregroundStyle(IslandsBlue)
+                            .padding()
+                        
+                        Text("Message Request")
+                            .font(.title2.bold())
+                        
+                        Text("You've been invited to join \"\(messageThread.threadName)\".\nAccept to see the message history and start chatting.")
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                            .foregroundStyle(.secondary)
+                        
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    ScrollView {
+                        ForEach(viewModel.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
+                            HStack {
+                                if message.sender == self.authService.userInfo?.id {
+                                    Spacer()
+                                    
                                     Text(message.content)
                                         .padding(10)
-                                        .background(ChannelClay)
+                                        .background(IslandsBlue)
                                         .clipShape(RoundedRectangle(cornerRadius: 15))
                                         .padding(.horizontal)
                                         .foregroundStyle(.white)
+                                }else {
+                                    VStack(alignment: .leading){
+                                        Text(users[message.sender]?.name ?? "Unknown")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .padding(6)
+                                        Text(message.content)
+                                            .padding(10)
+                                            .background(ChannelClay)
+                                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                                            .padding(.horizontal)
+                                            .foregroundStyle(.white)
+                                    }
+                                    Spacer()
                                 }
-                                Spacer()
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .defaultScrollAnchor(.bottom)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .defaultScrollAnchor(.bottom)
             }
             VStack(){
                 Spacer()
@@ -129,38 +156,95 @@ struct ChatView: View {
             }
             .ignoresSafeArea()
         }
-        .task { await loadUsers() }
+        .onChange(of: viewModel.messages.count) { _, _ in
+            if !isRequest {
+                Task { try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "") }
+            }
+        }
+        .task { 
+            await loadUsers() 
+            if !isRequest {
+                try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "")
+            }
+        }
+        .onDisappear {
+            if !isRequest {
+                Task {
+                    try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "")
+                }
+            }
+        }
         .dismissKeyboardOnTap()
         .toolbar(.hidden, for: .tabBar)
         .navigationBarBackButtonHidden(true)
         .safeAreaInset(edge: .bottom) {
-            HStack {
-                TextField("Message...", text: $currentMessage)
-                    .padding()
-                    .background(.thinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 50))
-                    .glassEffect()
-                
-                Button(action: {
-                    Task {
-                        if !currentMessage.isEmpty {
-                            await viewModel.sendMessage(messageContent: currentMessage)
-                            currentMessage = ""
+            if isRequest {
+                HStack(spacing: 20) {
+                    Button(action: {
+                        Task {
+                            if let threadId = messageThread.id {
+                                try? await messageRepository.joinMessageThread(threadId: threadId)
+                                isRequest = false
+                            }
                         }
+                    }) {
+                        Text("Join Chat")
+                            .font(.headline)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(.blue)
+                            .foregroundColor(.white)
+                            .clipShape(Capsule())
                     }
-                }) {
-                    Image(systemName: "arrow.up")
-                        .padding()
-                        .background(.blue)
-                        .clipShape(Circle())
-                        .foregroundStyle(.white)
-                        .glassEffect()
+                    
+                    Button(action: {
+                        Task {
+                            if let threadId = messageThread.id {
+                                try? await messageRepository.declineMessageThread(threadId: threadId)
+                                dismiss()
+                            }
+                        }
+                    }) {
+                        Text("Ignore")
+                            .font(.headline)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color(.secondarySystemBackground))
+                            .foregroundColor(.red)
+                            .clipShape(Capsule())
+                    }
                 }
+                .padding()
+                .background(.ultraThinMaterial)
+            } else {
+                HStack {
+                    TextField("Message...", text: $currentMessage)
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 50))
+                        .glassEffect()
+                    
+                    Button(action: {
+                        Task {
+                            if !currentMessage.isEmpty {
+                                await viewModel.sendMessage(messageContent: currentMessage)
+                                currentMessage = ""
+                            }
+                        }
+                    }) {
+                        Image(systemName: "arrow.up")
+                            .padding()
+                            .background(.blue)
+                            .clipShape(Circle())
+                            .foregroundStyle(.white)
+                            .glassEffect()
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .dismissKeyboardOnTap()
             }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 8)
-            .dismissKeyboardOnTap()
         }
         .popover(isPresented: $showSettings) {
             SettingsView(authService: authService, friendRepository: friendRepository, messageThread: $messageThread, viewModel: viewModel) {
@@ -190,6 +274,7 @@ struct SettingsView: View {
 
     @State private var threadName: String
     @State private var participants: [String]
+    @State private var pendingParticipants: [String]
     @State private var users: [String: UserInfo] = [:]
     @State private var showUserSearch: Bool = false
 
@@ -204,14 +289,16 @@ struct SettingsView: View {
         // Seed local state from the current thread so edits don't apply until saved
         self._threadName = State(initialValue: messageThread.wrappedValue.threadName)
         self._participants = State(initialValue: messageThread.wrappedValue.participants)
+        self._pendingParticipants = State(initialValue: messageThread.wrappedValue.pendingParticipants)
         self.viewModel = viewModel
         self.onThreadDeleted = onThreadDeleted
     }
     
     // Fetches user info for all participants in parallel, skipping already-loaded users
     func loadUsers() async {
+        let allIds = participants + pendingParticipants
         await withTaskGroup(of: (String, UserInfo?).self) { group in
-            for userId in participants {
+            for userId in allIds {
                 guard users[userId] == nil else { continue }
                 
                 group.addTask {
@@ -241,7 +328,7 @@ struct SettingsView: View {
         .task { await loadUsers() }
         .dismissKeyboardOnTap()
         .popover(isPresented: $showUserSearch) {
-            UserSearchPopup(friendRepository: self.friendRepository, participants: $participants)
+            UserSearchPopup(friendRepository: self.friendRepository, participants: $pendingParticipants)
         }
         .onChange(of: showUserSearch) { _, isShowing in
             if !isShowing { Task { await loadUsers() } }
@@ -297,14 +384,31 @@ struct SettingsView: View {
                 }
             }
             List {
-                ForEach(participants.filter { $0 != authService.userInfo?.uid }, id: \.self) { userId in
-                    HStack {
-                        Image(systemName: "person.crop.circle")
-                            .foregroundStyle(.secondary)
-                        Text(users[userId]?.username ?? "Loading...")
+                Section(header: Text("Active")) {
+                    ForEach(participants.filter { $0 != authService.userInfo?.uid }, id: \.self) { userId in
+                        HStack {
+                            Image(systemName: "person.crop.circle")
+                                .foregroundStyle(.secondary)
+                            Text(users[userId]?.username ?? "Loading...")
+                        }
+                    }
+                    .onDelete { indexSet in participants.remove(atOffsets: indexSet) }
+                }
+
+                if !pendingParticipants.isEmpty {
+                    Section(header: Text("Pending")) {
+                        ForEach(pendingParticipants, id: \.self) { userId in
+                            HStack {
+                                Image(systemName: "person.crop.circle")
+                                    .foregroundStyle(.secondary)
+                                    .opacity(0.5)
+                                Text(users[userId]?.username ?? "Loading...")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .onDelete { indexSet in pendingParticipants.remove(atOffsets: indexSet) }
                     }
                 }
-                .onDelete { indexSet in participants.remove(atOffsets: indexSet) }
             }
         }
     }
@@ -313,9 +417,11 @@ struct SettingsView: View {
         Button(action: {
             guard let threadId = messageThread.id else { return }
             Task {
-                await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
+                // Update the repository with both arrays
+                try? await viewModel.updateMessageThreadWithPending(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants)
                 messageThread.threadName = threadName
                 messageThread.participants = participants
+                messageThread.pendingParticipants = pendingParticipants
                 reset()
             }
         }) {
@@ -337,19 +443,20 @@ struct SettingsView: View {
             users[info.uid] = nil
             Task {
                 if let threadId = messageThread.id {
-                    if participants.isEmpty {
+                    if participants.isEmpty && pendingParticipants.isEmpty {
                         await viewModel.deleteMessageThread(threadId: threadId)
                     } else {
-                        await viewModel.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants)
+                        await viewModel.updateMessageThreadWithPending(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants)
                         messageThread.threadName = threadName
                         messageThread.participants = participants
+                        messageThread.pendingParticipants = pendingParticipants
                     }
                 }
                 reset()
                 onThreadDeleted()
             }
         }) {
-            Text("Delete Thread")
+            Text("Leave Thread")
                 .padding()
                 .frame(maxWidth: .infinity)
                 .foregroundColor(.red)
@@ -365,5 +472,5 @@ struct SettingsView: View {
     let firestore = FirestoreService()
     let auth = AuthService(firestoreService: firestore)
     
-    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), friendRepository: FriendRepository(firestoreService: firestore), messageThread: MessageThread(id: "messageThreadID", participants: [], threadName: "The Dev Team"), authService: auth)
+    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), friendRepository: FriendRepository(firestoreService: firestore), messageThread: MessageThread(id: "messageThreadID", participants: [], pendingParticipants: [], threadName: "The Dev Team"), authService: auth)
 }
