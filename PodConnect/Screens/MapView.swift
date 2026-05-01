@@ -10,6 +10,7 @@ import MapKit
 struct MapView: View {
     @StateObject private var mapViewModel: MapViewModel
     @StateObject private var locationManager = LocationManager()
+    @StateObject private var pinShareViewModel: PinShareViewModel
     @State private var autoCenterEnabled: Bool = false
     @State private var userMovingMap = false
     @State private var showSearch = false
@@ -23,11 +24,13 @@ struct MapView: View {
     @State private var tripEndDate: Date?
     @State private var destinationName: String?
     @State private var showingAddPinSheet = false
+    @State private var showingPinShareRequests = false
     @State private var visibleRegion: MKCoordinateRegion?
     @State private var isAddingPin = false
     @State private var editingPin: MapPin?
     @State private var pendingPinCoordinate: CLLocationCoordinate2D?
     @State private var friends: [UserInfo] = []
+    @State private var pendingShareReceiverUIDs: [String] = []
     private let friendRepository: FriendRepository
 
     @State private var mapPosition: MapCameraPosition = .region(
@@ -65,10 +68,20 @@ struct MapView: View {
             firestoreService: firestoreService
         )
         
+        let pinShareRepository = PinShareRepository(
+            firestoreService: firestoreService
+        )
+        
         self.friendRepository = friendRepository
 
         _mapViewModel = StateObject(
             wrappedValue: MapViewModel(mapRepository: mapRepository, friendRepository: friendRepository)
+        )
+        
+        _pinShareViewModel = StateObject(
+            wrappedValue: PinShareViewModel(
+                pinShareRepository: pinShareRepository
+            )
         )
     }
 
@@ -240,18 +253,47 @@ struct MapView: View {
                                 AddPinSheet(
                                     pin: nil,
                                     friends: friends,
-                                    onSave: { name, subtitle, sharedWith in
+                                    onSave: { name, subtitle, selectedFriendIDs in
                                         let center = pendingPinCoordinate ?? currentMapCenter()
                                         
                                         Task {
-                                            await mapViewModel.addUserPin(
+                                            if let newPin = await mapViewModel.addUserPin(
                                                 name: name,
                                                 subtitle: subtitle,
                                                 coordinate: center,
-                                                sharedWith: sharedWith
-                                            )
+                                                sharedWith: []
+                                            ), let pinId = newPin.id {
+                                                for uid in selectedFriendIDs {
+                                                    await pinShareViewModel.sendRequest(
+                                                        pinId: pinId,
+                                                        pinName: name,
+                                                        receiverUid: uid
+                                                    )
+                                                }
+                                            }
                                         }
                                         pendingPinCoordinate = nil
+                                    }
+                                )
+                            }
+                            
+                            // View pin requests
+                            Button(action: {showingPinShareRequests = true}) {
+                                mapButton(icon: "person.crop.circle.badge.plus")
+                            }
+                            .sheet(isPresented: $showingPinShareRequests) {
+                                PinShareRequestsSheet(
+                                    requests: pinShareViewModel.incomingRequests,
+                                    onAccept: { request in
+                                        Task {
+                                            await pinShareViewModel.acceptRequest(request)
+                                            await mapViewModel.loadUserPins()
+                                        }
+                                    },
+                                    onDecline: { request in
+                                        Task {
+                                            await pinShareViewModel.declineRequest(request)
+                                        }
                                     }
                                 )
                             }
@@ -299,6 +341,7 @@ struct MapView: View {
             }
             .task {
                 await loadFriends()
+                await pinShareViewModel.loadIncomingRequests()
             }
         }
         .sheet(item: $selectedPin) { pin in
@@ -318,8 +361,21 @@ struct MapView: View {
                     }
                 } : nil,
                 onEdit: pin.pinType == "user" ? {
-                    selectedPin = nil
-                    editingPin = pin
+                    Task {
+                        selectedPin = nil
+                        
+                        if let pinId = pin.id {
+                            do {
+                                pendingShareReceiverUIDs = try await pinShareViewModel.fetchPendingReceiverUIDs(for: pinId)
+                            } catch {
+                                pendingShareReceiverUIDs = []
+                            }
+                        } else {
+                            pendingShareReceiverUIDs = []
+                        }
+                        
+                        editingPin = pin
+                    }
                 } : nil
             )
         }
@@ -327,18 +383,35 @@ struct MapView: View {
             AddPinSheet(
                 pin: pin,
                 friends: friends,
-                onSave: { name, subtitle, sharedWith in
+                initialSelectedFriendIDs: Set(pendingShareReceiverUIDs),
+                onSave: { name, subtitle, selectedFriendIDs in
                     guard let id = pin.id else { return }
 
                     Task {
+                        let oldShared = Set(pin.sharedWith ?? [])
+                        let selected = Set(selectedFriendIDs)
+
+                        let keptShared = Array(oldShared.intersection(selected))
+                        let newRequestUIDs = Array(selected.subtracting(oldShared))
+
                         await mapViewModel.updateUserPin(
                             id: id,
                             name: name,
                             subtitle: subtitle,
-                            sharedWith: sharedWith
+                            sharedWith: keptShared
                         )
+
+                        for uid in newRequestUIDs {
+                            await pinShareViewModel.sendRequest(
+                                pinId: id,
+                                pinName: name,
+                                receiverUid: uid
+                            )
+                        }
+
                         editingPin = nil
                         selectedPin = nil
+                        pendingShareReceiverUIDs = []
                     }
                 }
             )
@@ -660,34 +733,42 @@ struct LocationDetailSheet: View {
 
 struct AddPinSheet: View {
     @Environment(\.dismiss) private var dismiss
-    
+
     @State private var name: String
     @State private var subtitle: String
     @State private var selectedFriendIDs: Set<String>
-    
+
     let pin: MapPin?
     let friends: [UserInfo]
     let onSave: (String, String?, [String]) -> Void
-    
+
     init(
-        pin: MapPin?,
+        pin: MapPin? = nil,
         friends: [UserInfo],
+        initialSelectedFriendIDs: Set<String> = [],
         onSave: @escaping (String, String?, [String]) -> Void
     ) {
         self.pin = pin
         self.friends = friends
         self.onSave = onSave
-        
+
+        let accepted = Set(pin?.sharedWith ?? [])
+        let combinedSelected = accepted.union(initialSelectedFriendIDs)
+
         _name = State(initialValue: pin?.name ?? "")
         _subtitle = State(initialValue: pin?.subtitle ?? "")
-        _selectedFriendIDs = State(initialValue: Set(pin?.sharedWith ?? []))
+        _selectedFriendIDs = State(initialValue: combinedSelected)
     }
-    
+
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Pin name", text: $name)
-                TextField("Description", text: $subtitle)
+                Section("Pin Details") {
+                    TextField("Pin name", text: $name)
+                    TextField("Description", text: $subtitle, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+
                 Section("Share With Friends") {
                     Menu {
                         ForEach(friends, id: \.id) { friend in
@@ -695,11 +776,10 @@ struct AddPinSheet: View {
                                 Button {
                                     toggleFriend(uid)
                                 } label: {
-                                    HStack {
+                                    if selectedFriendIDs.contains(uid) {
+                                        Label(friend.username, systemImage: "checkmark")
+                                    } else {
                                         Text(friend.username)
-                                        if selectedFriendIDs.contains(uid) {
-                                            Image(systemName: "checkmark")
-                                        }
                                     }
                                 }
                             }
@@ -710,32 +790,52 @@ struct AddPinSheet: View {
                             Spacer()
                             Text(sharedFriendsText)
                                 .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.down")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !selectedFriendIDs.isEmpty {
+                        ForEach(selectedFriends, id: \.id) { friend in
+                            Text(friend.username)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
-            .navigationTitle("New Pin")
+            .navigationTitle(pin == nil ? "New Pin" : "Edit Pin")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
-                
+
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        onSave(name, subtitle.isEmpty ? nil : subtitle, Array(selectedFriendIDs))
+                    Button(pin == nil ? "Save" : "Update") {
+                        onSave(
+                            name.trimmingCharacters(in: .whitespacesAndNewlines),
+                            subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? nil
+                                : subtitle.trimmingCharacters(in: .whitespacesAndNewlines),
+                            Array(selectedFriendIDs)
+                        )
                         dismiss()
                     }
-                    .disabled(name.isEmpty)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
-        .presentationDetents([.height(270), .medium])
-        .fixedSize(horizontal: false, vertical: false)
+        .presentationDetents([.height(300), .medium])
         .presentationDragIndicator(.visible)
     }
-    
+
+    private var selectedFriends: [UserInfo] {
+        friends.filter { friend in
+            guard let uid = friend.id else { return false }
+            return selectedFriendIDs.contains(uid)
+        }
+    }
+
     private func toggleFriend(_ uid: String) {
         if selectedFriendIDs.contains(uid) {
             selectedFriendIDs.remove(uid)
@@ -743,13 +843,68 @@ struct AddPinSheet: View {
             selectedFriendIDs.insert(uid)
         }
     }
-    
+
     private var sharedFriendsText: String {
-        if selectedFriendIDs.isEmpty {
-            return "None"
-        } else {
-            return "\(selectedFriendIDs.count) selected"
+        selectedFriendIDs.isEmpty ? "None" : "\(selectedFriendIDs.count) selected"
+    }
+}
+
+struct PinShareRequestsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let requests: [PinShareRequest]
+    let onAccept: (PinShareRequest) -> Void
+    let onDecline: (PinShareRequest) -> Void
+    
+    var body: some View {
+        NavigationStack {
+            Group {
+                if requests.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("No Pin Share Requests")
+                            .font(.headline)
+                        Text("You don’t have any pending requests right now.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                } else {
+                    List(requests) { request in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(request.pinName)
+                                .font(.headline)
+                            
+                            Text("Someone wants to share this pin with you")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            HStack {
+                                Button("Accept") {
+                                    onAccept(request)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                
+                                Button("Decline", role: .destructive) {
+                                    onDecline(request)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("Pin Requests")
+            .toolbar {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 

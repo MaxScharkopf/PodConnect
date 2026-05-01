@@ -90,17 +90,19 @@ class MapViewModel: ObservableObject {
         }
     }
 
-    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async {
+    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async -> MapPin? {
         do {
-            try await mapRepository.createUserPin(
+            let pin = try await mapRepository.createUserPin(
                 name: name,
                 subtitle: subtitle,
                 coordinate: coordinate,
                 sharedWith: sharedWith
             )
             await loadUserPins()
+            return pin
         } catch {
             errorMessage = "Error saving pin: \(error.localizedDescription)"
+            return nil
         }
     }
     

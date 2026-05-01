@@ -60,7 +60,7 @@ final class MapRepository {
         return uniquePins
     }
     
-    func createUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async throws {
+    func createUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async throws -> MapPin {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw NSError(
                 domain: "MapRepository",
@@ -68,9 +68,11 @@ final class MapRepository {
                 userInfo: [NSLocalizedDescriptionKey: "User not authenticated."]
             )
         }
+        
+        let docRef = Firestore.firestore().collection(pinsPath).document()
             
         let pin = MapPin(
-            id: nil,
+            id: docRef.documentID,
             name: name,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
@@ -82,7 +84,8 @@ final class MapRepository {
             sharedWith: sharedWith
         )
         
-        try await firestoreService.saveDocument(path: pinsPath, data: pin)
+        try docRef.setData(from: pin)
+        return pin
     }
     
     func updatePin(id: String, name: String, subtitle: String?, sharedWith: [String]) async throws {

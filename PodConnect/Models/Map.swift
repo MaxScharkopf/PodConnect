@@ -62,6 +62,24 @@ struct MapPin: Identifiable, Codable, Hashable {
     var sharedWith: [String]?
 }
 
+struct PinShareRequest: Identifiable, Codable, Hashable {
+    @DocumentID var id: String?
+    let pinId: String
+    let pinName: String
+    let senderUid: String
+    let receiverUid: String
+    let status: String
+    let timestamp: Timestamp
+}
+
+struct RequestStatusUpdate: Encodable {
+    let status: String
+}
+
+struct PinSharedWithUpdate: Encodable {
+    let sharedWith: [String]
+}
+
 extension MapPin {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
