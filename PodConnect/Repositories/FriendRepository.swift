@@ -19,8 +19,9 @@ class FriendRepository {
     func searchUsers(by usernameQuery: String) async throws -> [UserInfo] {
         let cleaned = usernameQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !cleaned.isEmpty else { return [] }
+        guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
 
-        return try await firestoreService.fetchCollection(
+        let users: [UserInfo] = try await firestoreService.fetchCollection(
             path: "users",
             configure: { query in
                 query.order(by: "username_lowercase")
@@ -28,6 +29,8 @@ class FriendRepository {
                     .end(at: [cleaned + "\u{f8ff}"])
             }
         )
+
+        return users.filter { $0.uid != currentUID }
     }
     
     func sendFriendRequest(toUID: String) async throws {
@@ -170,6 +173,18 @@ class FriendRepository {
     
     func fetchUser(uid: String) async -> UserInfo? {
         return try? await firestoreService.fetchDocument(path: "users", documentId: uid)
+    }
+
+    func fetchOtherUsers(limit: Int = 10) async throws -> [UserInfo] {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
+        
+        // Fetch a sample of users from the collection
+        let users: [UserInfo] = try await firestoreService.fetchCollection(path: "users") { query in
+            query.limit(to: limit + 1)
+        }
+        
+        // Filter out the current user and limit the results
+        return Array(users.filter { $0.uid != currentUID }.prefix(limit))
     }
     
     func fetchIncomingRequests() async throws -> [FriendRequest] {

@@ -22,6 +22,7 @@ import FirebaseFirestore
 struct MessageThread: Codable, Identifiable {
     @DocumentID var id: String?
     var participants: [String]
+    var pendingParticipants: [String]
     var threadName: String
     var lastMessageAt: Date?
     var lastReadAt: [String: Date]?
