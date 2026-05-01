@@ -112,4 +112,32 @@ final class MapRepository {
             documentId: id
         )
     }
+    
+    func listenToVisiblePins(onChange: @escaping ([MapPin]) -> Void) -> ListenerRegistration? {
+        guard let currentUid = Auth.auth().currentUser?.uid else {
+            return nil
+        }
+
+        return Firestore.firestore()
+            .collection(pinsPath)
+            .whereField("pinType", isEqualTo: "user")
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("Map pin listener error: \(error.localizedDescription)")
+                    onChange([])
+                    return
+                }
+
+                let pins: [MapPin] = snapshot?.documents.compactMap { doc in
+                    try? doc.data(as: MapPin.self)
+                } ?? []
+
+                let visiblePins = pins.filter { pin in
+                    pin.ownerUserId == currentUid ||
+                    (pin.sharedWith ?? []).contains(currentUid)
+                }
+
+                onChange(visiblePins)
+            }
+    }
 }

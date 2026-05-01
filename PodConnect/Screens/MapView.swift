@@ -287,7 +287,6 @@ struct MapView: View {
                                     onAccept: { request in
                                         Task {
                                             await pinShareViewModel.acceptRequest(request)
-                                            await mapViewModel.loadUserPins()
                                         }
                                     },
                                     onDecline: { request in
@@ -874,7 +873,7 @@ struct PinShareRequestsSheet: View {
                             Text(request.pinName)
                                 .font(.headline)
                             
-                            Text("Someone wants to share this pin with you")
+                            Text("\(request.senderName) wants to share this pin with you")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                             

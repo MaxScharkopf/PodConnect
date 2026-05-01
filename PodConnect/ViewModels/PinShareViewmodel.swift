@@ -35,13 +35,16 @@ class PinShareViewModel: ObservableObject {
     }
     
     func sendRequest(pinId: String, pinName: String, receiverUid: String) async {
-        guard let currentUid = Auth.auth().currentUser?.uid else { return }
+        guard let currentUser = Auth.auth().currentUser else { return }
+        let currentUid = currentUser.uid
+        let senderName = currentUser.displayName ?? "Someone"
 
         do {
             try await pinShareRepository.sendShareRequest(
                 pinId: pinId,
                 pinName: pinName,
                 senderUid: currentUid,
+                senderName: senderName,
                 receiverUid: receiverUid
             )
         } catch {

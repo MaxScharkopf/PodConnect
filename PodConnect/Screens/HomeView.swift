@@ -18,13 +18,22 @@ struct HomeView: View {
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    
+    private var totalNotificationCount: Int {
+        viewModel.pendingRequestCount + viewModel.pendingPinShareCount
+    }
 
     init(authService: AuthService, selectedTab: Binding<Int>) {
         self.authService = authService
         _selectedTab = selectedTab
+        
+        let firestoreService = FirestoreService()
+        let friendRepository = FriendRepository(firestoreService: firestoreService)
+        let pinShareRepository = PinShareRepository(firestoreService: firestoreService)
+        
         _viewModel = StateObject(
             wrappedValue: HomeViewModel(
-                friendRepository: FriendRepository(firestoreService: FirestoreService())
+                friendRepository: friendRepository, pinShareRepository: pinShareRepository
             )
         )
     }
@@ -69,7 +78,7 @@ struct HomeView: View {
             }
         }
         .task {
-            await viewModel.loadNotifications()
+            viewModel.startListening()
         }
     }
 
@@ -82,13 +91,13 @@ struct HomeView: View {
 
             Spacer()
 
-            if viewModel.pendingRequestCount > 0 {
+            if totalNotificationCount > 0 {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell.fill")
                         .foregroundColor(.white)
                         .font(.title2)
 
-                    Text("\(viewModel.pendingRequestCount)")
+                    Text("\(totalNotificationCount)")
                         .font(.caption2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -123,6 +132,31 @@ struct HomeView: View {
                                 .foregroundColor(.white)
 
                             Text("\(viewModel.pendingRequestCount) request\(viewModel.pendingRequestCount == 1 ? "" : "s") waiting")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if viewModel.pendingPinShareCount > 0 {
+                Button {
+                    selectedTab = 0
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Pending Pin Share Requests")
+                                .font(.headline)
+                                .foregroundColor(.white)
+
+                            Text("\(viewModel.pendingPinShareCount) request\(viewModel.pendingPinShareCount == 1 ? "" : "s") waiting")
                                 .font(.subheadline)
                                 .foregroundColor(.white.opacity(0.9))
                         }

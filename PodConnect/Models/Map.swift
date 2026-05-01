@@ -67,6 +67,7 @@ struct PinShareRequest: Identifiable, Codable, Hashable {
     let pinId: String
     let pinName: String
     let senderUid: String
+    let senderName: String
     let receiverUid: String
     let status: String
     let timestamp: Timestamp

@@ -20,6 +20,7 @@ final class PinShareRepository {
         pinId: String,
         pinName: String,
         senderUid: String,
+        senderName: String,
         receiverUid: String
     ) async throws {
         let existing: [PinShareRequest] = try await firestoreService.fetchCollection(
@@ -39,6 +40,7 @@ final class PinShareRepository {
             pinId: pinId,
             pinName: pinName,
             senderUid: senderUid,
+            senderName: senderName,
             receiverUid: receiverUid,
             status: "pending",
             timestamp: Timestamp(date: Date())
@@ -114,5 +116,28 @@ final class PinShareRepository {
             documentId: requestId,
             data: requestUpdate
         )
+    }
+    
+    func listenToIncomingRequests(
+        for receiverUid: String,
+        onChange: @escaping ([PinShareRequest]) -> Void
+    ) -> ListenerRegistration {
+        Firestore.firestore()
+            .collection("pinShareRequests")
+            .whereField("receiverUid", isEqualTo: receiverUid)
+            .whereField("status", isEqualTo: "pending")
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("Pin share listener error: \(error.localizedDescription)")
+                    onChange([])
+                    return
+                }
+
+                let requests: [PinShareRequest] = snapshot?.documents.compactMap { doc in
+                    try? doc.data(as: PinShareRequest.self)
+                } ?? []
+
+                onChange(requests)
+            }
     }
 }

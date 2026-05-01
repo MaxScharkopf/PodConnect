@@ -23,6 +23,7 @@ class MapViewModel: ObservableObject {
     
     private var mapRepository: MapRepository
     private var friendRepository: FriendRepository
+    private var pinsListener: ListenerRegistration?
 
     // Converting current pins into MapPin. Later these will be stored in firebase
     var campusPins: [MapPin] {
@@ -42,7 +43,7 @@ class MapViewModel: ObservableObject {
         // Start fetching the locations asyncronously
         Task {
             await fetchMapLocations()
-            await loadUserPins()
+            startListeningToPins()
         }
     }
 
@@ -148,5 +149,20 @@ class MapViewModel: ObservableObject {
             // Recursively traverse
             traverseCategories(categories: category.children?.categories)
         }
+    }
+    
+    func startListeningToPins() {
+        pinsListener?.remove()
+
+        pinsListener = mapRepository.listenToVisiblePins { [weak self] pins in
+            Task { @MainActor in
+                self?.userPins = pins
+            }
+        }
+    }
+    
+    func stopListeningToPins() {
+        pinsListener?.remove()
+        pinsListener = nil
     }
 }
