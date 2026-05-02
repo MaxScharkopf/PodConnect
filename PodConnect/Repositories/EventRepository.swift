@@ -49,16 +49,35 @@ class EventRepository {
     }
     
     func deleteEvent(event: UserEvent) async throws {
-       
+
         // Check if user is logged in
         guard let userId = authService.userInfo?.id else {
             return
         }
-        
+
         // Remove the event document using the event's unique ID
         try await firestoreService.removeDocument(path: "events", documentId: event.id.uuidString)
     }
-    
+
+    func deleteEventSeries(groupId: String) async throws {
+
+        // Check if user is logged in
+        guard let userId = authService.userInfo?.id else {
+            return
+        }
+
+        // Fetch all events in this series owned by the current user
+        let seriesEvents: [UserEvent] = try await firestoreService.fetchCollection(path: "events") { query in
+            query.whereField("uid", isEqualTo: userId)
+                 .whereField("recurrenceGroupId", isEqualTo: groupId)
+        }
+
+        // Delete each instance
+        for event in seriesEvents {
+            try await firestoreService.removeDocument(path: "events", documentId: event.id.uuidString)
+        }
+    }
+
 }
 
     
