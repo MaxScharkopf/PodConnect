@@ -102,4 +102,11 @@ final class FirestoreService {
         try await db.collection(path).document(documentId).delete()
     }
     
+    // Get the count of documents in a collection or query
+    func getCount(path: String, configure: ((CollectionReference) -> Query)? = nil) async throws -> Int {
+        let collectionReference = db.collection(path)
+        let query = configure?(collectionReference) ?? collectionReference
+        let snapshot = try await query.count.getAggregation(source: .server)
+        return Int(truncating: snapshot.count)
+    }
 }
