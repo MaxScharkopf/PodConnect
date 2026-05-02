@@ -24,8 +24,16 @@ class FriendViewModel: ObservableObject {
     @Published var incomingRequests: [FriendRequest] = []
     @Published var requestErrorMessage: String = ""
 
+    private var incomingRequestsListenerTask: Task<Void, Never>?
+    private var friendsListenerTask: Task<Void, Never>?
+
     init(friendRepository: FriendRepository) {
         self.friendRepository = friendRepository
+    }
+
+    deinit {
+        incomingRequestsListenerTask?.cancel()
+        friendsListenerTask?.cancel()
     }
 
     // Search for a user by username
@@ -75,12 +83,19 @@ class FriendViewModel: ObservableObject {
         isLoading = false
     }
     
-    // Fetch friends
+    // Live friends
     func fetchFriends() async {
-        do {
-            friends = try await friendRepository.fetchFriends()
-        } catch {
-            print("Error fetching friends: \(error)")
+        guard friendsListenerTask == nil else { return }
+
+        friendsListenerTask = Task {
+            do {
+                let stream = friendRepository.friendsStream()
+                for try await friendsList in stream {
+                    friends = friendsList
+                }
+            } catch {
+                print("Error listening for friends: \(error)")
+            }
         }
     }
     
@@ -94,12 +109,19 @@ class FriendViewModel: ObservableObject {
         }
     }
     
-    // Fetch incoming friend requests
+    // Live incoming friend requests
     func fetchIncomingRequests() async {
-        do {
-            incomingRequests = try await friendRepository.fetchIncomingRequests()
-        } catch {
-            print("Error fetching incoming requests: \(error)")
+        guard incomingRequestsListenerTask == nil else { return }
+
+        incomingRequestsListenerTask = Task {
+            do {
+                let stream = friendRepository.incomingRequestsStream()
+                for try await requests in stream {
+                    incomingRequests = requests
+                }
+            } catch {
+                print("Error listening for incoming requests: \(error)")
+            }
         }
     }
 
@@ -108,7 +130,6 @@ class FriendViewModel: ObservableObject {
         do {
             try await friendRepository.acceptRequest(request)
             incomingRequests.removeAll { $0.id == request.id }
-            await fetchFriends()
         } catch {
             requestErrorMessage = error.localizedDescription
         }
