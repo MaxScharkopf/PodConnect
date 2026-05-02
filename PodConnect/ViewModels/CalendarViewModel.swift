@@ -44,13 +44,12 @@ class CalendarViewModel: ObservableObject {
         }
     }
 
-    func saveEvent(event: UserEvent) async {
+    func saveEvents(_ events: [UserEvent]) async {
         do {
-            // Persist the event to Firestore
-            try await eventRepository.saveEvent(event: event)
-
-            // Append locally to avoid a full refetch
-            userEvents.append(event)
+            for event in events {
+                try await eventRepository.saveEvent(event: event)
+            }
+            userEvents.append(contentsOf: events)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -63,6 +62,17 @@ class CalendarViewModel: ObservableObject {
 
             // Remove locally
             userEvents.removeAll { $0.id == event.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteEventSeries(groupId: String) async {
+        do {
+            try await eventRepository.deleteEventSeries(groupId: groupId)
+
+            // Remove all instances locally
+            userEvents.removeAll { $0.recurrenceGroupId == groupId }
         } catch {
             errorMessage = error.localizedDescription
         }

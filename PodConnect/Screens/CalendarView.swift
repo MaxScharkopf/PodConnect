@@ -40,18 +40,16 @@ struct CalendarView: View {
                             userEvents: viewModel.userEvents,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
-                            onDeleteEvent: { event in
-                                Task { await viewModel.deleteEvent(event: event) }
-                            }
+                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
+                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } }
                         )
                     } else {
                         EventsTabView(
                             userEvents: viewModel.userEvents,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
-                            onDeleteEvent: { event in
-                                Task { await viewModel.deleteEvent(event: event) }
-                            }
+                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
+                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } }
                         )
                     }
                 }
@@ -59,8 +57,8 @@ struct CalendarView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $showAddEvent) {
-            AddEventSheet(initialDate: selectedDate) { newEvent in
-                Task { await viewModel.saveEvent(event: newEvent) }
+            AddEventSheet(initialDate: selectedDate) { events in
+                Task { await viewModel.saveEvents(events) }
             }
         }
     }
@@ -94,6 +92,10 @@ struct CalendarTabView: View {
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
+    var onDeleteSeries: (String) -> Void
+
+    @State private var eventPendingDelete: UserEvent?
+
 
     private var schoolEventsOnDate: [SchoolEvent] {
         schoolEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
@@ -125,7 +127,14 @@ struct CalendarTabView: View {
                                 UserEventRow(event: event)
                             }
                             .onDelete { indexSet in
-                                indexSet.forEach { onDeleteEvent(userEventsOnDate[$0]) }
+                                indexSet.forEach { i in
+                                    let event = userEventsOnDate[i]
+                                    if event.recurrenceGroupId != nil {
+                                        eventPendingDelete = event
+                                    } else {
+                                        onDeleteEvent(event)
+                                    }
+                                }
                             }
                         }
                     }
@@ -141,6 +150,20 @@ struct CalendarTabView: View {
                 .listStyle(.plain)
             }
         }
+        .confirmationDialog("Delete Event", isPresented: Binding(
+            get: { eventPendingDelete != nil },
+            set: { if !$0 { eventPendingDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("Delete This Event", role: .destructive) {
+                if let event = eventPendingDelete { onDeleteEvent(event) }
+                eventPendingDelete = nil
+            }
+            Button("Delete All Events in Series", role: .destructive) {
+                if let groupId = eventPendingDelete?.recurrenceGroupId { onDeleteSeries(groupId) }
+                eventPendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { eventPendingDelete = nil }
+        }
     }
 }
 
@@ -150,6 +173,8 @@ struct EventsTabView: View {
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
+    var onDeleteSeries: (String) -> Void
+    @State private var eventPendingDelete: UserEvent?
     @State private var showSearch = false
     @State private var searchText = ""
     @State private var activeCategories: Set<String> = []
@@ -261,7 +286,14 @@ struct EventsTabView: View {
                             .buttonStyle(.plain)
                         }
                         .onDelete { indexSet in
-                            indexSet.forEach { onDeleteEvent(filteredUserEvents[$0]) }
+                            indexSet.forEach { i in
+                                let event = filteredUserEvents[i]
+                                if event.recurrenceGroupId != nil {
+                                    eventPendingDelete = event
+                                } else {
+                                    onDeleteEvent(event)
+                                }
+                            }
                         }
                     }
                 }
@@ -292,6 +324,20 @@ struct EventsTabView: View {
             isPresented: $showSearch,
             prompt: "Search events"
         )
+        .confirmationDialog("Delete Event", isPresented: Binding(
+            get: { eventPendingDelete != nil },
+            set: { if !$0 { eventPendingDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("Delete This Event", role: .destructive) {
+                if let event = eventPendingDelete { onDeleteEvent(event) }
+                eventPendingDelete = nil
+            }
+            Button("Delete All Events in Series", role: .destructive) {
+                if let groupId = eventPendingDelete?.recurrenceGroupId { onDeleteSeries(groupId) }
+                eventPendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { eventPendingDelete = nil }
+        }
     }
 
     func categoryColor(_ category: String) -> Color {
@@ -352,9 +398,15 @@ struct UserEventRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(event.title)
-                .font(.body)
-
+            HStack(spacing: 6) {
+                Text(event.title)
+                    .font(.body)
+                if event.recurrenceGroupId != nil {
+                    Image(systemName: "repeat")
+                        .font(.caption)
+                        .foregroundColor(islandsBlue)
+                }
+            }
             HStack {
                 Text(event.startDate, style: .date)
                     .font(.caption)
@@ -384,19 +436,23 @@ struct UserEventRow: View {
 struct AddEventSheet: View {
     @Environment(\.dismiss) private var dismiss
     let initialDate: Date
-    let onSave: (UserEvent) -> Void
+    let onSave: ([UserEvent]) -> Void
 
     @State private var title = ""
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var notes = ""
     @State private var category: EventCategory = .personal
+    @State private var isRecurring = false
+    @State private var recurrenceEndDate: Date
 
-    init(initialDate: Date, onSave: @escaping (UserEvent) -> Void) {
+    init(initialDate: Date, onSave: @escaping ([UserEvent]) -> Void) {
         self.initialDate = initialDate
         self.onSave = onSave
         _startDate = State(initialValue: initialDate)
         _endDate = State(initialValue: initialDate.addingTimeInterval(3600))
+        // Default series end to ~4 months out (a typical semester)
+        _recurrenceEndDate = State(initialValue: Calendar.current.date(byAdding: .month, value: 4, to: initialDate) ?? initialDate)
     }
 
     var body: some View {
@@ -407,11 +463,16 @@ struct AddEventSheet: View {
                     DatePicker("Start", selection: $startDate)
                     DatePicker("End", selection: $endDate)
                 }
-
+                Section("Recurrence") {
+                    Toggle("Repeat Weekly", isOn: $isRecurring)
+                    if isRecurring {
+                        DatePicker("Until", selection: $recurrenceEndDate, in: startDate..., displayedComponents: .date)
+                    }
+                }
                 Section("Category") {
                     Picker("Category", selection: $category) {
-                        ForEach(EventCategory.allCases, id: \.self) { category in
-                            Text(category.rawValue).tag(category)
+                        ForEach(EventCategory.allCases, id: \.self) { cat in
+                            Text(cat.rawValue).tag(cat)
                         }
                     }
                     .pickerStyle(.menu)
@@ -433,14 +494,7 @@ struct AddEventSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let event = UserEvent(
-                            title: title,
-                            startDate: startDate,
-                            endDate: endDate,
-                            notes: notes,
-                            category: category
-                        )
-                        onSave(event)
+                        onSave(buildEvents())
                         dismiss()
                     }
                     .disabled(title.isEmpty)
@@ -448,6 +502,32 @@ struct AddEventSheet: View {
                 }
             }
         }
+    }
+
+    private func buildEvents() -> [UserEvent] {
+        guard isRecurring else {
+            return [UserEvent(title: title, startDate: startDate, endDate: endDate, notes: notes, category: category)]
+        }
+
+        let groupId = UUID().uuidString
+        let duration = endDate.timeIntervalSince(startDate)
+        var events: [UserEvent] = []
+        var current = startDate
+
+        while current <= recurrenceEndDate {
+            events.append(UserEvent(
+                title: title,
+                startDate: current,
+                endDate: current.addingTimeInterval(duration),
+                notes: notes,
+                category: category,
+                recurrenceGroupId: groupId
+            ))
+            guard let next = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: current) else { break }
+            current = next
+        }
+
+        return events
     }
 }
 
