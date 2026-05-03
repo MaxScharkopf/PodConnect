@@ -59,6 +59,38 @@ class EventRepository {
         try await firestoreService.removeDocument(path: "events", documentId: event.id.uuidString)
     }
 
+    func updateEvent(event: UserEvent) async throws {
+        guard authService.userInfo?.id != nil else { return }
+        try await firestoreService.saveDocument(path: "events", documentId: event.id.uuidString, data: event)
+    }
+
+    func updateEventSeries(groupId: String, template: UserEvent) async throws {
+        guard let userId = authService.userInfo?.id else { return }
+
+        let seriesEvents: [UserEvent] = try await firestoreService.fetchCollection(path: "events") { query in
+            query.whereField("uid", isEqualTo: userId)
+                 .whereField("recurrenceGroupId", isEqualTo: groupId)
+        }
+
+        let cal = Calendar.current
+        let timeComponents = cal.dateComponents([.hour, .minute, .second], from: template.startDate)
+        let duration = template.endDate.timeIntervalSince(template.startDate)
+
+        for event in seriesEvents {
+            var updated = event
+            updated.title = template.title
+            updated.notes = template.notes
+            updated.category = template.category
+            if let newStart = cal.date(bySettingHour: timeComponents.hour ?? 0,
+                                       minute: timeComponents.minute ?? 0,
+                                       second: 0, of: event.startDate) {
+                updated.startDate = newStart
+                updated.endDate = newStart.addingTimeInterval(duration)
+            }
+            try await firestoreService.saveDocument(path: "events", documentId: updated.id.uuidString, data: updated)
+        }
+    }
+
     func deleteEventSeries(groupId: String) async throws {
 
         // Check if user is logged in

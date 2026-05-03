@@ -55,6 +55,27 @@ class CalendarViewModel: ObservableObject {
         }
     }
 
+    func updateEvent(event: UserEvent) async {
+        do {
+            try await eventRepository.updateEvent(event: event)
+            if let index = userEvents.firstIndex(where: { $0.id == event.id }) {
+                userEvents[index] = event
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func updateEventSeries(groupId: String, template: UserEvent) async {
+        do {
+            try await eventRepository.updateEventSeries(groupId: groupId, template: template)
+            // Refresh from Firestore to get all updated instances
+            await fetchEvents()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func deleteEvent(event: UserEvent) async {
         do {
             // Remove the event from Firestore
