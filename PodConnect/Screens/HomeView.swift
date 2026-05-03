@@ -287,9 +287,6 @@ private struct FriendRequestRow: View {
                     Text(sender?.username ?? "Unknown User")
                         .font(.body)
                         .fontWeight(.medium)
-                    Text("Sent you a friend request")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
             }
 
