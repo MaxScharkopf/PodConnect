@@ -390,4 +390,24 @@ class FriendRepository {
             documentId: documentId
         )
     }
+    
+    func cancelFriendRequest(toUID: String) async throws {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
+
+        let existingRequests: [FriendRequest] = try await firestoreService.fetchCollection(
+            path: "friendRequests",
+            configure: { query in
+                query.whereField("senderUid", isEqualTo: currentUID)
+                    .whereField("receiverUid", isEqualTo: toUID)
+                    .whereField("status", isEqualTo: "pending")
+            }
+        )
+
+        guard let requestId = existingRequests.first?.id else { return }
+
+        try await firestoreService.removeDocument(
+            path: "friendRequests",
+            documentId: requestId
+        )
+    }
 }
