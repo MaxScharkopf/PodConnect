@@ -80,7 +80,8 @@ struct MapView: View {
         
         _pinShareViewModel = StateObject(
             wrappedValue: PinShareViewModel(
-                pinShareRepository: pinShareRepository
+                pinShareRepository: pinShareRepository,
+                authService: authService
             )
         )
     }

@@ -2,10 +2,6 @@
 //  HomeView.swift
 //  PodConnect
 //
-//  Created by Desiree Astabie on 3/11/26.
-//
-// Modified by: Kassidy Saffa, Maxwell Scharkopf
-//
 
 import SwiftUI
 import FirebaseAuth
@@ -18,40 +14,25 @@ struct HomeView: View {
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-    
-    private var totalNotificationCount: Int {
-        viewModel.pendingRequestCount + viewModel.pendingPinShareCount
-    }
 
     init(authService: AuthService, selectedTab: Binding<Int>) {
         self.authService = authService
         _selectedTab = selectedTab
-        
+
         let firestoreService = FirestoreService()
-        let friendRepository = FriendRepository(firestoreService: firestoreService)
-        let pinShareRepository = PinShareRepository(firestoreService: firestoreService)
-        
+
         _viewModel = StateObject(
             wrappedValue: HomeViewModel(
-                friendRepository: friendRepository, pinShareRepository: pinShareRepository
+                friendRepository: FriendRepository(firestoreService: firestoreService),
+                messageRepository: MessageRepository(
+                    firestoreService: firestoreService,
+                    authService: authService
+                ),
+                pinShareRepository: PinShareRepository(firestoreService: firestoreService)
             )
         )
     }
 
-    private var WelcomeMsg1: AttributedString {
-        var welcome = AttributedString("Welcome, ")
-        welcome.foregroundColor = ChannelClay
-        return welcome
-    }
-
-    private var WelcomeMsg2: AttributedString {
-        let UserName = self.authService.userInfo?.username ?? "User"
-        var username = AttributedString(UserName)
-        username.foregroundColor = .white
-        return username
-    }
-    
-    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -76,17 +57,12 @@ struct HomeView: View {
                         .padding()
                     }
                 }
-                VStack(){
-                    Spacer()
-                    Rectangle()
-                        .fill(IslandsBlue)
-                        .frame(maxWidth: .infinity, maxHeight: 120)
-                }
-                .ignoresSafeArea()
             }
             .navigationBarHidden(true)
             .onAppear {
-                Task { await viewModel.loadNotifications() }
+                Task {
+                    await viewModel.loadNotifications()
+                }
             }
             .sheet(isPresented: $showNotifications) {
                 NotificationSheetView(
@@ -96,36 +72,39 @@ struct HomeView: View {
                 )
             }
         }
-        .task {
-            viewModel.startListening()
-        }
     }
 
     private var topHeader: some View {
         HStack {
-            Text(WelcomeMsg1 + WelcomeMsg2)
+            Text("Home")
+                .foregroundColor(.white)
                 .font(.title)
                 .fontWeight(.bold)
 
             Spacer()
 
-            if totalNotificationCount > 0 {
+            Button {
+                showNotifications = true
+            } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell.fill")
                         .foregroundColor(.white)
                         .font(.title2)
 
-                    Text("\(totalNotificationCount)")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(ChannelClay)
-                        .clipShape(Capsule())
-                        .offset(x: 10, y: -8)
+                    if viewModel.totalCount > 0 {
+                        Text("\(viewModel.totalCount)")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(ChannelClay)
+                            .clipShape(Capsule())
+                            .offset(x: 10, y: -8)
+                    }
                 }
             }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal)
         .padding(.vertical, 23)
@@ -145,15 +124,28 @@ private struct NotificationSheetView: View {
 
     var filteredRequests: [FriendRequest] {
         switch viewModel.activeFilter {
-        case .all, .friendRequests: return viewModel.pendingRequests
-        case .messages: return []
+        case .all, .friendRequests:
+            return viewModel.pendingRequests
+        case .pinRequests, .messages:
+            return []
+        }
+    }
+
+    var filteredPins: [PinShareRequest] {
+        switch viewModel.activeFilter {
+        case .all, .pinRequests:
+            return viewModel.pendingPinShareRequests
+        case .friendRequests, .messages:
+            return []
         }
     }
 
     var filteredThreads: [MessageThread] {
         switch viewModel.activeFilter {
-        case .all, .messages: return viewModel.unreadThreads
-        case .friendRequests: return []
+        case .all, .messages:
+            return viewModel.unreadThreads
+        case .friendRequests, .pinRequests:
+            return []
         }
     }
 
@@ -176,8 +168,10 @@ private struct NotificationSheetView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { isPresented = false }
-                        .foregroundColor(IslandsBlue)
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .foregroundColor(IslandsBlue)
                 }
             }
         }
@@ -188,6 +182,7 @@ private struct NotificationSheetView: View {
             HStack(spacing: 10) {
                 ForEach(NotificationFilter.allCases, id: \.self) { filter in
                     let isActive = viewModel.activeFilter == filter
+
                     Button {
                         viewModel.activeFilter = filter
                     } label: {
@@ -202,31 +197,8 @@ private struct NotificationSheetView: View {
                     }
                 }
             }
-            
-            if viewModel.pendingPinShareCount > 0 {
-                Button {
-                    selectedTab = 0
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Pending Pin Share Requests")
-                                .font(.headline)
-                                .foregroundColor(.white)
-
-                            Text("\(viewModel.pendingPinShareCount) request\(viewModel.pendingPinShareCount == 1 ? "" : "s") waiting")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-            }
+        }
+    }
 
     private var notificationList: some View {
         List {
@@ -237,12 +209,53 @@ private struct NotificationSheetView: View {
                             request: request,
                             sender: viewModel.requestSenders[request.senderUid],
                             onAccept: {
-                                Task { await viewModel.acceptRequest(request) }
+                                Task {
+                                    await viewModel.acceptRequest(request)
+                                }
                             },
                             onDecline: {
-                                Task { await viewModel.declineRequest(request) }
+                                Task {
+                                    await viewModel.declineRequest(request)
+                                }
                             }
                         )
+                    }
+                }
+            }
+
+            if !filteredPins.isEmpty {
+                Section("Pin Share Requests") {
+                    ForEach(filteredPins) { request in
+                        Button {
+                            isPresented = false
+                            selectedTab = 0
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "mappin.and.ellipse")
+                                    .foregroundColor(IslandsBlue)
+                                    .frame(width: 36, height: 36)
+                                    .background(IslandsBlue.opacity(0.1))
+                                    .clipShape(Circle())
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(request.senderName ?? "Someone")
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+
+                                    Text("Wants to share \"\(request.pinName)\"")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -284,12 +297,15 @@ private struct NotificationSheetView: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             Spacer()
+
             Image(systemName: "bell.slash")
                 .font(.system(size: 44))
                 .foregroundColor(.secondary)
+
             Text("No notifications")
                 .font(.headline)
                 .foregroundColor(.secondary)
+
             Spacer()
         }
     }
@@ -317,29 +333,37 @@ private struct FriendRequestRow: View {
                     Text(sender?.username ?? "Unknown User")
                         .font(.body)
                         .fontWeight(.medium)
+
+                    Text("Sent you a friend request")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
 
             HStack(spacing: 8) {
-                Button("Accept") { onAccept() }
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(IslandsBlue)
-                    .clipShape(Capsule())
-                    .buttonStyle(.borderless)
+                Button("Accept") {
+                    onAccept()
+                }
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(IslandsBlue)
+                .clipShape(Capsule())
+                .buttonStyle(.borderless)
 
-                Button("Decline") { onDecline() }
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(ChannelClay)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(ChannelClay.opacity(0.1))
-                    .clipShape(Capsule())
-                    .buttonStyle(.borderless)
+                Button("Decline") {
+                    onDecline()
+                }
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(ChannelClay)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(ChannelClay.opacity(0.1))
+                .clipShape(Capsule())
+                .buttonStyle(.borderless)
             }
         }
         .padding(.vertical, 4)

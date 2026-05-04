@@ -15,9 +15,14 @@ class PinShareViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let pinShareRepository: PinShareRepository
+    private let authService: AuthService
 
-    init(pinShareRepository: PinShareRepository) {
+    init(
+        pinShareRepository: PinShareRepository,
+        authService: AuthService
+    ) {
         self.pinShareRepository = pinShareRepository
+        self.authService = authService
     }
 
     func loadIncomingRequests() async {
@@ -37,8 +42,10 @@ class PinShareViewModel: ObservableObject {
     func sendRequest(pinId: String, pinName: String, receiverUid: String) async {
         guard let currentUser = Auth.auth().currentUser else { return }
         let currentUid = currentUser.uid
-        let senderName = currentUser.displayName ?? "Someone"
-
+        let senderName = authService.userInfo?.username
+            ?? currentUser.displayName
+            ?? "Someone"
+        
         do {
             try await pinShareRepository.sendShareRequest(
                 pinId: pinId,
