@@ -20,7 +20,8 @@ struct PublicProfileView: View {
     @State private var isSendingRequest = false
     @State private var relationshipStatus: RelationshipStatus = .none
     @State private var isLoadingRelationship = true
-    
+    @State private var relationshipListenerTask: Task<Void, Never>?
+
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     
     private var isOwnProfile: Bool {
@@ -114,7 +115,11 @@ struct PublicProfileView: View {
             Button("Cancel", role: .cancel) { }
         }
         .task {
-            await loadRelationshipStatus()
+            startRelationshipListener()
+        }
+        .onDisappear {
+            relationshipListenerTask?.cancel()
+            relationshipListenerTask = nil
         }
     }
     
@@ -136,7 +141,6 @@ struct PublicProfileView: View {
                             isSendingRequest = true
                             do {
                                 try await friendRepository.sendFriendRequest(toUID: user.uid)
-                                relationshipStatus = .requestSent
                             } catch {
                                 print("Failed to send request: \(error)")
                             }
@@ -152,15 +156,25 @@ struct PublicProfileView: View {
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                     }
                     .disabled(isSendingRequest)
-                    
+    
                 case .requestSent:
-                    Text("Pending")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.systemGray5))
-                        .foregroundColor(.secondary)
-                        .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                                    Button {
+                                        Task {
+                                            do {
+                                                try await friendRepository.cancelFriendRequest(toUID: user.uid)
+                                            } catch {
+                                                print("Failed to cancel request: \(error)")
+                                            }
+                                        }
+                                    } label: {
+                                        Text("Pending")
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
+                                            .background(Color(.systemGray5))
+                                            .foregroundColor(.secondary)
+                                            .cornerRadius(16)
+                                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                                    }
                     
                 case .requestReceived:
                     HStack(spacing: 16) {
@@ -170,7 +184,6 @@ struct PublicProfileView: View {
                                     let requests = try await friendRepository.fetchIncomingRequests()
                                     if let request = requests.first(where: { $0.senderUid == user.uid }) {
                                         try await friendRepository.acceptRequest(request)
-                                        relationshipStatus = .friends
                                     }
                                 } catch {
                                     print("Failed to accept request: \(error)")
@@ -191,7 +204,6 @@ struct PublicProfileView: View {
                                     let requests = try await friendRepository.fetchIncomingRequests()
                                     if let request = requests.first(where: { $0.senderUid == user.uid }) {
                                         try await friendRepository.declineRequest(request)
-                                        relationshipStatus = .none
                                     }
                                 } catch {
                                     print("Failed to decline request: \(error)")
@@ -350,29 +362,34 @@ struct PublicProfileView: View {
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
-    
-    private func loadRelationshipStatus() async {
-        if isOwnProfile {
-            isLoadingRelationship = false
-            return
+    private func startRelationshipListener() {
+            if isOwnProfile {
+                relationshipStatus = .none
+                isLoadingRelationship = false
+                return
+            }
+
+            relationshipListenerTask?.cancel()
+
+            relationshipListenerTask = Task {
+                do {
+                    let stream = friendRepository.relationshipStatusStream(withUID: user.uid)
+                    var firstValue = true
+
+                    for try await status in stream {
+                        relationshipStatus = status
+                        if firstValue {
+                            isLoadingRelationship = false
+                            firstValue = false
+                        }
+                    }
+                } catch {
+                    print("Failed to listen for relationship status: \(error)")
+                    isLoadingRelationship = false
+                }
+            }
         }
-        
-        if isFriend {
-            relationshipStatus = .friends
-            isLoadingRelationship = false
-            return
-        }
-        
-        if isRequested {
-            relationshipStatus = .requestSent
-            isLoadingRelationship = false
-            return
-        }
-        
-        relationshipStatus = await friendRepository.getRelationshipStatus(withUID: user.uid)
-        isLoadingRelationship = false
     }
-}
 
 #Preview {
     NavigationView {

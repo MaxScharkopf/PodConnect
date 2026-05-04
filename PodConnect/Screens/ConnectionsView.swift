@@ -379,8 +379,8 @@ struct ConnectionsView: View {
                     NavigationLink(
                         destination: PublicProfileView(
                             user: user,
-                            isFriend: friendUserIds.contains(user.uid),
-                            isRequested: requestedUserIds.contains(user.uid),
+                            isFriend: isLiveFriend(user),
+                            isRequested: !isLiveFriend(user) && requestedUserIds.contains(user.uid),
                             currentUID: currentUID,
                             friendRepository: viewModel.friendRepository
                         )
@@ -442,6 +442,14 @@ struct ConnectionsView: View {
                 requestedUserIds.insert(receiverUid)
             }
         }
+    }
+    
+    private func isLiveFriend(_ user: UserInfo) -> Bool {
+        viewModel.friends.contains(where: { $0.uid == user.uid })
+    }
+
+    private func isLiveIncomingRequest(_ user: UserInfo) -> Bool {
+        viewModel.incomingRequests.contains(where: { $0.senderUid == user.uid })
     }
 }
 

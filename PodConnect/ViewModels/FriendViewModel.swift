@@ -83,6 +83,14 @@ class FriendViewModel: ObservableObject {
         isLoading = false
     }
     
+    func cancelFriendRequest(toUID: String) async {
+        do {
+            try await friendRepository.cancelFriendRequest(toUID: toUID)
+        } catch {
+            sendErrorMessage = error.localizedDescription
+        }
+    }
+    
     // Live friends
     func fetchFriends() async {
         guard friendsListenerTask == nil else { return }
