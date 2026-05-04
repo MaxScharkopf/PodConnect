@@ -30,7 +30,14 @@ class FriendRepository {
             }
         )
 
-        return users.filter { $0.uid != currentUID }
+        let currentUser: UserInfo? = try? await firestoreService.fetchDocument(path: "users", documentId: currentUID)
+                let blockedUsers = currentUser?.blockedUsers ?? []
+                let blockedBy = currentUser?.blockedBy ?? []
+
+                return users.filter {
+                    $0.uid != currentUID &&
+                    !blockedBy.contains($0.uid)
+                }
     }
     
     func sendFriendRequest(toUID: String) async throws {
@@ -129,8 +136,15 @@ class FriendRepository {
                 }
             )
             if !receivedRequests.isEmpty { return .requestReceived }
+            
+            // 5. Check if blocked
+                        if let currentUser: UserInfo = try? await firestoreService.fetchDocument(path: "users", documentId: currentUID) {
+                            if currentUser.blockedUsers?.contains(withUID) == true {
+                                return .blocked
+                            }
+                        }
 
-            // 5. Nothing exists
+            // 6. Nothing exists
             return .none
 
         } catch {
@@ -389,5 +403,40 @@ class FriendRepository {
             path: "friends",
             documentId: documentId
         )
+    }
+    
+    func blockUser(uid: String) async throws {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
+
+        // Unfriend first if friends
+        try await unfriend(uid: uid)
+
+        let db = Firestore.firestore()
+
+            // Add to current user's blockedUsers
+            try await db.collection("users").document(currentUID).updateData([
+                "blockedUsers": FieldValue.arrayUnion([uid])
+            ])
+
+            // Add current user to their blockedBy
+            try await db.collection("users").document(uid).updateData([
+                "blockedBy": FieldValue.arrayUnion([currentUID])
+            ])
+    }
+
+    func unblockUser(uid: String) async throws {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
+
+        let db = Firestore.firestore()
+
+            // Remove from current user's blockedUsers
+            try await db.collection("users").document(currentUID).updateData([
+                "blockedUsers": FieldValue.arrayRemove([uid])
+            ])
+
+            // Remove current user from their blockedBy
+            try await db.collection("users").document(uid).updateData([
+                "blockedBy": FieldValue.arrayRemove([currentUID])
+            ])
     }
 }

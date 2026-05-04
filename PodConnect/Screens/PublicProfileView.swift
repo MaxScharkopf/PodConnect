@@ -14,22 +14,22 @@ struct PublicProfileView: View {
     let isRequested: Bool
     let currentUID: String
     let friendRepository: FriendRepository
-
+    
     @Environment(\.dismiss) private var dismiss
     @State private var showUnfriendAlert = false
     @State private var isSendingRequest = false
     @State private var relationshipStatus: RelationshipStatus = .none
     @State private var isLoadingRelationship = true
-
+    
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-
+    
     private var isOwnProfile: Bool {
         user.uid == currentUID
     }
-
+    
     private func canView(_ visibility: VisibilityLevel) -> Bool {
         if isOwnProfile { return true }
-
+        
         switch visibility {
         case .public:
             return true
@@ -39,50 +39,50 @@ struct PublicProfileView: View {
             return false
         }
     }
-
+    
     private var shouldShowBio: Bool {
         !user.bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-
+    
     private var shouldShowClubs: Bool {
         canView(user.clubsVisibility) && !user.clubs.isEmpty
     }
-
+    
     private var shouldShowClasses: Bool {
         canView(user.classesVisibility) && !user.classes.isEmpty
     }
-
+    
     private var hasVisibleContent: Bool {
         shouldShowBio || shouldShowClubs || shouldShowClasses
     }
-
+    
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
-
+            
             VStack(spacing: 0) {
                 topHeader
-
+                
                 ScrollView {
                     VStack(spacing: 20) {
                         profileImageSection
-
+                        
                         if !isOwnProfile {
                             relationshipActionSection
                         }
-
+                        
                         if shouldShowBio {
                             infoCard(title: "Bio", content: user.bio)
                         }
-
+                        
                         if shouldShowClubs {
                             infoCard(title: "Clubs", content: user.clubs.joined(separator: ", "))
                         }
-
+                        
                         if shouldShowClasses {
                             infoCard(title: "Classes", content: user.classes.joined(separator: ", "))
                         }
-
+                        
                         if !hasVisibleContent {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("No profile details available")
@@ -95,7 +95,7 @@ struct PublicProfileView: View {
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                         }
-
+                        
                         Spacer(minLength: 30)
                     }
                     .padding()
@@ -117,7 +117,7 @@ struct PublicProfileView: View {
             await loadRelationshipStatus()
         }
     }
-
+    
     private var relationshipActionSection: some View {
         Group {
             if isLoadingRelationship {
@@ -127,7 +127,7 @@ struct PublicProfileView: View {
                     .background(Color.white)
                     .cornerRadius(16)
                     .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-
+                
             } else {
                 switch relationshipStatus {
                 case .none:
@@ -152,7 +152,7 @@ struct PublicProfileView: View {
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                     }
                     .disabled(isSendingRequest)
-
+                    
                 case .requestSent:
                     Text("Pending")
                         .frame(maxWidth: .infinity)
@@ -161,7 +161,7 @@ struct PublicProfileView: View {
                         .foregroundColor(.secondary)
                         .cornerRadius(16)
                         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-
+                    
                 case .requestReceived:
                     HStack(spacing: 16) {
                         Button {
@@ -184,7 +184,7 @@ struct PublicProfileView: View {
                                 .foregroundColor(IslandsBlue)
                                 .cornerRadius(16)
                         }
-
+                        
                         Button {
                             Task {
                                 do {
@@ -207,7 +207,7 @@ struct PublicProfileView: View {
                         }
                     }
                     .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-
+                    
                 case .friends:
                     Button {
                         showUnfriendAlert = true
@@ -220,11 +220,27 @@ struct PublicProfileView: View {
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                     }
+                    
+                case .blocked:
+                    Button {
+                        Task {
+                            try? await friendRepository.unblockUser(uid: user.uid)
+                            dismiss()
+                        }
+                    } label: {
+                        Text("Unblock")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.white)
+                            .foregroundColor(.red)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                    }
                 }
             }
         }
     }
-
+    
     private var topHeader: some View {
         HStack {
             Button {
@@ -234,32 +250,49 @@ struct PublicProfileView: View {
                     .foregroundColor(.white)
                     .font(.system(size: 20, weight: .semibold))
             }
-
+            
             Spacer()
-
+            
             VStack(spacing: 1) {
                 Text(user.name.isEmpty ? user.username : user.name)
                     .foregroundColor(.white)
                     .font(.title3)
                     .fontWeight(.bold)
                     .lineLimit(1)
-
+                
                 Text("@\(user.username)")
                     .foregroundColor(.white.opacity(0.9))
                     .font(.subheadline)
                     .lineLimit(1)
             }
-
+            
             Spacer()
-
-            Color.clear
-                .frame(width: 18, height: 18)
+            
+            if !isOwnProfile && relationshipStatus != .blocked {
+                Menu {
+                    Button(role: .destructive) {
+                        Task {
+                            try? await friendRepository.blockUser(uid: user.uid)
+                            dismiss()
+                        }
+                    } label: {
+                        Label("Block", systemImage: "hand.raised")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundColor(.white)
+                        .padding(8)
+                }
+            } else {
+                Color.clear
+                    .frame(width: 18, height: 18)
+            }
         }
         .padding(.horizontal)
         .frame(height: 66)
         .background(IslandsBlue)
     }
-
+    
     private var profileImageSection: some View {
         VStack(spacing: 10) {
             Group {
@@ -302,12 +335,12 @@ struct PublicProfileView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
     }
-
+    
     private func infoCard(title: String, content: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.headline)
-
+            
             Text(content)
                 .foregroundColor(.primary)
         }
@@ -317,25 +350,25 @@ struct PublicProfileView: View {
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
-
+    
     private func loadRelationshipStatus() async {
         if isOwnProfile {
             isLoadingRelationship = false
             return
         }
-
+        
         if isFriend {
             relationshipStatus = .friends
             isLoadingRelationship = false
             return
         }
-
+        
         if isRequested {
             relationshipStatus = .requestSent
             isLoadingRelationship = false
             return
         }
-
+        
         relationshipStatus = await friendRepository.getRelationshipStatus(withUID: user.uid)
         isLoadingRelationship = false
     }

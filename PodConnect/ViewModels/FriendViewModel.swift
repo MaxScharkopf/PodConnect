@@ -109,6 +109,25 @@ class FriendViewModel: ObservableObject {
         }
     }
     
+    // Block a user
+    func blockUser(uid: String) async {
+        do {
+            try await friendRepository.blockUser(uid: uid)
+            friends.removeAll { $0.uid == uid }
+        } catch {
+            print("Error blocking user: \(error)")
+        }
+    }
+
+    // Unblock a user
+    func unblockUser(uid: String) async {
+        do {
+            try await friendRepository.unblockUser(uid: uid)
+        } catch {
+            print("Error unblocking user: \(error)")
+        }
+    }
+    
     // Live incoming friend requests
     func fetchIncomingRequests() async {
         guard incomingRequestsListenerTask == nil else { return }
