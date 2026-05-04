@@ -24,6 +24,7 @@ struct UserEvent: Identifiable, Codable {
     var endDate: Date
     var notes: String
     var category: EventCategory
+    var recurrenceGroupId: String? = nil
 }
 
 enum EventCategory: String, CaseIterable, Codable {
