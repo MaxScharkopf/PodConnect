@@ -116,32 +116,45 @@ struct ChatView: View {
                 } else {
                     ScrollView {
                         ForEach(viewModel.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
-                            HStack {
-                                if message.sender == self.authService.userInfo?.id {
+                            let isMe = message.sender == self.authService.userInfo?.uid
+                            let senderUser = users[message.sender]
+
+                            HStack(alignment: .center, spacing: 8) {
+                                if isMe {
                                     Spacer()
-                                    
+
                                     Text(message.content)
-                                        .padding(10)
+                                        .font(.body)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
                                         .background(IslandsBlue)
-                                        .clipShape(RoundedRectangle(cornerRadius: 15))
-                                        .padding(.horizontal)
                                         .foregroundStyle(.white)
-                                }else {
-                                    VStack(alignment: .leading){
-                                        Text(users[message.sender]?.name ?? "Unknown")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                                .padding(6)
+                                        .clipShape(RoundedRectangle(cornerRadius: 22))
+                                        .frame(maxWidth: 260, alignment: .trailing)
+                                } else {
+                                    AvatarView(urlString: senderUser?.profileImageURL, size: 42)
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(senderUser?.name ?? "Unknown")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .padding(.leading, 10)
+
                                         Text(message.content)
-                                            .padding(10)
-                                            .background(ChannelClay)
-                                            .clipShape(RoundedRectangle(cornerRadius: 15))
-                                            .padding(.horizontal)
-                                            .foregroundStyle(.white)
+                                            .font(.body)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 10)
+                                            .background(Color(.systemGray6))
+                                            .foregroundStyle(.primary)
+                                            .clipShape(RoundedRectangle(cornerRadius: 22))
+                                            .frame(maxWidth: 260, alignment: .leading)
                                     }
+
                                     Spacer()
                                 }
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -161,8 +174,8 @@ struct ChatView: View {
                 Task { try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "") }
             }
         }
-        .task { 
-            await loadUsers() 
+        .task {
+            await loadUsers()
             if !isRequest {
                 try? await messageRepository.markThreadAsRead(threadId: messageThread.id ?? "")
             }

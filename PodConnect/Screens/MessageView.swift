@@ -225,6 +225,44 @@ struct MessageView: View {
         }
     }
 }
+
+struct AvatarView: View {
+    let urlString: String?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let urlString,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .empty:
+                        ProgressView()
+                    default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "person.fill")
+            .resizable()
+            .scaledToFit()
+            .padding(size * 0.25)
+            .foregroundColor(.white)
+            .background(Color.gray)
+    }
+}
  
 // Popover for creating a new message thread with a name and participants
 struct ThreadCreationPopup: View {
