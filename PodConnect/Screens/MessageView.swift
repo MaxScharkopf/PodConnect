@@ -29,27 +29,6 @@ struct MessageView: View {
         _viewModel = StateObject(wrappedValue: MessageViewModel(messageRepository: messageRepository))
     }
     
-    private func otherUsers(for thread: MessageThread) -> [UserInfo] {
-        let currentUserId = authService.userInfo?.uid
-        let allIds = thread.participants + thread.pendingParticipants
-
-        return allIds
-            .filter { $0 != currentUserId }
-            .map { userId in
-                viewModel.users[userId] ?? UserInfo(
-                    username: "",
-                    username_lowercase: "",
-                    name: "",
-                    classes: [],
-                    clubs: [],
-                    email: "",
-                    uid: userId,
-                    bio: "",
-                    profileImageURL: nil
-                )
-            }
-    }
-    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -89,46 +68,61 @@ struct MessageView: View {
                                 
                                 ForEach(viewModel.messageRequests) { thread in
                                     NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService, isRequest: true)) {
-                                        HStack(spacing: 14) {
-                                            GroupAvatarView(users: otherUsers(for: thread))
-                                                .frame(width: 58, height: 58)
+                                        ZStack {
+                                            
+                                            Rectangle()
+                                                .fill(Color.white.opacity(0.8))
+                                                .frame(maxWidth: 400, maxHeight: 55)
+                                                .clipShape(Capsule())
+                                                .shadow(color: Color.black.opacity(0.1), radius: 5)
+                                                .padding(.horizontal)
 
-                                            VStack(alignment: .leading, spacing: 4) {
+                                            HStack {
                                                 if thread.threadName.isEmpty {
                                                     Text(viewModel.getParticipantSummary(for: thread))
+                                                        .padding(20)
                                                         .font(.headline)
                                                         .foregroundStyle(.primary)
                                                         .lineLimit(1)
+                                                        .padding(.leading)
                                                 }else {
-                                                    Text(thread.threadName)
-                                                        .font(.headline)
-                                                        .foregroundStyle(.primary)
-                                                        .lineLimit(1)
-
-                                                    Text(viewModel.getParticipantSummary(for: thread))
-                                                        .font(.subheadline)
-                                                        .foregroundStyle(.secondary)
-                                                        .lineLimit(1)
+                                                    VStack(alignment: .leading, spacing: 0) {
+                                                        Text(thread.threadName)
+                                                            .font(.headline)
+                                                            .foregroundStyle(.primary)
+                                                            .lineLimit(1)
+                                                            .padding(.leading)
+                                                        
+                                                        Text(viewModel.getParticipantSummary(for: thread))
+                                                            .font(.caption2)
+                                                            .foregroundStyle(.secondary)
+                                                            .lineLimit(1)
+                                                            .padding(.leading)
+                                                            .padding(.trailing, 32)
+                                                    }
+                                                    .padding(20)
                                                 }
-                                            }
 
-                                            Spacer()
+                                                Spacer()
 
-                                            if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
-                                                Circle()
-                                                    .fill(.blue)
-                                                    .frame(width: 10, height: 10)
+                                                if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
+                                                    Text("\(count)")
+                                                        .font(.caption2.bold())
+                                                        .foregroundColor(.white)
+                                                        .padding(6)
+                                                        .background(.red)
+                                                        .clipShape(Circle())
+                                                }
+                                                
+                                                Text("New")
+                                                    .font(.caption)
+                                                    .padding(6)
+                                                    .background(.blue)
+                                                    .foregroundColor(.white)
+                                                    .clipShape(Capsule())
+                                                    .padding(.trailing, 40)
                                             }
-                                            
-                                            Text("New")
-                                                .font(.caption)
-                                                .padding(6)
-                                                .background(.blue)
-                                                .foregroundColor(.white)
-                                                .clipShape(Capsule())
                                         }
-                                        .padding(.horizontal)
-                                        .padding(.vertical, 8)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -146,39 +140,53 @@ struct MessageView: View {
                             
                             ForEach(viewModel.messageThreads) { thread in
                                 NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService)) {
-                                    HStack(spacing: 14) {
-                                        GroupAvatarView(users: otherUsers(for: thread))
-                                            .frame(width: 58, height: 58)
+                                    ZStack {
+                                        Rectangle()
+                                            .fill(.white)
+                                            .frame(maxWidth: 400, maxHeight: 55)
+                                            .clipShape(Capsule())
+                                            .shadow(color: Color.black.opacity(0.2), radius: 5)
+                                            .padding(.horizontal)
 
-                                        VStack(alignment: .leading, spacing: 4) {
+                                        HStack {
                                             if thread.threadName.isEmpty {
                                                 Text(viewModel.getParticipantSummary(for: thread))
+                                                    .padding(20)
                                                     .font(.headline)
                                                     .foregroundStyle(.primary)
                                                     .lineLimit(1)
+                                                    .padding(.leading)
                                             }else {
-                                                Text(thread.threadName)
-                                                    .font(.headline)
-                                                    .foregroundStyle(.primary)
-                                                    .lineLimit(1)
+                                                VStack(alignment: .leading, spacing: 0) {
+                                                    Text(thread.threadName)
+                                                        .font(.headline)
+                                                        .foregroundStyle(.primary)
+                                                        .lineLimit(1)
+                                                        .padding(.leading)
+                                                    
+                                                    Text(viewModel.getParticipantSummary(for: thread))
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                        .padding(.leading)
+                                                        .padding(.trailing, 32)
+                                                }
+                                                .padding(20)
+                                            }
 
-                                                Text(viewModel.getParticipantSummary(for: thread))
-                                                    .font(.subheadline)
-                                                    .foregroundStyle(.secondary)
-                                                    .lineLimit(1)
+                                            Spacer()
+
+                                            if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
+                                                Text("\(count)")
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.white)
+                                                    .padding(6)
+                                                    .background(.red)
+                                                    .clipShape(Circle())
+                                                    .padding(.trailing, 40)
                                             }
                                         }
-
-                                        Spacer()
-
-                                        if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
-                                            Circle()
-                                                .fill(.blue)
-                                                .frame(width: 10, height: 10)
-                                        }
                                     }
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 8)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -255,48 +263,7 @@ struct AvatarView: View {
             .background(Color.gray)
     }
 }
-
-struct GroupAvatarView: View {
-    let users: [UserInfo]
-
-    var body: some View {
-        ZStack {
-            if users.isEmpty {
-                AvatarView(urlString: nil, size: 58)
-            } else if users.count == 1 {
-                AvatarView(urlString: users.first?.profileImageURL, size: 58)
-            } else {
-                ForEach(Array(users.prefix(4).enumerated()), id: \.offset) { index, user in
-                    AvatarView(urlString: user.profileImageURL, size: users.count == 2 ? 38 : 32)
-                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                        .offset(offset(for: index, count: min(users.count, 4)))
-                }
-            }
-        }
-        .frame(width: 58, height: 58)
-    }
-
-    private func offset(for index: Int, count: Int) -> CGSize {
-        switch count {
-        case 2:
-            return index == 0 ? CGSize(width: -10, height: 0) : CGSize(width: 10, height: 0)
-        case 3:
-            return [
-                CGSize(width: 0, height: -12),
-                CGSize(width: -12, height: 10),
-                CGSize(width: 12, height: 10)
-            ][index]
-        default:
-            return [
-                CGSize(width: -12, height: -12),
-                CGSize(width: 12, height: -12),
-                CGSize(width: -12, height: 12),
-                CGSize(width: 12, height: 12)
-            ][index]
-        }
-    }
-}
-
+ 
 // Popover for creating a new message thread with a name and participants
 struct ThreadCreationPopup: View {
     var authService: AuthService
