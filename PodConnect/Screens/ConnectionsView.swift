@@ -22,7 +22,7 @@ struct ConnectionsView: View {
     @State private var friendUserIds: Set<String> = []
     @State private var currentUID = ""
     @State private var friendToBlock: UserInfo? = nil
-    
+    @State private var friendToUnblock: UserInfo? = nil
     
     @State private var isSearchMode = false
     @State private var isLoadingConnections = true
@@ -61,6 +61,10 @@ struct ConnectionsView: View {
                             }
                             
                             friendsSection
+                            
+                            if !viewModel.blockedUsers.isEmpty {
+                                blockedSection
+                            }
                         }
                     }
                     .padding()
@@ -92,12 +96,31 @@ struct ConnectionsView: View {
             }
         }
         
+        .alert("Unblock \(friendToUnblock?.username ?? "")?", isPresented: Binding(
+            get: { friendToUnblock != nil },
+            set: { if !$0 { friendToUnblock = nil } }
+        )) {
+            Button("Unblock", role: .destructive) {
+                if let user = friendToUnblock {
+                    Task {
+                        await viewModel.unblockUser(uid: user.uid)
+                        await viewModel.fetchBlockedUsers()
+                    }
+                }
+                friendToUnblock = nil
+            }
+            Button("Cancel", role: .cancel) {
+                friendToUnblock = nil
+            }
+        }
+        
         .task {
             isLoadingConnections = true
             currentUID = authService.userInfo?.uid ?? ""
             
             await viewModel.fetchFriends()
             await viewModel.fetchIncomingRequests()
+            await viewModel.fetchBlockedUsers()
             
             isLoadingConnections = false
         }
@@ -266,6 +289,38 @@ struct ConnectionsView: View {
                         .clipShape(Capsule())
                         .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
                     }
+                }
+            }
+        }
+    }
+    
+    private var blockedSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Blocked")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            VStack(spacing: 16) {
+                ForEach(viewModel.blockedUsers) { user in
+                    HStack(spacing: 12) {
+                        UserRowView(user: user)
+
+                        Menu {
+                            Button(role: .destructive) {
+                                friendToUnblock = user
+                            } label: {
+                                Label("Unblock", systemImage: "hand.raised.slash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .foregroundColor(.secondary)
+                                .padding(8)
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
                 }
             }
         }
@@ -447,7 +502,7 @@ struct ConnectionsView: View {
     private func isLiveFriend(_ user: UserInfo) -> Bool {
         viewModel.friends.contains(where: { $0.uid == user.uid })
     }
-
+    
     private func isLiveIncomingRequest(_ user: UserInfo) -> Bool {
         viewModel.incomingRequests.contains(where: { $0.senderUid == user.uid })
     }

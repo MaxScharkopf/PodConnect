@@ -23,6 +23,7 @@ class FriendViewModel: ObservableObject {
     @Published var relationshipStatus: RelationshipStatus = .none
     @Published var incomingRequests: [FriendRequest] = []
     @Published var requestErrorMessage: String = ""
+    @Published var blockedUsers: [UserInfo] = []
 
     private var incomingRequestsListenerTask: Task<Void, Never>?
     private var friendsListenerTask: Task<Void, Never>?
@@ -133,6 +134,14 @@ class FriendViewModel: ObservableObject {
             try await friendRepository.unblockUser(uid: uid)
         } catch {
             print("Error unblocking user: \(error)")
+        }
+    }
+    
+    func fetchBlockedUsers() async {
+        do {
+            blockedUsers = try await friendRepository.fetchBlockedUsers()
+        } catch {
+            print("Error fetching blocked users: \(error)")
         }
     }
     

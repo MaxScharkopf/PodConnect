@@ -440,6 +440,22 @@ class FriendRepository {
         ])
     }
     
+    func fetchBlockedUsers() async throws -> [UserInfo] {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
+
+        guard let currentUser: UserInfo = try await firestoreService.fetchDocument(path: "users", documentId: currentUID) else { return [] }
+
+        let blockedUIDs = currentUser.blockedUsers ?? []
+
+        var results: [UserInfo] = []
+        for uid in blockedUIDs {
+            if let user: UserInfo = try await firestoreService.fetchDocument(path: "users", documentId: uid) {
+                results.append(user)
+            }
+        }
+        return results
+    }
+    
     func cancelFriendRequest(toUID: String) async throws {
         guard let currentUID = Auth.auth().currentUser?.uid else { return }
         
