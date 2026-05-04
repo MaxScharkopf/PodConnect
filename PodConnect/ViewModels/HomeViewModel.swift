@@ -8,70 +8,114 @@ import Combine
 import FirebaseAuth
 import FirebaseFirestore
 
+enum NotificationFilter: String, CaseIterable {
+    case all = "All"
+    case friendRequests = "Friend Requests"
+    case pinRequests = "Pin Requests"
+    case messages = "Messages"
+}
+
 @MainActor
 final class HomeViewModel: ObservableObject {
-    @Published var pendingRequestCount: Int = 0
-    @Published var pendingPinShareCount: Int = 0
+    @Published var pendingRequests: [FriendRequest] = []
+    @Published var requestSenders: [String: UserInfo] = [:]
+    @Published var unreadThreads: [MessageThread] = []
+    @Published var pendingPinShareRequests: [PinShareRequest] = []
+    @Published var activeFilter: NotificationFilter = .all
     @Published var errorMessage: String = ""
 
     private let friendRepository: FriendRepository
+    private let messageRepository: MessageRepository
     private let pinShareRepository: PinShareRepository
 
+    private var friendRequestListenerTask: Task<Void, Never>?
+    private var threadListenerTask: Task<Void, Never>?
     private var pinShareListener: ListenerRegistration?
-    
-    init(friendRepository: FriendRepository, pinShareRepository: PinShareRepository) {
-        self.friendRepository = friendRepository
-        self.pinShareRepository = pinShareRepository
 
+    init(
+        friendRepository: FriendRepository,
+        messageRepository: MessageRepository,
+        pinShareRepository: PinShareRepository
+    ) {
+        self.friendRepository = friendRepository
+        self.messageRepository = messageRepository
+        self.pinShareRepository = pinShareRepository
     }
 
-    var hasNotifications: Bool {
-        pendingRequestCount > 0 || pendingPinShareCount > 0
+    deinit {
+        friendRequestListenerTask?.cancel()
+        threadListenerTask?.cancel()
+        pinShareListener?.remove()
     }
 
     var pendingRequestCount: Int { pendingRequests.count }
     var messageCount: Int { unreadThreads.count }
-    var totalCount: Int { pendingRequestCount + messageCount }
+    var pinShareCount: Int { pendingPinShareRequests.count }
+    var totalCount: Int { pendingRequestCount + messageCount + pinShareCount }
     var hasNotifications: Bool { totalCount > 0 }
 
     func loadNotifications() async {
         errorMessage = ""
 
-        // One-time fetch for friend requests
-        do {
-            let requests = try await friendRepository.fetchIncomingRequests()
-            pendingRequestCount = requests.count
-            
-            guard let currentUid = Auth.auth().currentUser?.uid else {
-                pendingPinShareCount = 0
-                return
+        if friendRequestListenerTask == nil {
+            friendRequestListenerTask = Task {
+                do {
+                    let stream = friendRepository.incomingRequestsStream()
+                    for try await requests in stream {
+                        pendingRequests = requests
+
+                        var senders: [String: UserInfo] = [:]
+                        for request in requests {
+                            if let user = await friendRepository.fetchUser(uid: request.senderUid) {
+                                senders[request.senderUid] = user
+                            }
+                        }
+                        requestSenders = senders
+                    }
+                } catch {
+                    errorMessage = "Failed to load notifications."
+                    print("HomeViewModel friend request stream error: \(error)")
+                }
             }
-            
-            let pinRequests = try await pinShareRepository.fetchIncomingRequests(for: currentUid)
-            pendingPinShareCount = pinRequests.count
-            
-        } catch {
-            errorMessage = "Failed to load notifications."
-            print("HomeViewModel loadNotifications error: \(error)")
         }
 
-        // Start real-time listener for message threads (only once)
-        guard threadListenerTask == nil else { return }
-        threadListenerTask = Task {
-            let userId = Auth.auth().currentUser?.uid ?? ""
-            let stream = messageRepository.messageThreadsStream()
-            do {
-                for try await threads in stream {
-                    unreadThreads = threads.filter { thread in
-                        guard let lastMessageAt = thread.lastMessageAt else { return false }
-                        guard let lastReadAt = thread.lastReadAt?[userId] else { return true }
-                        return lastMessageAt > lastReadAt
+        if threadListenerTask == nil {
+            threadListenerTask = Task {
+                let userId = Auth.auth().currentUser?.uid ?? ""
+                let stream = messageRepository.messageThreadsStream()
+
+                do {
+                    for try await threads in stream {
+                        unreadThreads = threads.filter { thread in
+                            guard let lastMessageAt = thread.lastMessageAt else { return false }
+                            guard let lastReadAt = thread.lastReadAt?[userId] else { return true }
+                            return lastMessageAt > lastReadAt
+                        }
                     }
+                } catch {
+                    print("HomeViewModel thread stream error: \(error)")
                 }
-            } catch {
-                print("HomeViewModel thread stream error: \(error)")
             }
         }
+
+        startListening()
+    }
+
+    func startListening() {
+        guard let currentUid = Auth.auth().currentUser?.uid else { return }
+
+        pinShareListener?.remove()
+
+        pinShareListener = pinShareRepository.listenToIncomingRequests(for: currentUid) { [weak self] requests in
+            Task { @MainActor in
+                self?.pendingPinShareRequests = requests
+            }
+        }
+    }
+
+    func stopListening() {
+        pinShareListener?.remove()
+        pinShareListener = nil
     }
 
     func acceptRequest(_ request: FriendRequest) async {
@@ -90,26 +134,5 @@ final class HomeViewModel: ObservableObject {
         } catch {
             errorMessage = "Failed to decline request."
         }
-    }
-    
-    func startListening() {
-        guard let currentUid = Auth.auth().currentUser?.uid else { return }
-
-        pinShareListener?.remove()
-
-        pinShareListener = pinShareRepository.listenToIncomingRequests(for: currentUid) { [weak self] requests in
-            Task { @MainActor in
-                self?.pendingPinShareCount = requests.count
-            }
-        }
-    }
-
-    func stopListening() {
-        pinShareListener?.remove()
-        pinShareListener = nil
-    }
-
-    deinit {
-        pinShareListener?.remove()
     }
 }

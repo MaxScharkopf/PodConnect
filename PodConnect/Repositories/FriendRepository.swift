@@ -198,6 +198,59 @@ class FriendRepository {
             }
         )
     }
+    
+    func incomingRequestsStream() -> AsyncThrowingStream<[FriendRequest], Error> {
+        AsyncThrowingStream { continuation in
+            guard let currentUID = Auth.auth().currentUser?.uid else {
+                continuation.yield([])
+                continuation.finish()
+                return
+            }
+
+            let listener = Firestore.firestore()
+                .collection("friendRequests")
+                .whereField("receiverUid", isEqualTo: currentUID)
+                .whereField("status", isEqualTo: "pending")
+                .addSnapshotListener { snapshot, error in
+                    if let error = error {
+                        continuation.finish(throwing: error)
+                        return
+                    }
+
+                    guard let documents = snapshot?.documents else {
+                        continuation.yield([])
+                        return
+                    }
+
+                    let requests: [FriendRequest] = documents.compactMap { document in
+                        let data = document.data()
+
+                        guard
+                            let senderUid = data["senderUid"] as? String,
+                            let receiverUid = data["receiverUid"] as? String,
+                            let status = data["status"] as? String,
+                            let timestamp = data["timestamp"] as? Timestamp
+                        else {
+                            return nil
+                        }
+
+                        return FriendRequest(
+                            id: document.documentID,
+                            senderUid: senderUid,
+                            receiverUid: receiverUid,
+                            status: status,
+                            timestamp: timestamp
+                        )
+                    }
+
+                    continuation.yield(requests)
+                }
+
+            continuation.onTermination = { _ in
+                listener.remove()
+            }
+        }
+    }
 
     func acceptRequest(_ request: FriendRequest) async throws {
         guard let requestId = request.id else { return }
@@ -231,6 +284,83 @@ class FriendRepository {
         )
     }
     
+    func friendsStream() -> AsyncThrowingStream<[UserInfo], Error> {
+        AsyncThrowingStream { continuation in
+            guard let currentUID = Auth.auth().currentUser?.uid else {
+                continuation.yield([])
+                continuation.finish()
+                return
+            }
+
+            let db = Firestore.firestore()
+
+            let user1Query = db.collection("friends")
+                .whereField("user1UID", isEqualTo: currentUID)
+
+            let user2Query = db.collection("friends")
+                .whereField("user2UID", isEqualTo: currentUID)
+
+            var user1Docs: [QueryDocumentSnapshot] = []
+            var user2Docs: [QueryDocumentSnapshot] = []
+
+            func emitFriends() {
+                Task {
+                    let allDocs = user1Docs + user2Docs
+
+                    let friendUIDs = allDocs.compactMap { document -> String? in
+                        let data = document.data()
+                        let user1 = data["user1UID"] as? String ?? ""
+                        let user2 = data["user2UID"] as? String ?? ""
+
+                        if user1 == currentUID {
+                            return user2
+                        } else if user2 == currentUID {
+                            return user1
+                        } else {
+                            return nil
+                        }
+                    }
+
+                    var results: [UserInfo] = []
+                    for uid in friendUIDs {
+                        if let user: UserInfo = try? await self.firestoreService.fetchDocument(path: "users", documentId: uid) {
+                            results.append(user)
+                        }
+                    }
+
+                    await MainActor.run {
+                        continuation.yield(results)
+                    }
+                }
+            }
+
+            let listener1 = user1Query.addSnapshotListener { snapshot, error in
+                if let error = error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+
+                user1Docs = snapshot?.documents ?? []
+                emitFriends()
+            }
+
+            let listener2 = user2Query.addSnapshotListener { snapshot, error in
+                if let error = error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+
+                user2Docs = snapshot?.documents ?? []
+                emitFriends()
+            }
+
+            continuation.onTermination = { _ in
+                listener1.remove()
+                listener2.remove()
+            }
+        }
+    }
+    
     func unfriend(uid: String) async throws {
         guard let currentUID = Auth.auth().currentUser?.uid else { return }
 
@@ -260,4 +390,117 @@ class FriendRepository {
             documentId: documentId
         )
     }
+    
+    func cancelFriendRequest(toUID: String) async throws {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
+
+        let existingRequests: [FriendRequest] = try await firestoreService.fetchCollection(
+            path: "friendRequests",
+            configure: { query in
+                query.whereField("senderUid", isEqualTo: currentUID)
+                    .whereField("receiverUid", isEqualTo: toUID)
+                    .whereField("status", isEqualTo: "pending")
+            }
+        )
+
+        guard let requestId = existingRequests.first?.id else { return }
+
+        try await firestoreService.removeDocument(
+            path: "friendRequests",
+            documentId: requestId
+        )
+    }
+    
+    func relationshipStatusStream(withUID otherUID: String) -> AsyncThrowingStream<RelationshipStatus, Error> {
+        AsyncThrowingStream { continuation in
+            guard let currentUID = Auth.auth().currentUser?.uid else {
+                continuation.yield(.none)
+                continuation.finish()
+                return
+            }
+
+            let db = Firestore.firestore()
+
+            let friendQuery1 = db.collection("friends")
+                .whereField("user1UID", isEqualTo: currentUID)
+                .whereField("user2UID", isEqualTo: otherUID)
+
+            let friendQuery2 = db.collection("friends")
+                .whereField("user2UID", isEqualTo: currentUID)
+                .whereField("user1UID", isEqualTo: otherUID)
+
+            let sentRequestQuery = db.collection("friendRequests")
+                .whereField("senderUid", isEqualTo: currentUID)
+                .whereField("receiverUid", isEqualTo: otherUID)
+                .whereField("status", isEqualTo: "pending")
+
+            let receivedRequestQuery = db.collection("friendRequests")
+                .whereField("senderUid", isEqualTo: otherUID)
+                .whereField("receiverUid", isEqualTo: currentUID)
+                .whereField("status", isEqualTo: "pending")
+
+            var hasFriend1 = false
+            var hasFriend2 = false
+            var hasSentRequest = false
+            var hasReceivedRequest = false
+
+            func emitStatus() {
+                let status: RelationshipStatus
+                if hasFriend1 || hasFriend2 {
+                    status = .friends
+                } else if hasSentRequest {
+                    status = .requestSent
+                } else if hasReceivedRequest {
+                    status = .requestReceived
+                } else {
+                    status = .none
+                }
+                continuation.yield(status)
+            }
+
+            let listener1 = friendQuery1.addSnapshotListener { snapshot, error in
+                if let error = error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                hasFriend1 = !(snapshot?.documents.isEmpty ?? true)
+                emitStatus()
+            }
+
+            let listener2 = friendQuery2.addSnapshotListener { snapshot, error in
+                if let error = error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                hasFriend2 = !(snapshot?.documents.isEmpty ?? true)
+                emitStatus()
+            }
+
+            let listener3 = sentRequestQuery.addSnapshotListener { snapshot, error in
+                if let error = error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                hasSentRequest = !(snapshot?.documents.isEmpty ?? true)
+                emitStatus()
+            }
+
+            let listener4 = receivedRequestQuery.addSnapshotListener { snapshot, error in
+                if let error = error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                hasReceivedRequest = !(snapshot?.documents.isEmpty ?? true)
+                emitStatus()
+            }
+
+            continuation.onTermination = { _ in
+                listener1.remove()
+                listener2.remove()
+                listener3.remove()
+                listener4.remove()
+            }
+        }
+    }
+
 }

@@ -38,6 +38,20 @@ struct HomeView: View {
         )
     }
 
+    private var WelcomeMsg1: AttributedString {
+        var welcome = AttributedString("Welcome, ")
+        welcome.foregroundColor = ChannelClay
+        return welcome
+    }
+
+    private var WelcomeMsg2: AttributedString {
+        let UserName = self.authService.userInfo?.username ?? "User"
+        var username = AttributedString(UserName)
+        username.foregroundColor = .white
+        return username
+    }
+    
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -62,6 +76,13 @@ struct HomeView: View {
                         .padding()
                     }
                 }
+                VStack(){
+                    Spacer()
+                    Rectangle()
+                        .fill(IslandsBlue)
+                        .frame(maxWidth: .infinity, maxHeight: 120)
+                }
+                .ignoresSafeArea()
             }
             .navigationBarHidden(true)
             .onAppear {
@@ -82,8 +103,7 @@ struct HomeView: View {
 
     private var topHeader: some View {
         HStack {
-            Text("Home")
-                .foregroundColor(.white)
+            Text(WelcomeMsg1 + WelcomeMsg2)
                 .font(.title)
                 .fontWeight(.bold)
 
@@ -297,9 +317,6 @@ private struct FriendRequestRow: View {
                     Text(sender?.username ?? "Unknown User")
                         .font(.body)
                         .fontWeight(.medium)
-                    Text("Sent you a friend request")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
             }
 
