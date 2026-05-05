@@ -9,16 +9,18 @@ import FirebaseAuth
 struct HomeView: View {
     private var authService: AuthService
     @Binding var selectedTab: Int
+    @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
     @State private var showNotifications = false
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 
-    init(authService: AuthService, selectedTab: Binding<Int>) {
+    init(authService: AuthService, selectedTab: Binding<Int>, selectedPinShareRequest: Binding<PinShareRequest?>) {
         self.authService = authService
         _selectedTab = selectedTab
-
+        _selectedPinShareRequest = selectedPinShareRequest
+        
         let firestoreService = FirestoreService()
 
         _viewModel = StateObject(
@@ -68,6 +70,7 @@ struct HomeView: View {
                 NotificationSheetView(
                     viewModel: viewModel,
                     selectedTab: $selectedTab,
+                    selectedPinShareRequest: $selectedPinShareRequest,
                     isPresented: $showNotifications
                 )
             }
@@ -117,6 +120,7 @@ struct HomeView: View {
 private struct NotificationSheetView: View {
     @ObservedObject var viewModel: HomeViewModel
     @Binding var selectedTab: Int
+    @Binding var selectedPinShareRequest: PinShareRequest?
     @Binding var isPresented: Bool
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
@@ -229,6 +233,9 @@ private struct NotificationSheetView: View {
                         Button {
                             isPresented = false
                             selectedTab = 0
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                selectedPinShareRequest = request
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "mappin.and.ellipse")
@@ -373,6 +380,7 @@ private struct FriendRequestRow: View {
 #Preview {
     HomeView(
         authService: AuthService(firestoreService: FirestoreService()),
-        selectedTab: .constant(2)
+        selectedTab: .constant(2),
+        selectedPinShareRequest: .constant(nil)
     )
 }

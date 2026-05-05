@@ -31,6 +31,7 @@ struct MapView: View {
     @State private var pendingPinCoordinate: CLLocationCoordinate2D?
     @State private var friends: [UserInfo] = []
     @State private var pendingShareReceiverUIDs: [String] = []
+    @Binding var selectedPinShareRequest: PinShareRequest?
     private let friendRepository: FriendRepository
 
     @State private var mapPosition: MapCameraPosition = .region(
@@ -57,7 +58,8 @@ struct MapView: View {
         )
     )
     
-    init(authService: AuthService, firestoreService: FirestoreService) {
+    init(authService: AuthService, firestoreService: FirestoreService, selectedPinShareRequest: Binding<PinShareRequest?>) {
+        _selectedPinShareRequest = selectedPinShareRequest
         
         let mapRepository = MapRepository(
             firestoreService: firestoreService,
@@ -282,7 +284,10 @@ struct MapView: View {
                             Button(action: {showingPinShareRequests = true}) {
                                 mapButton(icon: "person.crop.circle.badge.plus")
                             }
-                            .sheet(isPresented: $showingPinShareRequests) {
+                            .sheet(isPresented: $showingPinShareRequests,
+                                   onDismiss: {
+                                       selectedPinShareRequest = nil
+                                   }) {
                                 PinShareRequestsSheet(
                                     requests: pinShareViewModel.incomingRequests,
                                     onAccept: { request in
@@ -342,6 +347,14 @@ struct MapView: View {
             .task {
                 await loadFriends()
                 await pinShareViewModel.loadIncomingRequests()
+            }
+            .onChange(of: selectedPinShareRequest?.id) { _, _ in
+                guard selectedPinShareRequest != nil else { return }
+
+                Task {
+                    await pinShareViewModel.loadIncomingRequests()
+                    showingPinShareRequests = true
+                }
             }
         }
         .sheet(item: $selectedPin) { pin in
@@ -909,5 +922,6 @@ struct PinShareRequestsSheet: View {
 }
 
 #Preview {
-    MapView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
+    MapView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService(),
+            selectedPinShareRequest: .constant(nil))
 }
