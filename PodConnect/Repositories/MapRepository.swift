@@ -16,6 +16,12 @@ final class MapRepository {
     private var authService: AuthService
     private let pinsPath = "pins"
     
+    private struct PinUpdate: Encodable {
+        let name: String
+        let subtitle: String?
+        let sharedWith: [String]
+    }
+    
     init(firestoreService: FirestoreService, authService: AuthService) {
         self.firestoreService = firestoreService
         self.authService = authService
@@ -54,7 +60,7 @@ final class MapRepository {
         return uniquePins
     }
     
-    func createUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async throws {
+    func createUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async throws -> MapPin {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw NSError(
                 domain: "MapRepository",
@@ -62,9 +68,11 @@ final class MapRepository {
                 userInfo: [NSLocalizedDescriptionKey: "User not authenticated."]
             )
         }
+        
+        let docRef = Firestore.firestore().collection(pinsPath).document()
             
         let pin = MapPin(
-            id: nil,
+            id: docRef.documentID,
             name: name,
             latitude: coordinate.latitude,
             longitude: coordinate.longitude,
@@ -76,7 +84,26 @@ final class MapRepository {
             sharedWith: sharedWith
         )
         
-        try await firestoreService.saveDocument(path: pinsPath, data: pin)
+        try docRef.setData(from: pin)
+        return pin
+    }
+    
+    func updatePin(id: String, name: String, subtitle: String?, sharedWith: [String]) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw NSError(
+                domain: "MapRepository",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "User not authenticated."]
+            )
+        }
+        
+        let update = PinUpdate(name: name, subtitle: subtitle, sharedWith: sharedWith)
+        
+        try await firestoreService.updateDocument(
+            path: pinsPath,
+            documentId: id,
+            data: update
+            )
     }
     
     func deletePin(id: String) async throws {
@@ -84,5 +111,33 @@ final class MapRepository {
             path: pinsPath,
             documentId: id
         )
+    }
+    
+    func listenToVisiblePins(onChange: @escaping ([MapPin]) -> Void) -> ListenerRegistration? {
+        guard let currentUid = Auth.auth().currentUser?.uid else {
+            return nil
+        }
+
+        return Firestore.firestore()
+            .collection(pinsPath)
+            .whereField("pinType", isEqualTo: "user")
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("Map pin listener error: \(error.localizedDescription)")
+                    onChange([])
+                    return
+                }
+
+                let pins: [MapPin] = snapshot?.documents.compactMap { doc in
+                    try? doc.data(as: MapPin.self)
+                } ?? []
+
+                let visiblePins = pins.filter { pin in
+                    pin.ownerUserId == currentUid ||
+                    (pin.sharedWith ?? []).contains(currentUid)
+                }
+
+                onChange(visiblePins)
+            }
     }
 }

@@ -13,13 +13,14 @@ struct ContentView: View {
     let firestoreService: FirestoreService
     
     @State private var selectedTab = 2
+    @State private var selectedPinShareRequest: PinShareRequest?
     
     var body: some View {
         Group {
             if authService.isAuthenticated {
                 TabView(selection: $selectedTab) {
                     
-                    MapView(authService: authService, firestoreService: firestoreService)
+                    MapView(authService: authService, firestoreService: firestoreService, selectedPinShareRequest: $selectedPinShareRequest)
                         .tabItem {
                             Label("Map", systemImage: "map")
                         }
@@ -31,7 +32,7 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
-                    HomeView(authService: authService, selectedTab: $selectedTab)
+                    HomeView(authService: authService, selectedTab: $selectedTab, selectedPinShareRequest: $selectedPinShareRequest)
                        .tabItem {                            Label("Home", systemImage: "house.fill")
                         }
                         .tag(2)
