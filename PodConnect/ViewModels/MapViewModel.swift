@@ -22,6 +22,8 @@ class MapViewModel: ObservableObject {
     @Published var errorMessage: String?
     
     private var mapRepository: MapRepository
+    private var friendRepository: FriendRepository
+    private var pinsListener: ListenerRegistration?
 
     // Converting current pins into MapPin. Later these will be stored in firebase
     var campusPins: [MapPin] {
@@ -35,12 +37,13 @@ class MapViewModel: ObservableObject {
         campusPins + userPins
     }
 
-    init(mapRepository: MapRepository) {
+    init(mapRepository: MapRepository, friendRepository: FriendRepository) {
         self.mapRepository = mapRepository
+        self.friendRepository = friendRepository
         // Start fetching the locations asyncronously
         Task {
             await fetchMapLocations()
-            await loadUserPins()
+            startListeningToPins()
         }
     }
 
@@ -88,16 +91,35 @@ class MapViewModel: ObservableObject {
         }
     }
 
-    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D) async {
+    func addUserPin(name: String, subtitle: String?, coordinate: CLLocationCoordinate2D, sharedWith: [String]) async -> MapPin? {
         do {
-            try await mapRepository.createUserPin(
+            let pin = try await mapRepository.createUserPin(
                 name: name,
                 subtitle: subtitle,
-                coordinate: coordinate
+                coordinate: coordinate,
+                sharedWith: sharedWith
             )
             await loadUserPins()
+            return pin
         } catch {
             errorMessage = "Error saving pin: \(error.localizedDescription)"
+            return nil
+        }
+    }
+    
+    func updateUserPin(id: String, name: String, subtitle: String?, sharedWith: [String]) async {
+        do {
+            try await mapRepository.updatePin(
+                id: id,
+                name: name,
+                subtitle: subtitle,
+                sharedWith: sharedWith
+            )
+            
+            await loadUserPins()
+            
+        } catch {
+            errorMessage = "Error updating pin: \(error.localizedDescription)"
         }
     }
     
@@ -127,5 +149,20 @@ class MapViewModel: ObservableObject {
             // Recursively traverse
             traverseCategories(categories: category.children?.categories)
         }
+    }
+    
+    func startListeningToPins() {
+        pinsListener?.remove()
+
+        pinsListener = mapRepository.listenToVisiblePins { [weak self] pins in
+            Task { @MainActor in
+                self?.userPins = pins
+            }
+        }
+    }
+    
+    func stopListeningToPins() {
+        pinsListener?.remove()
+        pinsListener = nil
     }
 }

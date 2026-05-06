@@ -36,22 +36,20 @@ struct MessageView: View {
                 
                 VStack {
                     HStack{
-                        Spacer()
-                        Spacer()
                         Text("Messages")
                             .foregroundColor(.white)
                             .font(.title)
-                            .padding()
-                            .underline()
+                            .fontWeight(.bold)
+                            .padding(.leading, 0)
                         
                         
                         Spacer()
                         Button(action: {
                             withAnimation { showThreadPopup = true }
                         }) {
-                            Image(systemName: "plus")
-                                .padding()
-                                .glassEffect()
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.white)
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -61,35 +59,146 @@ struct MessageView: View {
                     Spacer()
                     
                     ScrollView {
-                        ForEach(viewModel.messageThreads) { thread in
-                            NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService)) {
-                                ZStack {
-                                    Rectangle()
-                                        .fill(.white)
-                                        .frame(maxWidth: 400, maxHeight: 55)
-                                        .clipShape(Capsule())
-                                        .shadow(color: Color.black.opacity(0.2), radius: 5)
-                                    
-                                    HStack {
-                                        Text(thread.threadName)
-                                            .padding(20)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
-                                        
-                                        Spacer()
+                        if !viewModel.messageRequests.isEmpty {
+                            VStack(alignment: .leading) {
+                                Text("Message Requests")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                    .padding(.top)
+                                
+                                ForEach(viewModel.messageRequests) { thread in
+                                    NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService, isRequest: true)) {
+                                        ZStack {
+                                            
+                                            Rectangle()
+                                                .fill(Color.white.opacity(0.8))
+                                                .frame(maxWidth: 400, maxHeight: 55)
+                                                .clipShape(Capsule())
+                                                .shadow(color: Color.black.opacity(0.1), radius: 5)
+                                                .padding(.horizontal)
+
+                                            HStack {
+                                                if thread.threadName.isEmpty {
+                                                    Text(viewModel.getParticipantSummary(for: thread))
+                                                        .padding(20)
+                                                        .font(.headline)
+                                                        .foregroundStyle(.primary)
+                                                        .lineLimit(1)
+                                                        .padding(.leading)
+                                                }else {
+                                                    VStack(alignment: .leading, spacing: 0) {
+                                                        Text(thread.threadName)
+                                                            .font(.headline)
+                                                            .foregroundStyle(.primary)
+                                                            .lineLimit(1)
+                                                            .padding(.leading)
+                                                        
+                                                        Text(viewModel.getParticipantSummary(for: thread))
+                                                            .font(.caption2)
+                                                            .foregroundStyle(.secondary)
+                                                            .lineLimit(1)
+                                                            .padding(.leading)
+                                                            .padding(.trailing, 32)
+                                                    }
+                                                    .padding(20)
+                                                }
+
+                                                Spacer()
+
+                                                if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
+                                                    Text("\(count)")
+                                                        .font(.caption2.bold())
+                                                        .foregroundColor(.white)
+                                                        .padding(6)
+                                                        .background(.red)
+                                                        .clipShape(Circle())
+                                                }
+                                                
+                                                Text("New")
+                                                    .font(.caption)
+                                                    .padding(6)
+                                                    .background(.blue)
+                                                    .foregroundColor(.white)
+                                                    .clipShape(Capsule())
+                                                    .padding(.trailing, 40)
+                                            }
+                                        }
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .buttonStyle(.plain)
+                            Divider().padding()
+                        }
+
+                        VStack(alignment: .leading) {
+                            if !viewModel.messageThreads.isEmpty {
+                                Text("Messages")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                    .padding(.top)
+                            }
+                            
+                            ForEach(viewModel.messageThreads) { thread in
+                                NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService)) {
+                                    ZStack {
+                                        Rectangle()
+                                            .fill(.white)
+                                            .frame(maxWidth: 400, maxHeight: 55)
+                                            .clipShape(Capsule())
+                                            .shadow(color: Color.black.opacity(0.2), radius: 5)
+                                            .padding(.horizontal)
+
+                                        HStack {
+                                            if thread.threadName.isEmpty {
+                                                Text(viewModel.getParticipantSummary(for: thread))
+                                                    .padding(20)
+                                                    .font(.headline)
+                                                    .foregroundStyle(.primary)
+                                                    .lineLimit(1)
+                                                    .padding(.leading)
+                                            }else {
+                                                VStack(alignment: .leading, spacing: 0) {
+                                                    Text(thread.threadName)
+                                                        .font(.headline)
+                                                        .foregroundStyle(.primary)
+                                                        .lineLimit(1)
+                                                        .padding(.leading)
+                                                    
+                                                    Text(viewModel.getParticipantSummary(for: thread))
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                        .padding(.leading)
+                                                        .padding(.trailing, 32)
+                                                }
+                                                .padding(20)
+                                            }
+
+                                            Spacer()
+
+                                            if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
+                                                Text("\(count)")
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(.white)
+                                                    .padding(6)
+                                                    .background(.red)
+                                                    .clipShape(Circle())
+                                                    .padding(.trailing, 40)
+                                            }
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                     .onAppear() {
                         Task {
-                            await viewModel.fetchMessageThreads()
+                            await viewModel.fetchData()
                         }
                     }
                     .refreshable {
-                        await viewModel.fetchMessageThreads()
+                        await viewModel.fetchData()
                     }
                     
                     Spacer()
@@ -114,6 +223,44 @@ struct MessageView: View {
                 .ignoresSafeArea()
             }
         }
+    }
+}
+
+struct AvatarView: View {
+    let urlString: String?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let urlString,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .empty:
+                        ProgressView()
+                    default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "person.fill")
+            .resizable()
+            .scaledToFit()
+            .padding(size * 0.25)
+            .foregroundColor(.white)
+            .background(Color.gray)
     }
 }
  
@@ -273,6 +420,9 @@ struct UserSearchPopup: View {
     var friendRepository: FriendRepository
 
     @State private var friends: [UserInfo] = []
+    @State private var otherUsers: [UserInfo] = []
+    @State private var searchResults: [UserInfo] = []
+    @State private var searchText: String = ""
 
     @Binding var participants: [String]
 
@@ -280,12 +430,27 @@ struct UserSearchPopup: View {
 
     func reset() {
         friends = []
+        otherUsers = []
+        searchResults = []
+        searchText = ""
         dismiss()
     }
 
-    // Fetches friends from the friends collection via FriendRepository
-    func loadFriends() async {
-        friends = (try? await friendRepository.fetchFriends()) ?? []
+    // Fetches initial data for the popup
+    func loadInitialData() async {
+        async let fetchedFriends = try? friendRepository.fetchFriends()
+        async let fetchedOthers = try? friendRepository.fetchOtherUsers(limit: 15)
+        
+        self.friends = (await fetchedFriends) ?? []
+        self.otherUsers = (await fetchedOthers) ?? []
+    }
+
+    func performSearch() async {
+        guard !searchText.isEmpty else {
+            searchResults = []
+            return
+        }
+        searchResults = (try? await friendRepository.searchUsers(by: searchText)) ?? []
     }
 
     var body: some View {
@@ -305,40 +470,54 @@ struct UserSearchPopup: View {
                     .buttonStyle(.plain)
                 }
 
-                Text("Add Friend")
+                Text("Add Participants")
                     .font(.headline)
                     .padding()
             }
 
-            Spacer()
+            TextField("Search all users by username...", text: $searchText)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .padding(.horizontal)
+                .onChange(of: searchText) { _, _ in
+                    Task { await performSearch() }
+                }
 
-            if friends.isEmpty {
-                Text("You don't have any friends, go make some new ones!")
-                    .multilineTextAlignment(.center)
-                Spacer()
-            } else {
-                List {
-                    ForEach(friends) { user in
-                        HStack {
-                            Image(systemName: "person.crop.circle")
+            List {
+                if !searchText.isEmpty {
+                    Section(header: Text("All PodConnect Users")) {
+                        if searchResults.isEmpty {
+                            Text("No users found matching \"\(searchText)\"")
                                 .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(searchResults) { user in
+                                userRow(user: user)
+                            }
+                        }
+                    }
+                } else {
+                    Section(header: Text("Friends")) {
+                        if friends.isEmpty {
+                            Text("You don't have any friends yet!")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(friends) { user in
+                                userRow(user: user)
+                            }
+                        }
+                    }
 
-                            Text(user.username)
-
-                            Spacer()
-
-                            // Show a checkmark if already added, otherwise show an add button
-                            if participants.contains(user.uid) {
-                                Image(systemName: "checkmark.circle")
-                                    .foregroundStyle(.green)
-                                    .imageScale(.large)
-                            } else {
-                                Button(action: {
-                                    participants.append(user.uid)
-                                }) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .imageScale(.large)
-                                }
+                    Section(header: Text("Other Users")) {
+                        if otherUsers.isEmpty {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            // Filter out people who are already in the friends list to avoid duplicates
+                            ForEach(otherUsers.filter { other in !friends.contains(where: { $0.uid == other.uid }) }) { user in
+                                userRow(user: user)
                             }
                         }
                     }
@@ -346,7 +525,36 @@ struct UserSearchPopup: View {
             }
         }
         .task {
-            await loadFriends()
+            await loadInitialData()
+        }
+        .dismissKeyboardOnTap()
+    }
+
+    @ViewBuilder
+    private func userRow(user: UserInfo) -> some View {
+        HStack {
+            Image(systemName: "person.crop.circle")
+                .foregroundStyle(.secondary)
+
+            Text(user.username)
+
+            Spacer()
+
+            // Show a checkmark if already added, otherwise show an add button
+            if participants.contains(user.uid) {
+                Image(systemName: "checkmark.circle")
+                    .foregroundStyle(.green)
+                    .imageScale(.large)
+            } else {
+                Button(action: {
+                    participants.append(user.uid)
+                }) {
+                    Image(systemName: "plus.circle.fill")
+                        .imageScale(.large)
+                        .foregroundColor(.blue)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }

@@ -19,46 +19,80 @@ struct CalendarView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Sub-tab picker: Calendar view vs Events list
-            Picker("", selection: $selectedTab) {
-                Text("Calendar").tag(0)
-                Text("Events").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding()
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
 
-            Divider()
+            VStack(spacing: 0) {
+                topHeader
 
-            if selectedTab == 0 {
-                CalendarTabView(
-                    userEvents: viewModel.userEvents,
-                    selectedDate: $selectedDate,
-                    selectedTab: $selectedTab,
-                    onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
-                )
-            } else {
-                EventsTabView(
-                    userEvents: viewModel.userEvents,
-                    selectedDate: $selectedDate,
-                    selectedTab: $selectedTab,
-                    onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } }
-                )
+                VStack(spacing: 0) {
+                    Picker("", selection: $selectedTab) {
+                        Text("Calendar").tag(0)
+                        Text("Events").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding()
+
+                    Divider()
+
+                    if selectedTab == 0 {
+                        CalendarTabView(
+                            userEvents: viewModel.userEvents,
+                            selectedDate: $selectedDate,
+                            selectedTab: $selectedTab,
+                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
+                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } },
+                            onEditEvent: { event in Task { await viewModel.updateEvent(event: event) } },
+                            onEditSeries: { event in
+                                guard let groupId = event.recurrenceGroupId else { return }
+                                Task { await viewModel.updateEventSeries(groupId: groupId, template: event) }
+                            }
+                        )
+                    } else {
+                        EventsTabView(
+                            userEvents: viewModel.userEvents,
+                            selectedDate: $selectedDate,
+                            selectedTab: $selectedTab,
+                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
+                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } },
+                            onEditEvent: { event in Task { await viewModel.updateEvent(event: event) } },
+                            onEditSeries: { event in
+                                guard let groupId = event.recurrenceGroupId else { return }
+                                Task { await viewModel.updateEventSeries(groupId: groupId, template: event) }
+                            }
+                        )
+                    }
+                }
             }
         }
-        .navigationTitle("Calendar")
-        .tint(islandsBlue)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showAddEvent = true } label: { Image(systemName: "plus") }
-                    .foregroundColor(channelClay)
-            }
-        }
+        .navigationBarHidden(true)
         .sheet(isPresented: $showAddEvent) {
-            AddEventSheet(initialDate: selectedDate) { newEvent in
-                Task { await viewModel.saveEvent(event: newEvent) }
+            AddEventSheet(initialDate: selectedDate) { events in
+                Task { await viewModel.saveEvents(events) }
             }
         }
+    }
+
+    private var topHeader: some View {
+        HStack {
+            Text("Calendar")
+                .foregroundColor(.white)
+                .font(.title)
+                .fontWeight(.bold)
+
+            Spacer()
+
+            Button {
+                showAddEvent = true
+            } label: {
+                Image(systemName: "plus")
+                    .padding()
+                    .glassEffect()
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 18)
+        .background(islandsBlue)
     }
 }
 
@@ -68,9 +102,16 @@ struct CalendarTabView: View {
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
+    var onDeleteSeries: (String) -> Void
+    var onEditEvent: (UserEvent) -> Void
+    var onEditSeries: (UserEvent) -> Void
 
+    @State private var eventPendingDelete: UserEvent?
+    @State private var eventToEdit: UserEvent?
+    @State private var editScope: EditScope = .single
+    @State private var showEditConfirmation = false
+    @State private var showEditSheet = false
 
-    // All events (school + user) on the selected date
     private var schoolEventsOnDate: [SchoolEvent] {
         schoolEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
     }
@@ -95,18 +136,38 @@ struct CalendarTabView: View {
                 Spacer()
             } else {
                 List {
-                    // User events shown first
                     if !userEventsOnDate.isEmpty {
                         Section("My Events") {
                             ForEach(userEventsOnDate) { event in
                                 UserEventRow(event: event)
-                            }
-                            .onDelete { indexSet in
-                                indexSet.forEach { onDeleteEvent(userEventsOnDate[$0]) }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            if event.recurrenceGroupId != nil {
+                                                eventPendingDelete = event
+                                            } else {
+                                                onDeleteEvent(event)
+                                            }
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                        Button {
+                                            eventToEdit = event
+                                            if event.recurrenceGroupId != nil {
+                                                showEditConfirmation = true
+                                            } else {
+                                                editScope = .single
+                                                showEditSheet = true
+                                            }
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+                                        .tint(islandsBlue)
+                                    }
                             }
                         }
                     }
-                    // School events below
                     if !schoolEventsOnDate.isEmpty {
                         Section("Campus Events") {
                             ForEach(schoolEventsOnDate) { event in
@@ -118,6 +179,40 @@ struct CalendarTabView: View {
                 .listStyle(.plain)
             }
         }
+        .confirmationDialog("Delete Event", isPresented: Binding(
+            get: { eventPendingDelete != nil },
+            set: { if !$0 { eventPendingDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("Delete This Event", role: .destructive) {
+                if let event = eventPendingDelete { onDeleteEvent(event) }
+                eventPendingDelete = nil
+            }
+            Button("Delete All Events in Series", role: .destructive) {
+                if let groupId = eventPendingDelete?.recurrenceGroupId { onDeleteSeries(groupId) }
+                eventPendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { eventPendingDelete = nil }
+        }
+        .confirmationDialog("Edit Event", isPresented: $showEditConfirmation, titleVisibility: .visible) {
+            Button("Edit This Event") {
+                editScope = .single
+                showEditSheet = true
+            }
+            Button("Edit All Events in Series") {
+                editScope = .series
+                showEditSheet = true
+            }
+            Button("Cancel", role: .cancel) { eventToEdit = nil }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            if let event = eventToEdit {
+                EditEventSheet(event: event) { updated in
+                    if editScope == .single { onEditEvent(updated) }
+                    else { onEditSeries(updated) }
+                    eventToEdit = nil
+                }
+            }
+        }
     }
 }
 
@@ -127,32 +222,38 @@ struct EventsTabView: View {
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
+    var onDeleteSeries: (String) -> Void
+    var onEditEvent: (UserEvent) -> Void
+    var onEditSeries: (UserEvent) -> Void
+    @State private var eventPendingDelete: UserEvent?
+    @State private var eventToEdit: UserEvent?
+    @State private var editScope: EditScope = .single
+    @State private var showEditConfirmation = false
+    @State private var showEditSheet = false
     @State private var showSearch = false
     @State private var searchText = ""
     @State private var activeCategories: Set<String> = []
 
     private let allCategories = ["Academic", "Arts", "Campus Life", "Wellness", "Personal", "Work", "Other"]
 
-    // School events filtered by active category chips and search bar
     private var filteredSchoolEvents: [SchoolEvent] {
-            let categoryFiltered: [SchoolEvent]
+        let categoryFiltered: [SchoolEvent]
 
-            if activeCategories.isEmpty {
-                categoryFiltered = schoolEvents
-            } else {
-                categoryFiltered = schoolEvents.filter { activeCategories.contains($0.category) }
-            }
-
-            guard !searchText.isEmpty else { return categoryFiltered }
-
-            return categoryFiltered.filter { event in
-                event.title.localizedCaseInsensitiveContains(searchText) ||
-                event.notes.localizedCaseInsensitiveContains(searchText) ||
-                event.category.localizedCaseInsensitiveContains(searchText)
-            }
+        if activeCategories.isEmpty {
+            categoryFiltered = schoolEvents
+        } else {
+            categoryFiltered = schoolEvents.filter { activeCategories.contains($0.category) }
         }
-    
-    // Users events filtered by active category chips and search bar
+
+        guard !searchText.isEmpty else { return categoryFiltered }
+
+        return categoryFiltered.filter { event in
+            event.title.localizedCaseInsensitiveContains(searchText) ||
+            event.notes.localizedCaseInsensitiveContains(searchText) ||
+            event.category.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
     private var filteredUserEvents: [UserEvent] {
         let categoryFiltered: [UserEvent]
 
@@ -170,8 +271,7 @@ struct EventsTabView: View {
             event.category.rawValue.localizedCaseInsensitiveContains(searchText)
         }
     }
-    
-    // Group filtered school events by date for section headers
+
     private var groupedSchoolEvents: [(String, [SchoolEvent])] {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
@@ -189,7 +289,6 @@ struct EventsTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Category filter chips
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
                     if !activeCategories.isEmpty {
@@ -203,6 +302,7 @@ struct EventsTabView: View {
                                 .clipShape(Capsule())
                         }
                     }
+
                     ForEach(allCategories, id: \.self) { category in
                         let isActive = activeCategories.contains(category)
                         Button(action: {
@@ -229,7 +329,6 @@ struct EventsTabView: View {
             Divider()
 
             List {
-                // User events section
                 if !filteredUserEvents.isEmpty {
                     Section("My Events") {
                         ForEach(filteredUserEvents) { event in
@@ -240,14 +339,35 @@ struct EventsTabView: View {
                                 UserEventRow(event: event)
                             }
                             .buttonStyle(.plain)
-                        }
-                        .onDelete { indexSet in
-                            indexSet.forEach { onDeleteEvent(filteredUserEvents[$0]) }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if event.recurrenceGroupId != nil {
+                                        eventPendingDelete = event
+                                    } else {
+                                        onDeleteEvent(event)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    eventToEdit = event
+                                    if event.recurrenceGroupId != nil {
+                                        showEditConfirmation = true
+                                    } else {
+                                        editScope = .single
+                                        showEditSheet = true
+                                    }
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(islandsBlue)
+                            }
                         }
                     }
                 }
 
-                // School events grouped by date
                 ForEach(groupedSchoolEvents, id: \.0) { dateString, events in
                     Section(dateString) {
                         ForEach(events) { event in
@@ -261,6 +381,7 @@ struct EventsTabView: View {
                         }
                     }
                 }
+
                 if filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
                     Text("No matching events")
                         .foregroundColor(.secondary)
@@ -273,9 +394,42 @@ struct EventsTabView: View {
             isPresented: $showSearch,
             prompt: "Search events"
         )
+        .confirmationDialog("Delete Event", isPresented: Binding(
+            get: { eventPendingDelete != nil },
+            set: { if !$0 { eventPendingDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("Delete This Event", role: .destructive) {
+                if let event = eventPendingDelete { onDeleteEvent(event) }
+                eventPendingDelete = nil
+            }
+            Button("Delete All Events in Series", role: .destructive) {
+                if let groupId = eventPendingDelete?.recurrenceGroupId { onDeleteSeries(groupId) }
+                eventPendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { eventPendingDelete = nil }
+        }
+        .confirmationDialog("Edit Event", isPresented: $showEditConfirmation, titleVisibility: .visible) {
+            Button("Edit This Event") {
+                editScope = .single
+                showEditSheet = true
+            }
+            Button("Edit All Events in Series") {
+                editScope = .series
+                showEditSheet = true
+            }
+            Button("Cancel", role: .cancel) { eventToEdit = nil }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            if let event = eventToEdit {
+                EditEventSheet(event: event) { updated in
+                    if editScope == .single { onEditEvent(updated) }
+                    else { onEditSeries(updated) }
+                    eventToEdit = nil
+                }
+            }
+        }
     }
 
-    // Color per category for filter chips
     func categoryColor(_ category: String) -> Color {
         switch category {
         case "Academic": return islandsBlue
@@ -295,16 +449,20 @@ struct SchoolEventRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(event.title)
                 .font(.body)
+
             HStack {
                 Text(event.date, style: .time)
                     .font(.caption)
                     .foregroundColor(islandsBlue)
+
                 Text("·")
                     .foregroundColor(.secondary)
+
                 Text(event.category)
                     .font(.caption)
                     .foregroundColor(categoryColor(event.category))
             }
+
             if !event.notes.isEmpty {
                 Label(event.notes, systemImage: "mappin")
                     .font(.caption)
@@ -330,21 +488,30 @@ struct UserEventRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(event.title)
-                .font(.body)
+            HStack(spacing: 6) {
+                Text(event.title)
+                    .font(.body)
+                if event.recurrenceGroupId != nil {
+                    Image(systemName: "repeat")
+                        .font(.caption)
+                        .foregroundColor(islandsBlue)
+                }
+            }
             HStack {
                 Text(event.startDate, style: .date)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 Text(event.startDate, style: .time)
                 Text("–")
                 Text(event.endDate, style: .time)
             }
             .font(.caption)
             .foregroundColor(.gray)
+
             Text(event.category.rawValue)
                 .font(.caption)
                 .foregroundColor(channelClay)
+
             if !event.notes.isEmpty {
                 Text(event.notes)
                     .font(.caption)
@@ -355,24 +522,32 @@ struct UserEventRow: View {
     }
 }
 
+// MARK: - Shared helpers
+enum EditScope { case single, series }
+
+private let weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"]
+// Calendar weekday values: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
+
 // MARK: - Add Event Sheet
 struct AddEventSheet: View {
     @Environment(\.dismiss) private var dismiss
     let initialDate: Date
-    let onSave: (UserEvent) -> Void
+    let onSave: ([UserEvent]) -> Void
 
     @State private var title = ""
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var notes = ""
     @State private var category: EventCategory = .personal
+    @State private var selectedWeekdays: Set<Int> = []
+    @State private var recurrenceEndDate: Date
 
-    init(initialDate: Date, onSave: @escaping (UserEvent) -> Void) {
+    init(initialDate: Date, onSave: @escaping ([UserEvent]) -> Void) {
         self.initialDate = initialDate
         self.onSave = onSave
-        // Default start to initialDate, end to 1 hour later
         _startDate = State(initialValue: initialDate)
         _endDate = State(initialValue: initialDate.addingTimeInterval(3600))
+        _recurrenceEndDate = State(initialValue: Calendar.current.date(byAdding: .month, value: 4, to: initialDate) ?? initialDate)
     }
 
     var body: some View {
@@ -383,14 +558,41 @@ struct AddEventSheet: View {
                     DatePicker("Start", selection: $startDate)
                     DatePicker("End", selection: $endDate)
                 }
+                Section("Repeat On") {
+                    HStack(spacing: 6) {
+                        ForEach(0..<7) { i in
+                            let weekday = i + 1
+                            let isSelected = selectedWeekdays.contains(weekday)
+                            Button {
+                                if isSelected { selectedWeekdays.remove(weekday) }
+                                else { selectedWeekdays.insert(weekday) }
+                            } label: {
+                                Text(weekdayLabels[i])
+                                    .font(.caption.bold())
+                                    .frame(width: 34, height: 34)
+                                    .background(isSelected ? islandsBlue : Color(.systemGray5))
+                                    .foregroundColor(isSelected ? .white : .primary)
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+
+                    if !selectedWeekdays.isEmpty {
+                        DatePicker("Until", selection: $recurrenceEndDate, in: startDate..., displayedComponents: .date)
+                    }
+                }
                 Section("Category") {
                     Picker("Category", selection: $category) {
-                        ForEach(EventCategory.allCases, id: \.self) { category in
-                            Text(category.rawValue).tag(category)
+                        ForEach(EventCategory.allCases, id: \.self) { cat in
+                            Text(cat.rawValue).tag(cat)
                         }
                     }
                     .pickerStyle(.menu)
                 }
+
                 Section("Notes") {
                     TextField("Add notes...", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
@@ -404,11 +606,110 @@ struct AddEventSheet: View {
                     Button("Cancel") { dismiss() }
                         .foregroundColor(channelClay)
                 }
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let event = UserEvent(title: title, startDate: startDate, endDate: endDate, notes: notes,
-                            category: category)
-                        onSave(event)
+                        onSave(buildEvents())
+                        dismiss()
+                    }
+                    .disabled(title.isEmpty)
+                    .foregroundColor(title.isEmpty ? .gray : islandsBlue)
+                }
+            }
+        }
+    }
+
+    private func buildEvents() -> [UserEvent] {
+        guard !selectedWeekdays.isEmpty else {
+            return [UserEvent(title: title, startDate: startDate, endDate: endDate, notes: notes, category: category)]
+        }
+
+        let groupId = UUID().uuidString
+        let duration = endDate.timeIntervalSince(startDate)
+        let cal = Calendar.current
+        var events: [UserEvent] = []
+        var current = startDate
+
+        while current <= recurrenceEndDate {
+            let weekday = cal.component(.weekday, from: current)
+            if selectedWeekdays.contains(weekday) {
+                events.append(UserEvent(
+                    title: title,
+                    startDate: current,
+                    endDate: current.addingTimeInterval(duration),
+                    notes: notes,
+                    category: category,
+                    recurrenceGroupId: groupId
+                ))
+            }
+            guard let next = cal.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+
+        return events
+    }
+}
+
+// MARK: - Edit Event Sheet
+struct EditEventSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let event: UserEvent
+    let onSave: (UserEvent) -> Void
+
+    @State private var title: String
+    @State private var startDate: Date
+    @State private var endDate: Date
+    @State private var notes: String
+    @State private var category: EventCategory
+
+    init(event: UserEvent, onSave: @escaping (UserEvent) -> Void) {
+        self.event = event
+        self.onSave = onSave
+        _title = State(initialValue: event.title)
+        _startDate = State(initialValue: event.startDate)
+        _endDate = State(initialValue: event.endDate)
+        _notes = State(initialValue: event.notes)
+        _category = State(initialValue: event.category)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Event Details") {
+                    TextField("Title", text: $title)
+                    DatePicker("Start", selection: $startDate)
+                    DatePicker("End", selection: $endDate)
+                }
+                Section("Category") {
+                    Picker("Category", selection: $category) {
+                        ForEach(EventCategory.allCases, id: \.self) { cat in
+                            Text(cat.rawValue).tag(cat)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                Section("Notes") {
+                    TextField("Add notes...", text: $notes, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+            }
+            .navigationTitle("Edit Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .tint(islandsBlue)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundColor(channelClay)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        var updated = event
+                        updated.title = title
+                        updated.startDate = startDate
+                        updated.endDate = endDate
+                        updated.notes = notes
+                        updated.category = category
+                        onSave(updated)
                         dismiss()
                     }
                     .disabled(title.isEmpty)
@@ -421,8 +722,11 @@ struct AddEventSheet: View {
 
 #Preview {
     NavigationStack {
-        CalendarView(eventRepository: EventRepository(
-            firestoreService: FirestoreService(),
-            authService: AuthService(firestoreService: FirestoreService())))
+        CalendarView(
+            eventRepository: EventRepository(
+                firestoreService: FirestoreService(),
+                authService: AuthService(firestoreService: FirestoreService())
+            )
+        )
     }
 }

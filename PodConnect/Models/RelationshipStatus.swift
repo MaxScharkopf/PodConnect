@@ -10,6 +10,7 @@ import Foundation
 enum RelationshipStatus {
     case none
     case requestSent
+    case requestReceived
     case friends
 }
 
