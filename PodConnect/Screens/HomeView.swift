@@ -77,10 +77,22 @@ struct HomeView: View {
         }
     }
 
+    private var WelcomeMsg1: AttributedString {
+        var welcome = AttributedString("Welcome, ")
+        welcome.foregroundColor = ChannelClay
+        return welcome
+    }
+
+    private var WelcomeMsg2: AttributedString {
+        let userName = authService.userInfo?.username ?? "User"
+        var username = AttributedString(userName)
+        username.foregroundColor = .white
+        return username
+    }
+
     private var topHeader: some View {
         HStack {
-            Text("Home")
-                .foregroundColor(.white)
+            Text(WelcomeMsg1 + WelcomeMsg2)
                 .font(.title)
                 .fontWeight(.bold)
 
