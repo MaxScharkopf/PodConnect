@@ -102,9 +102,8 @@ final class HomeViewModel: ObservableObject {
     }
 
     func startListening() {
+        guard pinShareListener == nil else { return }
         guard let currentUid = Auth.auth().currentUser?.uid else { return }
-
-        pinShareListener?.remove()
 
         pinShareListener = pinShareRepository.listenToIncomingRequests(for: currentUid) { [weak self] requests in
             Task { @MainActor in
