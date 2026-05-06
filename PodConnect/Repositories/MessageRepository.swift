@@ -89,10 +89,9 @@ final class MessageRepository {
         
         let now = Date()
         let message = Message(content: messageContent, sender: userId, timestamp: now)
-        
-        try await firestoreService.saveDocument(path: "messages/\(threadId)/messages", data: message)
-        
-        // Update the thread's last message timestamp and the sender's last read timestamp
+
+        // Update thread metadata (including sender's lastReadAt) BEFORE saving the message
+        // so the real-time listener never sees the sender's own message as unread
         if let thread: MessageThread = try await firestoreService.fetchDocument(path: "messages", documentId: threadId) {
             var updatedThread = thread
             updatedThread.lastMessageAt = now
@@ -101,6 +100,8 @@ final class MessageRepository {
             updatedThread.lastReadAt = lastReadAt
             try await firestoreService.updateDocument(path: "messages", documentId: threadId, data: updatedThread)
         }
+
+        try await firestoreService.saveDocument(path: "messages/\(threadId)/messages", data: message)
     }
 
     func markThreadAsRead(threadId: String) async throws {
