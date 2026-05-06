@@ -121,64 +121,69 @@ struct CalendarTabView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                .datePickerStyle(.graphical)
-                .padding(.horizontal)
-                .tint(islandsBlue)
-
-            Divider()
+        List {
+            Section {
+                DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .tint(islandsBlue)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
 
             if schoolEventsOnDate.isEmpty && userEventsOnDate.isEmpty {
-                Spacer()
-                Text("No events on this day")
-                    .foregroundColor(.secondary)
-                Spacer()
-            } else {
-                List {
-                    if !userEventsOnDate.isEmpty {
-                        Section("My Events") {
-                            ForEach(userEventsOnDate) { event in
-                                UserEventRow(event: event)
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(role: .destructive) {
-                                            if event.recurrenceGroupId != nil {
-                                                eventPendingDelete = event
-                                            } else {
-                                                onDeleteEvent(event)
-                                            }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
+                Section {
+                    Text("No events on this day")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 12)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+            }
+
+            if !userEventsOnDate.isEmpty {
+                Section("My Events") {
+                    ForEach(userEventsOnDate) { event in
+                        UserEventRow(event: event)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if event.recurrenceGroupId != nil {
+                                        eventPendingDelete = event
+                                    } else {
+                                        onDeleteEvent(event)
                                     }
-                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                        Button {
-                                            eventToEdit = event
-                                            if event.recurrenceGroupId != nil {
-                                                showEditConfirmation = true
-                                            } else {
-                                                editScope = .single
-                                                showEditSheet = true
-                                            }
-                                        } label: {
-                                            Label("Edit", systemImage: "pencil")
-                                        }
-                                        .tint(islandsBlue)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    eventToEdit = event
+                                    if event.recurrenceGroupId != nil {
+                                        showEditConfirmation = true
+                                    } else {
+                                        editScope = .single
+                                        showEditSheet = true
                                     }
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(islandsBlue)
                             }
-                        }
-                    }
-                    if !schoolEventsOnDate.isEmpty {
-                        Section("Campus Events") {
-                            ForEach(schoolEventsOnDate) { event in
-                                SchoolEventRow(event: event)
-                            }
-                        }
                     }
                 }
-                .listStyle(.plain)
+            }
+
+            if !schoolEventsOnDate.isEmpty {
+                Section("Campus Events") {
+                    ForEach(schoolEventsOnDate) { event in
+                        SchoolEventRow(event: event)
+                    }
+                }
             }
         }
+        .listStyle(.insetGrouped)
         .confirmationDialog("Delete Event", isPresented: Binding(
             get: { eventPendingDelete != nil },
             set: { if !$0 { eventPendingDelete = nil } }
