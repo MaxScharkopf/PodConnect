@@ -107,10 +107,10 @@ struct CalendarTabView: View {
     var onEditSeries: (UserEvent) -> Void
 
     @State private var eventPendingDelete: UserEvent?
+    @State private var eventPendingConfirmation: UserEvent?
     @State private var eventToEdit: UserEvent?
     @State private var editScope: EditScope = .single
     @State private var showEditConfirmation = false
-    @State private var showEditSheet = false
 
     private var schoolEventsOnDate: [SchoolEvent] {
         schoolEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
@@ -153,12 +153,12 @@ struct CalendarTabView: View {
                                     }
                                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                         Button {
-                                            eventToEdit = event
                                             if event.recurrenceGroupId != nil {
+                                                eventPendingConfirmation = event
                                                 showEditConfirmation = true
                                             } else {
                                                 editScope = .single
-                                                showEditSheet = true
+                                                eventToEdit = event
                                             }
                                         } label: {
                                             Label("Edit", systemImage: "pencil")
@@ -196,21 +196,20 @@ struct CalendarTabView: View {
         .confirmationDialog("Edit Event", isPresented: $showEditConfirmation, titleVisibility: .visible) {
             Button("Edit This Event") {
                 editScope = .single
-                showEditSheet = true
+                eventToEdit = eventPendingConfirmation
+                eventPendingConfirmation = nil
             }
             Button("Edit All Events in Series") {
                 editScope = .series
-                showEditSheet = true
+                eventToEdit = eventPendingConfirmation
+                eventPendingConfirmation = nil
             }
-            Button("Cancel", role: .cancel) { eventToEdit = nil }
+            Button("Cancel", role: .cancel) { eventPendingConfirmation = nil }
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let event = eventToEdit {
-                EditEventSheet(event: event) { updated in
-                    if editScope == .single { onEditEvent(updated) }
-                    else { onEditSeries(updated) }
-                    eventToEdit = nil
-                }
+        .sheet(item: $eventToEdit) { event in
+            EditEventSheet(event: event) { updated in
+                if editScope == .single { onEditEvent(updated) }
+                else { onEditSeries(updated) }
             }
         }
     }
@@ -226,10 +225,10 @@ struct EventsTabView: View {
     var onEditEvent: (UserEvent) -> Void
     var onEditSeries: (UserEvent) -> Void
     @State private var eventPendingDelete: UserEvent?
+    @State private var eventPendingConfirmation: UserEvent?
     @State private var eventToEdit: UserEvent?
     @State private var editScope: EditScope = .single
     @State private var showEditConfirmation = false
-    @State private var showEditSheet = false
     @State private var showSearch = false
     @State private var searchText = ""
     @State private var activeCategories: Set<String> = []
@@ -263,9 +262,11 @@ struct EventsTabView: View {
             categoryFiltered = userEvents.filter { activeCategories.contains($0.category.rawValue) }
         }
 
-        guard !searchText.isEmpty else { return categoryFiltered }
+        let sorted = categoryFiltered.sorted { $0.startDate < $1.startDate }
 
-        return categoryFiltered.filter { event in
+        guard !searchText.isEmpty else { return sorted }
+
+        return sorted.filter { event in
             event.title.localizedCaseInsensitiveContains(searchText) ||
             event.notes.localizedCaseInsensitiveContains(searchText) ||
             event.category.rawValue.localizedCaseInsensitiveContains(searchText)
@@ -352,12 +353,12 @@ struct EventsTabView: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    eventToEdit = event
                                     if event.recurrenceGroupId != nil {
+                                        eventPendingConfirmation = event
                                         showEditConfirmation = true
                                     } else {
                                         editScope = .single
-                                        showEditSheet = true
+                                        eventToEdit = event
                                     }
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
@@ -411,21 +412,20 @@ struct EventsTabView: View {
         .confirmationDialog("Edit Event", isPresented: $showEditConfirmation, titleVisibility: .visible) {
             Button("Edit This Event") {
                 editScope = .single
-                showEditSheet = true
+                eventToEdit = eventPendingConfirmation
+                eventPendingConfirmation = nil
             }
             Button("Edit All Events in Series") {
                 editScope = .series
-                showEditSheet = true
+                eventToEdit = eventPendingConfirmation
+                eventPendingConfirmation = nil
             }
-            Button("Cancel", role: .cancel) { eventToEdit = nil }
+            Button("Cancel", role: .cancel) { eventPendingConfirmation = nil }
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let event = eventToEdit {
-                EditEventSheet(event: event) { updated in
-                    if editScope == .single { onEditEvent(updated) }
-                    else { onEditSeries(updated) }
-                    eventToEdit = nil
-                }
+        .sheet(item: $eventToEdit) { event in
+            EditEventSheet(event: event) { updated in
+                if editScope == .single { onEditEvent(updated) }
+                else { onEditSeries(updated) }
             }
         }
     }
