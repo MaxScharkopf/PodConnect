@@ -11,6 +11,8 @@ struct HomeView: View {
     @Binding var selectedTab: Int
     @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
+    @StateObject private var toDoViewModel = ToDoViewModel()
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var showNotifications = false
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
@@ -53,8 +55,24 @@ struct HomeView: View {
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal)
                             }
+                            HStack(spacing: 14) {
+                                ToDoCardView(viewModel: toDoViewModel)
+                                AssignmentsCardView(viewModel: assignmentsViewModel)
+                                Spacer()
+                            }
+                            
+                            NavigationLink {
+                                CanvasImportView()
+                            } label: {
+                                Text("Connect Canvas")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.orange)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
 
-                            Spacer(minLength: 30)
                         }
                         .padding()
                     }
@@ -388,6 +406,7 @@ private struct FriendRequestRow: View {
         .padding(.vertical, 4)
     }
 }
+
 
 #Preview {
     HomeView(
