@@ -57,7 +57,7 @@ struct HomeView: View {
                             }
                             HStack(spacing: 14) {
                                 ToDoCardView(viewModel: toDoViewModel)
-                                AssignmentsCardView(viewModel: assignmentsViewModel)
+                                AssignmentsCardView()
                                 Spacer()
                             }
                             

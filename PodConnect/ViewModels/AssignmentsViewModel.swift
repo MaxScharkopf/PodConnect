@@ -30,13 +30,30 @@ final class AssignmentsViewModel: ObservableObject {
         }
     }
 
-    deinit {
-        repository.stopListening()
-    }
 
     var todaysAssignments: [CanvasAssignment] {
         assignments.filter {
             Calendar.current.isDateInToday($0.dueDate)
+        }
+    }
+    
+    var weekAssignments: [CanvasAssignment] {
+        guard let week = Calendar.current.dateInterval(of: .weekOfYear, for: Date()) else {
+            return []
+        }
+
+        return assignments.filter {
+            week.contains($0.dueDate)
+        }
+    }
+
+    var monthAssignments: [CanvasAssignment] {
+        guard let month = Calendar.current.dateInterval(of: .month, for: Date()) else {
+            return []
+        }
+
+        return assignments.filter {
+            month.contains($0.dueDate)
         }
     }
 

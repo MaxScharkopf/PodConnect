@@ -9,8 +9,8 @@ import Foundation
 import SwiftUI
 
 struct AssignmentsCardView: View {
-    @ObservedObject var viewModel: AssignmentsViewModel
-
+    @EnvironmentObject var viewModel: AssignmentsViewModel
+    
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 
@@ -23,6 +23,15 @@ struct AssignmentsCardView: View {
                     .foregroundColor(.white)
 
                 Spacer()
+
+                NavigationLink {
+                    AssignmentsListView()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white.opacity(0.85))
+                }
             }
 
             Divider()
