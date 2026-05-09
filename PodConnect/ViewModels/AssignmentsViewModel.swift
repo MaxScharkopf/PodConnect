@@ -36,24 +36,55 @@ final class AssignmentsViewModel: ObservableObject {
             Calendar.current.isDateInToday($0.dueDate)
         }
     }
+
+    var activeTodaysAssignments: [CanvasAssignment] {
+        todaysAssignments.filter {
+            !$0.isCompleted
+        }
+    }
     
-    var weekAssignments: [CanvasAssignment] {
-        guard let week = Calendar.current.dateInterval(of: .weekOfYear, for: Date()) else {
+    
+    var next7DaysAssignments: [CanvasAssignment] {
+        upcomingAssignments(days: 7)
+    }
+
+    var next30DaysAssignments: [CanvasAssignment] {
+        upcomingAssignments(days: 30)
+    }
+
+    private func upcomingAssignments(days: Int) -> [CanvasAssignment] {
+        let start = Calendar.current.startOfDay(for: Date())
+
+        guard let rawEnd = Calendar.current.date(byAdding: .day, value: days, to: start),
+              let end = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: rawEnd)
+        else {
             return []
         }
 
         return assignments.filter {
-            week.contains($0.dueDate)
+            $0.dueDate >= start &&
+            $0.dueDate <= end
         }
     }
 
-    var monthAssignments: [CanvasAssignment] {
-        guard let month = Calendar.current.dateInterval(of: .month, for: Date()) else {
-            return []
+    func toggleCompleted(_ assignment: CanvasAssignment) async {
+        do {
+            try await repository.updateAssignmentCompletion(
+                assignment,
+                isCompleted: !assignment.isCompleted
+            )
+        } catch {
+            errorMessage = "Could not update assignment."
+            print("Failed to update assignment:", error)
         }
+    }
 
-        return assignments.filter {
-            month.contains($0.dueDate)
+    func deleteAssignment(_ assignment: CanvasAssignment) async {
+        do {
+            try await repository.deleteAssignment(assignment)
+        } catch {
+            errorMessage = "Could not delete assignment."
+            print("Failed to delete assignment:", error)
         }
     }
 

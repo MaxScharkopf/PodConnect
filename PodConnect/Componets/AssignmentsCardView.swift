@@ -37,12 +37,12 @@ struct AssignmentsCardView: View {
             Divider()
                 .background(.white.opacity(0.35))
 
-            if viewModel.todaysAssignments.isEmpty {
+            if viewModel.activeTodaysAssignments.isEmpty {
                 Text("No assignments today")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.8))
             } else {
-                ForEach(viewModel.todaysAssignments.prefix(3)) { assignment in
+                ForEach(viewModel.activeTodaysAssignments.prefix(3)) { assignment in
                     Text(assignment.title)
                         .font(.caption)
                         .lineLimit(1)

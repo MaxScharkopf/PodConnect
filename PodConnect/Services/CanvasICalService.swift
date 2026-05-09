@@ -80,9 +80,16 @@ final class CanvasICalService {
             formatter.dateFormat = format
             formatter.timeZone = format.contains("'Z'") ? TimeZone(secondsFromGMT: 0) : .current
 
+            if format == "yyyyMMdd",
+               let date = formatter.date(from: cleaned) {
+                return Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: date)
+            }
+            
             if let date = formatter.date(from: cleaned) {
                 return date
             }
+            
+            
         }
 
         return nil

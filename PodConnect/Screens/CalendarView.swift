@@ -9,8 +9,8 @@ private let channelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 private let islandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
 struct CalendarView: View {
-    @StateObject private var viewModel: CalendarViewModel
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
+    @StateObject private var viewModel: CalendarViewModel
     @State private var selectedTab = 0
     @State private var showAddEvent = false
     @State private var selectedDate = Date()
@@ -100,6 +100,8 @@ struct CalendarView: View {
 
 // MARK: - Calendar Tab
 struct CalendarTabView: View {
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
+    
     var userEvents: [UserEvent]
     var assignments: [CanvasAssignment]
     @Binding var selectedDate: Date
@@ -188,6 +190,28 @@ struct CalendarTabView: View {
                 Section("Assignments") {
                     ForEach(assignmentsOnDate) { assignment in
                         CanvasAssignmentRow(assignment: assignment)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task {
+                                        await assignmentsViewModel.deleteAssignment(assignment)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    Task {
+                                        await assignmentsViewModel.toggleCompleted(assignment)
+                                    }
+                                } label: {
+                                    Label(
+                                        assignment.isCompleted ? "Undo" : "Complete",
+                                        systemImage: assignment.isCompleted ? "arrow.uturn.backward" : "checkmark"
+                                    )
+                                }
+                                .tint(islandsBlue)
+                            }
                     }
                 }
             }
@@ -554,10 +578,12 @@ struct CanvasAssignmentRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(assignment.title)
                 .font(.body)
+                .strikethrough(assignment.isCompleted)
+                .foregroundColor(assignment.isCompleted ? .secondary : .primary)
 
             Text(assignment.dueDate, style: .time)
                 .font(.caption)
-                .foregroundColor(channelClay)
+                .foregroundColor(assignment.isCompleted ? .secondary : channelClay)
         }
         .padding(.vertical, 4)
     }

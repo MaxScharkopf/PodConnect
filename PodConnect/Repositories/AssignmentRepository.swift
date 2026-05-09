@@ -37,7 +37,7 @@ final class AssignmentRepository {
                     return
                 }
 
-                let assignments: [CanvasAssignment] = snapshot?.documents.compactMap { doc in
+                let assignments: [CanvasAssignment] = snapshot?.documents.compactMap { doc -> CanvasAssignment? in
                     let data = doc.data()
 
                     guard
@@ -51,7 +51,8 @@ final class AssignmentRepository {
                         id: data["canvasUID"] as? String ?? doc.documentID,
                         title: title,
                         dueDate: timestamp.dateValue(),
-                        courseName: data["courseName"] as? String
+                        courseName: data["courseName"] as? String,
+                        isCompleted: data["isCompleted"] as? Bool ?? false
                     )
                 } ?? []
 
@@ -75,7 +76,8 @@ final class AssignmentRepository {
                 "title": assignment.title,
                 "dueDate": Timestamp(date: assignment.dueDate),
                 "courseName": assignment.courseName as Any,
-                "updatedAt": FieldValue.serverTimestamp()
+                "updatedAt": FieldValue.serverTimestamp(),
+                "isCompleted": assignment.isCompleted
             ], merge: true)
         }
     }
@@ -111,6 +113,35 @@ final class AssignmentRepository {
         listener?.remove()
         listener = nil
     }
+    
+    func deleteAssignment(_ assignment: CanvasAssignment) async throws {
+        guard let uid = currentUid else { return }
+
+        let docId = safeDocumentID(from: assignment.id)
+
+        try await db
+            .collection("users")
+            .document(uid)
+            .collection("assignments")
+            .document(docId)
+            .delete()
+    }
+
+    func updateAssignmentCompletion(_ assignment: CanvasAssignment, isCompleted: Bool) async throws {
+        guard let uid = currentUid else { return }
+
+        let docId = safeDocumentID(from: assignment.id)
+
+        try await db
+            .collection("users")
+            .document(uid)
+            .collection("assignments")
+            .document(docId)
+            .setData([
+                "isCompleted": isCompleted,
+                "updatedAt": FieldValue.serverTimestamp()
+            ], merge: true)
+    }
 
     private func safeDocumentID(from string: String) -> String {
         string
@@ -119,4 +150,5 @@ final class AssignmentRepository {
             .replacingOccurrences(of: "#", with: "_")
             .replacingOccurrences(of: "?", with: "_")
     }
+    
 }

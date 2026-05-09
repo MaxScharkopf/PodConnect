@@ -17,12 +17,9 @@ struct AssignmentsListView: View {
 
     private var visibleAssignments: [CanvasAssignment] {
         switch selectedRange {
-        case .today:
-            return viewModel.todaysAssignments
-        case .week:
-            return viewModel.weekAssignments
-        case .month:
-            return viewModel.monthAssignments
+        case .today: return viewModel.todaysAssignments
+        case .sevenDays: return viewModel.next7DaysAssignments
+        case .thirtyDays: return viewModel.next30DaysAssignments
         }
     }
 
@@ -45,7 +42,34 @@ struct AssignmentsListView: View {
                 } else {
                     List {
                         ForEach(visibleAssignments) { assignment in
-                            AssignmentListRow(assignment: assignment)
+                            HStack(spacing: 10) {
+                                Button {
+                                    Task { await viewModel.toggleCompleted(assignment) }
+                                } label: {
+                                    Image(systemName: assignment.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(ChannelClay)
+                                }
+                                .buttonStyle(.plain)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(assignment.title)
+                                        .font(.body)
+                                        .lineLimit(2)
+                                        .strikethrough(assignment.isCompleted)
+                                        .foregroundColor(assignment.isCompleted ? .secondary : .primary)
+
+                                    Text(assignment.dueDate, style: .time)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.deleteAssignment(assignment) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     .listStyle(.insetGrouped)
@@ -80,41 +104,16 @@ struct AssignmentsListView: View {
 
 private enum AssignmentRange: CaseIterable {
     case today
-    case week
-    case month
-
+    case sevenDays
+    case thirtyDays
+    
     var title: String {
         switch self {
         case .today: return "Today"
-        case .week: return "Week"
-        case .month: return "Month"
+        case .sevenDays: return "7 Days"
+        case .thirtyDays: return "30 Days"
         }
     }
 }
 
-private struct AssignmentListRow: View {
-    let assignment: CanvasAssignment
 
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(assignment.title)
-                .font(.body)
-                .fontWeight(.medium)
-                .lineLimit(2)
-
-            HStack(spacing: 6) {
-                Image(systemName: "clock")
-                    .font(.caption)
-
-                Text(assignment.dueDate, style: .date)
-                Text("at")
-                Text(assignment.dueDate, style: .time)
-            }
-            .font(.caption)
-            .foregroundColor(ChannelClay)
-        }
-        .padding(.vertical, 5)
-    }
-}
