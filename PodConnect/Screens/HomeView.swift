@@ -60,18 +60,6 @@ struct HomeView: View {
                                 AssignmentsCardView()
                                 Spacer()
                             }
-                            
-                            NavigationLink {
-                                CanvasImportView()
-                            } label: {
-                                Text("Connect Canvas")
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.orange)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
 
                         }
                         .padding()
@@ -414,4 +402,5 @@ private struct FriendRequestRow: View {
         selectedTab: .constant(2),
         selectedPinShareRequest: .constant(nil)
     )
+    .environmentObject(AssignmentsViewModel())
 }
