@@ -11,6 +11,8 @@ struct HomeView: View {
     @Binding var selectedTab: Int
     @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
+    @StateObject private var toDoViewModel = ToDoViewModel()
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var showNotifications = false
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
@@ -53,8 +55,12 @@ struct HomeView: View {
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal)
                             }
+                            HStack(spacing: 14) {
+                                ToDoCardView(viewModel: toDoViewModel)
+                                AssignmentsCardView()
+                                Spacer()
+                            }
 
-                            Spacer(minLength: 30)
                         }
                         .padding()
                     }
@@ -389,10 +395,12 @@ private struct FriendRequestRow: View {
     }
 }
 
+
 #Preview {
     HomeView(
         authService: AuthService(firestoreService: FirestoreService()),
         selectedTab: .constant(2),
         selectedPinShareRequest: .constant(nil)
     )
+    .environmentObject(AssignmentsViewModel())
 }

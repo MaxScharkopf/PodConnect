@@ -9,6 +9,7 @@ private let channelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 private let islandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
 struct CalendarView: View {
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @StateObject private var viewModel: CalendarViewModel
     @State private var selectedTab = 0
     @State private var showAddEvent = false
@@ -38,6 +39,7 @@ struct CalendarView: View {
                     if selectedTab == 0 {
                         CalendarTabView(
                             userEvents: viewModel.userEvents,
+                            assignments: assignmentsViewModel.assignments,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
                             onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
@@ -98,14 +100,17 @@ struct CalendarView: View {
 
 // MARK: - Calendar Tab
 struct CalendarTabView: View {
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
+    
     var userEvents: [UserEvent]
+    var assignments: [CanvasAssignment]
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
     var onDeleteSeries: (String) -> Void
     var onEditEvent: (UserEvent) -> Void
     var onEditSeries: (UserEvent) -> Void
-
+    
     @State private var eventPendingDelete: UserEvent?
     @State private var eventToEdit: UserEvent?
     @State private var editScope: EditScope = .single
@@ -119,6 +124,12 @@ struct CalendarTabView: View {
     private var userEventsOnDate: [UserEvent] {
         userEvents.filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
     }
+    
+    private var assignmentsOnDate: [CanvasAssignment] {
+        assignments.filter {
+            Calendar.current.isDate($0.dueDate, inSameDayAs: selectedDate)
+        }
+    }
 
     var body: some View {
         List {
@@ -131,7 +142,7 @@ struct CalendarTabView: View {
                     .listRowSeparator(.hidden)
             }
 
-            if schoolEventsOnDate.isEmpty && userEventsOnDate.isEmpty {
+            if schoolEventsOnDate.isEmpty && userEventsOnDate.isEmpty && assignmentsOnDate.isEmpty {
                 Section {
                     Text("No events on this day")
                         .foregroundColor(.secondary)
@@ -168,6 +179,36 @@ struct CalendarTabView: View {
                                     }
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(islandsBlue)
+                            }
+                    }
+                }
+            }
+            
+            if !assignmentsOnDate.isEmpty {
+                Section("Assignments") {
+                    ForEach(assignmentsOnDate) { assignment in
+                        CanvasAssignmentRow(assignment: assignment)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task {
+                                        await assignmentsViewModel.deleteAssignment(assignment)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    Task {
+                                        await assignmentsViewModel.toggleCompleted(assignment)
+                                    }
+                                } label: {
+                                    Label(
+                                        assignment.isCompleted ? "Undo" : "Complete",
+                                        systemImage: assignment.isCompleted ? "arrow.uturn.backward" : "checkmark"
+                                    )
                                 }
                                 .tint(islandsBlue)
                             }
@@ -371,7 +412,10 @@ struct EventsTabView: View {
                             }
                         }
                     }
+                
                 }
+                
+            
 
                 ForEach(groupedSchoolEvents, id: \.0) { dateString, events in
                     Section(dateString) {
@@ -522,6 +566,24 @@ struct UserEventRow: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct CanvasAssignmentRow: View {
+    let assignment: CanvasAssignment
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(assignment.title)
+                .font(.body)
+                .strikethrough(assignment.isCompleted)
+                .foregroundColor(assignment.isCompleted ? .secondary : .primary)
+
+            Text(assignment.dueDate, style: .time)
+                .font(.caption)
+                .foregroundColor(assignment.isCompleted ? .secondary : channelClay)
         }
         .padding(.vertical, 4)
     }
@@ -733,5 +795,6 @@ struct EditEventSheet: View {
                 authService: AuthService(firestoreService: FirestoreService())
             )
         )
+        .environmentObject(AssignmentsViewModel())
     }
 }
