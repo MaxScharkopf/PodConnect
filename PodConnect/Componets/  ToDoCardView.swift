@@ -13,6 +13,7 @@ struct ToDoCardView: View {
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    private let mintBackground = Color(red: 0.88, green: 0.96, blue: 0.92)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -21,29 +22,29 @@ struct ToDoCardView: View {
             } label: {
                 HStack {
                     Image(systemName: "checklist")
-                        .foregroundColor(ChannelClay)
+                        .foregroundColor(IslandsBlue)
 
                     Text("To-Do")
                         .font(.headline)
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(IslandsBlue)
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(IslandsBlue.opacity(0.6))
                 }
             }
             .buttonStyle(.plain)
 
             Divider()
-                .background(.white.opacity(0.35))
+                .background(IslandsBlue.opacity(0.2))
 
             if viewModel.tasks.isEmpty {
                 Text("No tasks yet")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.secondary)
             } else {
                 ForEach(viewModel.tasks.prefix(3)) { task in
                     HStack(spacing: 8) {
@@ -51,7 +52,7 @@ struct ToDoCardView: View {
                             viewModel.toggleTask(task)
                         } label: {
                             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(task.isCompleted ? ChannelClay : .white.opacity(0.8))
+                                .foregroundColor(task.isCompleted ? ChannelClay : IslandsBlue.opacity(0.5))
                         }
                         .buttonStyle(.plain)
 
@@ -60,7 +61,7 @@ struct ToDoCardView: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .strikethrough(task.isCompleted)
-                            .foregroundColor(.white.opacity(task.isCompleted ? 0.65 : 1))
+                            .foregroundColor(task.isCompleted ? .secondary : .primary)
 
                         Spacer()
                     }
@@ -69,8 +70,8 @@ struct ToDoCardView: View {
         }
         .padding(14)
         .frame(width: 170)
-        .background(IslandsBlue)
+        .background(mintBackground)
         .clipShape(RoundedRectangle(cornerRadius: 22))
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 4)
     }
 }
