@@ -15,6 +15,7 @@ struct HomeView: View {
     @StateObject private var calendarViewModel: CalendarViewModel
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var showNotifications = false
+    @State private var showAddClass = false
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
@@ -76,6 +77,19 @@ struct HomeView: View {
 
                             EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
 
+                            Button {
+                                showAddClass = true
+                            } label: {
+                                Label("Add Class to Schedule", systemImage: "plus.circle.fill")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(IslandsBlue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(IslandsBlue.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+
                             HStack(spacing: 14) {
                                 ToDoCardView(viewModel: toDoViewModel)
                                 AssignmentsCardView()
@@ -96,6 +110,11 @@ struct HomeView: View {
             .task(id: authService.userInfo?.id) {
                 guard authService.userInfo?.id != nil else { return }
                 await calendarViewModel.fetchEvents()
+            }
+            .sheet(isPresented: $showAddClass) {
+                AddClassView { events in
+                    Task { await calendarViewModel.saveEvents(events) }
+                }
             }
             .sheet(isPresented: $showNotifications) {
                 NotificationSheetView(

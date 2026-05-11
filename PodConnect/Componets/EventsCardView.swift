@@ -14,7 +14,8 @@ struct EventsCardView: View {
     private struct EventRow: Identifiable {
         let id = UUID()
         let title: String
-        let time: Date
+        let startTime: Date
+        let endTime: Date?
         let icon: String
     }
 
@@ -26,13 +27,13 @@ struct EventsCardView: View {
 
         let school = schoolEvents
             .filter { $0.date >= now && $0.date < tomorrow }
-            .map { EventRow(title: $0.title, time: $0.date, icon: schoolIcon(for: $0.category)) }
+            .map { EventRow(title: $0.title, startTime: $0.date, endTime: $0.date.addingTimeInterval($0.duration), icon: schoolIcon(for: $0.category)) }
 
         let personal = userEvents
             .filter { $0.startDate >= now && $0.startDate < tomorrow }
-            .map { EventRow(title: $0.title, time: $0.startDate, icon: userIcon(for: $0.category)) }
+            .map { EventRow(title: $0.title, startTime: $0.startDate, endTime: $0.endDate, icon: userIcon(for: $0.category)) }
 
-        return Array((personal + school).sorted { $0.time < $1.time }.prefix(3))
+        return Array((personal + school).sorted { $0.startTime < $1.startTime }.prefix(3))
     }
 
     private func schoolIcon(for category: String) -> String {
@@ -93,9 +94,15 @@ struct EventsCardView: View {
                             Text(row.title)
                                 .font(.subheadline)
                                 .lineLimit(1)
-                            Text(row.time.formatted(.dateTime.hour().minute()))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            if let end = row.endTime {
+                                Text("\(row.startTime.formatted(.dateTime.hour().minute())) – \(end.formatted(.dateTime.hour().minute()))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text(row.startTime.formatted(.dateTime.hour().minute()))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
