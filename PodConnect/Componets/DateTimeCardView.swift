@@ -46,7 +46,7 @@ struct DateTimeCardView: View {
             }
         }
         .padding(14)
-        .frame(width: 170, height: 110)
+        .frame(maxWidth: .infinity, minHeight: 110)
         .background(IslandsBlue)
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
