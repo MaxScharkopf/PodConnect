@@ -7,7 +7,7 @@ import SwiftUI
 import FirebaseAuth
 
 struct HomeView: View {
-    private var authService: AuthService
+    @ObservedObject private var authService: AuthService
     @Binding var selectedTab: Int
     @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
@@ -92,6 +92,10 @@ struct HomeView: View {
                     await viewModel.loadNotifications()
                     await calendarViewModel.fetchEvents()
                 }
+            }
+            .task(id: authService.userInfo?.id) {
+                guard authService.userInfo?.id != nil else { return }
+                await calendarViewModel.fetchEvents()
             }
             .sheet(isPresented: $showNotifications) {
                 NotificationSheetView(
