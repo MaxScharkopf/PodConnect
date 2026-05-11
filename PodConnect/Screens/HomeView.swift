@@ -12,6 +12,7 @@ struct HomeView: View {
     @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
     @StateObject private var toDoViewModel = ToDoViewModel()
+    @StateObject private var calendarViewModel: CalendarViewModel
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var showNotifications = false
 
@@ -35,6 +36,16 @@ struct HomeView: View {
                 pinShareRepository: PinShareRepository(firestoreService: firestoreService)
             )
         )
+
+        _calendarViewModel = StateObject(
+            wrappedValue: CalendarViewModel(
+                eventRepository: EventRepository(
+                    firestoreService: firestoreService,
+                    authService: authService
+                )
+            )
+        )
+
     }
 
     var body: some View {
@@ -47,7 +58,7 @@ struct HomeView: View {
                     topHeader
 
                     ScrollView {
-                        VStack(spacing: 20) {
+                        VStack(spacing: 16) {
                             if !viewModel.errorMessage.isEmpty {
                                 Text(viewModel.errorMessage)
                                     .foregroundColor(.red)
@@ -55,12 +66,21 @@ struct HomeView: View {
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal)
                             }
+
+                            HStack(spacing: 14) {
+                                DateTimeCardView()
+                                CampusEventCardView()
+                            }
+
+                            WeatherCardView()
+
+                            EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
+
                             HStack(spacing: 14) {
                                 ToDoCardView(viewModel: toDoViewModel)
                                 AssignmentsCardView()
                                 Spacer()
                             }
-
                         }
                         .padding()
                     }
@@ -70,6 +90,7 @@ struct HomeView: View {
             .onAppear {
                 Task {
                     await viewModel.loadNotifications()
+                    await calendarViewModel.fetchEvents()
                 }
             }
             .sheet(isPresented: $showNotifications) {
