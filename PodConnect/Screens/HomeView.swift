@@ -75,11 +75,20 @@ struct HomeView: View {
 
                             WeatherCardView()
 
-                            EventsCardView(
-                                selectedTab: $selectedTab,
-                                userEvents: calendarViewModel.userEvents,
-                                onAddClass: { showAddClass = true }
-                            )
+                            EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
+
+                            Button {
+                                showAddClass = true
+                            } label: {
+                                Label("Add Class to Schedule", systemImage: "plus.circle.fill")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(IslandsBlue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(IslandsBlue.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
 
                             HStack {
                                 Text("My Tasks")
