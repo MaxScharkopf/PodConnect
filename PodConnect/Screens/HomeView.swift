@@ -75,28 +75,26 @@ struct HomeView: View {
 
                             WeatherCardView()
 
-                            EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
+                            EventsCardView(
+                                selectedTab: $selectedTab,
+                                userEvents: calendarViewModel.userEvents,
+                                onAddClass: { showAddClass = true }
+                            )
 
-                            Button {
-                                showAddClass = true
-                            } label: {
-                                Label("Add Class to Schedule", systemImage: "plus.circle.fill")
-                                    .font(.subheadline)
+                            HStack {
+                                Text("My Tasks")
+                                    .font(.headline)
                                     .fontWeight(.semibold)
-                                    .foregroundColor(IslandsBlue)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(IslandsBlue.opacity(0.1))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-
-                            HStack(spacing: 14) {
-                                ToDoCardView(viewModel: toDoViewModel)
-                                AssignmentsCardView()
+                                    .foregroundColor(.primary)
                                 Spacer()
                             }
+                            .padding(.top, 4)
+
+                            ToDoCardView(viewModel: toDoViewModel)
+                            AssignmentsCardView()
                         }
                         .padding()
+                        .padding(.bottom, 16)
                     }
                 }
             }

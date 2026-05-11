@@ -56,7 +56,7 @@ struct AssignmentsCardView: View {
             }
         }
         .padding(14)
-        .frame(width: 170)
+        .frame(maxWidth: .infinity)
         .background(peachBackground)
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 4)

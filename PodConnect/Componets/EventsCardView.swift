@@ -8,6 +8,7 @@ import SwiftUI
 struct EventsCardView: View {
     @Binding var selectedTab: Int
     var userEvents: [UserEvent] = []
+    var onAddClass: (() -> Void)? = nil
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
@@ -67,6 +68,15 @@ struct EventsCardView: View {
                     .font(.headline)
                     .fontWeight(.bold)
                 Spacer()
+                if let onAddClass {
+                    Button {
+                        onAddClass()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(IslandsBlue)
+                            .font(.title3)
+                    }
+                }
                 Button {
                     selectedTab = 3
                 } label: {
@@ -74,6 +84,7 @@ struct EventsCardView: View {
                         .font(.subheadline)
                         .foregroundColor(IslandsBlue)
                 }
+                .padding(.leading, 8)
             }
 
             Divider()
