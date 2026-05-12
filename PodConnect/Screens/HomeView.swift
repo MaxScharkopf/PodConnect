@@ -7,13 +7,15 @@ import SwiftUI
 import FirebaseAuth
 
 struct HomeView: View {
-    private var authService: AuthService
+    @ObservedObject private var authService: AuthService
     @Binding var selectedTab: Int
     @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
     @StateObject private var toDoViewModel = ToDoViewModel()
+    @StateObject private var calendarViewModel: CalendarViewModel
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var showNotifications = false
+    @State private var showAddClass = false
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
@@ -35,6 +37,16 @@ struct HomeView: View {
                 pinShareRepository: PinShareRepository(firestoreService: firestoreService)
             )
         )
+
+        _calendarViewModel = StateObject(
+            wrappedValue: CalendarViewModel(
+                eventRepository: EventRepository(
+                    firestoreService: firestoreService,
+                    authService: authService
+                )
+            )
+        )
+
     }
 
     var body: some View {
@@ -47,7 +59,7 @@ struct HomeView: View {
                     topHeader
 
                     ScrollView {
-                        VStack(spacing: 20) {
+                        VStack(spacing: 16) {
                             if !viewModel.errorMessage.isEmpty {
                                 Text(viewModel.errorMessage)
                                     .foregroundColor(.red)
@@ -55,14 +67,43 @@ struct HomeView: View {
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal)
                             }
+
                             HStack(spacing: 14) {
-                                ToDoCardView(viewModel: toDoViewModel)
-                                AssignmentsCardView()
-                                Spacer()
+                                DateTimeCardView()
+                                CampusEventCardView()
                             }
 
+                            WeatherCardView()
+
+                            EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
+
+                            Button {
+                                showAddClass = true
+                            } label: {
+                                Label("Add Class to Schedule", systemImage: "plus.circle.fill")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(IslandsBlue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(IslandsBlue.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+
+                            HStack {
+                                Text("My Tasks")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                            .padding(.top, 4)
+
+                            ToDoCardView(viewModel: toDoViewModel)
+                            AssignmentsCardView()
                         }
                         .padding()
+                        .padding(.bottom, 16)
                     }
                 }
             }
@@ -70,6 +111,16 @@ struct HomeView: View {
             .onAppear {
                 Task {
                     await viewModel.loadNotifications()
+                    await calendarViewModel.fetchEvents()
+                }
+            }
+            .task(id: authService.userInfo?.id) {
+                guard authService.userInfo?.id != nil else { return }
+                await calendarViewModel.fetchEvents()
+            }
+            .sheet(isPresented: $showAddClass) {
+                AddClassView { events in
+                    Task { await calendarViewModel.saveEvents(events) }
                 }
             }
             .sheet(isPresented: $showNotifications) {
