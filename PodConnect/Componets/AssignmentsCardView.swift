@@ -41,17 +41,31 @@ struct AssignmentsCardView: View {
             Divider()
                 .background(ChannelClay.opacity(0.2))
 
-            if viewModel.activeTodaysAssignments.isEmpty {
+            if viewModel.todaysAssignments.isEmpty {
                 Text("No assignments today")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                ForEach(viewModel.activeTodaysAssignments.prefix(3)) { assignment in
-                    Text(assignment.title)
-                        .font(.caption)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundColor(.primary)
+                ForEach(viewModel.todaysAssignments.prefix(3)) { assignment in
+                    HStack(spacing: 6) {
+                        Button {
+                            Task {
+                                await viewModel.toggleCompleted(assignment)
+                            }
+                        } label: {
+                            Image(systemName: assignment.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(.caption)
+                                .foregroundColor(ChannelClay)
+                        }
+                        .buttonStyle(.plain)
+
+                        Text(assignment.title)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .strikethrough(assignment.isCompleted)
+                            .foregroundColor(assignment.isCompleted ? .secondary : .primary)
+                    }
                 }
             }
         }
