@@ -6,6 +6,7 @@
 //
 import SwiftUI
 import MapKit
+import FirebaseAuth
 
 struct MapView: View {
     @StateObject private var mapViewModel: MapViewModel
@@ -365,7 +366,7 @@ struct MapView: View {
                         await getDirections(to: pin)
                     }
                 },
-                onDelete: pin.pinType == "user" ? {
+                onDelete: canEditPin(pin) ? {
                     Task {
                         if let id = pin.id {
                             await mapViewModel.deleteUserPin(id: id)
@@ -373,7 +374,7 @@ struct MapView: View {
                         }
                     }
                 } : nil,
-                onEdit: pin.pinType == "user" ? {
+                onEdit: canEditPin(pin) ? {
                     Task {
                         selectedPin = nil
                         
@@ -571,6 +572,14 @@ func mapButton(icon: String, isActive: Bool = false) -> some View {
         .background(Color.white.opacity(0.6))
         .clipShape(Circle())
         .shadow(radius: 5)
+}
+
+private var currentUid: String? {
+    Auth.auth().currentUser?.uid
+}
+
+private func canEditPin(_ pin: MapPin) -> Bool {
+    pin.pinType == "user" && pin.ownerUserId == currentUid
 }
 
 struct sBar: View {
