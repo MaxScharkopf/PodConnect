@@ -122,7 +122,17 @@ struct CalendarTabView: View {
     }
 
     private var userEventsOnDate: [UserEvent] {
-        userEvents.filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
+        userEvents
+            .filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
+            .sorted { $0.startDate < $1.startDate }
+    }
+
+    private var classEventsOnDate: [UserEvent] {
+        userEventsOnDate.filter { $0.category == .academic }
+    }
+
+    private var personalEventsOnDate: [UserEvent] {
+        userEventsOnDate.filter { $0.category != .academic }
     }
     
     private var assignmentsOnDate: [CanvasAssignment] {
@@ -142,7 +152,7 @@ struct CalendarTabView: View {
                     .listRowSeparator(.hidden)
             }
 
-            if schoolEventsOnDate.isEmpty && userEventsOnDate.isEmpty && assignmentsOnDate.isEmpty {
+            if schoolEventsOnDate.isEmpty && classEventsOnDate.isEmpty && personalEventsOnDate.isEmpty && assignmentsOnDate.isEmpty {
                 Section {
                     Text("No events on this day")
                         .foregroundColor(.secondary)
@@ -153,9 +163,42 @@ struct CalendarTabView: View {
                 }
             }
 
-            if !userEventsOnDate.isEmpty {
+            if !classEventsOnDate.isEmpty {
+                Section("Classes") {
+                    ForEach(classEventsOnDate) { event in
+                        UserEventRow(event: event)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if event.recurrenceGroupId != nil {
+                                        eventPendingDelete = event
+                                    } else {
+                                        onDeleteEvent(event)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    eventToEdit = event
+                                    if event.recurrenceGroupId != nil {
+                                        showEditConfirmation = true
+                                    } else {
+                                        editScope = .single
+                                        showEditSheet = true
+                                    }
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(islandsBlue)
+                            }
+                    }
+                }
+            }
+            
+            if !personalEventsOnDate.isEmpty {
                 Section("My Events") {
-                    ForEach(userEventsOnDate) { event in
+                    ForEach(personalEventsOnDate) { event in
                         UserEventRow(event: event)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
@@ -301,6 +344,8 @@ struct EventsTabView: View {
     }
 
     private var filteredUserEvents: [UserEvent] {
+        let now = Date()
+
         let categoryFiltered: [UserEvent]
 
         if activeCategories.isEmpty {
@@ -309,13 +354,21 @@ struct EventsTabView: View {
             categoryFiltered = userEvents.filter { activeCategories.contains($0.category.rawValue) }
         }
 
-        guard !searchText.isEmpty else { return categoryFiltered }
+        let futureFiltered = categoryFiltered.filter { $0.startDate >= now }
 
-        return categoryFiltered.filter { event in
-            event.title.localizedCaseInsensitiveContains(searchText) ||
-            event.notes.localizedCaseInsensitiveContains(searchText) ||
-            event.category.rawValue.localizedCaseInsensitiveContains(searchText)
+        let searchFiltered: [UserEvent]
+
+        if searchText.isEmpty {
+            searchFiltered = futureFiltered
+        } else {
+            searchFiltered = futureFiltered.filter { event in
+                event.title.localizedCaseInsensitiveContains(searchText) ||
+                event.notes.localizedCaseInsensitiveContains(searchText) ||
+                event.category.rawValue.localizedCaseInsensitiveContains(searchText)
+            }
         }
+
+        return searchFiltered.sorted { $0.startDate < $1.startDate }
     }
 
     private var groupedSchoolEvents: [(String, [SchoolEvent])] {

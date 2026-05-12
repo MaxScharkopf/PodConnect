@@ -77,6 +77,11 @@ struct HomeView: View {
 
                             EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
 
+                            ClassesCardView(
+                                selectedTab: $selectedTab,
+                                userEvents: calendarViewModel.userEvents
+                            )
+
                             Button {
                                 showAddClass = true
                             } label: {
