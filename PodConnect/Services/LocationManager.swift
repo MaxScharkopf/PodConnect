@@ -22,6 +22,12 @@ class LocationManager: NSObject, CLLocationManagerDelegate, ObservableObject {
         manager.requestWhenInUseAuthorization()
         manager.startUpdatingLocation()
     }
+    
+    private let campusRegion = CLCircularRegion(
+        center: CLLocationCoordinate2D(latitude: 34.1647, longitude: -119.0426),
+        radius: 900,
+        identifier: "csuci-campus"
+    )
 
     // Called when the user grants or denies permission
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
