@@ -5,9 +5,6 @@
 
 import SwiftUI
 
-private let channelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-private let islandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-
 struct CalendarView: View {
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @StateObject private var viewModel: CalendarViewModel
@@ -94,7 +91,7 @@ struct CalendarView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 18)
-        .background(islandsBlue)
+        .background(Color.islandsBlue)
     }
 }
 
@@ -136,7 +133,7 @@ struct CalendarTabView: View {
             Section {
                 DatePicker("", selection: $selectedDate, displayedComponents: .date)
                     .datePickerStyle(.graphical)
-                    .tint(islandsBlue)
+                    .tint(Color.islandsBlue)
                     .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -180,7 +177,7 @@ struct CalendarTabView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                .tint(islandsBlue)
+                                .tint(Color.islandsBlue)
                             }
                     }
                 }
@@ -210,7 +207,7 @@ struct CalendarTabView: View {
                                         systemImage: assignment.isCompleted ? "arrow.uturn.backward" : "checkmark"
                                     )
                                 }
-                                .tint(islandsBlue)
+                                .tint(Color.islandsBlue)
                             }
                     }
                 }
@@ -408,7 +405,7 @@ struct EventsTabView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                .tint(islandsBlue)
+                                .tint(Color.islandsBlue)
                             }
                         }
                     }
@@ -481,10 +478,10 @@ struct EventsTabView: View {
 
     func categoryColor(_ category: String) -> Color {
         switch category {
-        case "Academic": return islandsBlue
-        case "Arts": return channelClay
-        case "Campus Life": return islandsBlue
-        case "Wellness": return channelClay
+        case "Academic": return Color.islandsBlue
+        case "Arts": return Color.channelClay
+        case "Campus Life": return Color.islandsBlue
+        case "Wellness": return Color.channelClay
         default: return .gray
         }
     }
@@ -502,7 +499,7 @@ struct SchoolEventRow: View {
             HStack {
                 Text(event.date, style: .time)
                     .font(.caption)
-                    .foregroundColor(islandsBlue)
+                    .foregroundColor(Color.islandsBlue)
 
                 Text("·")
                     .foregroundColor(.secondary)
@@ -523,10 +520,10 @@ struct SchoolEventRow: View {
 
     func categoryColor(_ category: String) -> Color {
         switch category {
-        case "Academic": return islandsBlue
-        case "Arts": return channelClay
-        case "Campus Life": return islandsBlue
-        case "Wellness": return channelClay
+        case "Academic": return Color.islandsBlue
+        case "Arts": return Color.channelClay
+        case "Campus Life": return Color.islandsBlue
+        case "Wellness": return Color.channelClay
         default: return .gray
         }
     }
@@ -543,7 +540,7 @@ struct UserEventRow: View {
                 if event.recurrenceGroupId != nil {
                     Image(systemName: "repeat")
                         .font(.caption)
-                        .foregroundColor(islandsBlue)
+                        .foregroundColor(Color.islandsBlue)
                 }
             }
             HStack {
@@ -559,7 +556,7 @@ struct UserEventRow: View {
 
             Text(event.category.rawValue)
                 .font(.caption)
-                .foregroundColor(channelClay)
+                .foregroundColor(Color.channelClay)
 
             if !event.notes.isEmpty {
                 Text(event.notes)
@@ -583,7 +580,7 @@ struct CanvasAssignmentRow: View {
 
             Text(assignment.dueDate, style: .time)
                 .font(.caption)
-                .foregroundColor(assignment.isCompleted ? .secondary : channelClay)
+                .foregroundColor(assignment.isCompleted ? .secondary : Color.channelClay)
         }
         .padding(.vertical, 4)
     }
@@ -637,7 +634,7 @@ struct AddEventSheet: View {
                                 Text(weekdayLabels[i])
                                     .font(.caption.bold())
                                     .frame(width: 34, height: 34)
-                                    .background(isSelected ? islandsBlue : Color(.systemGray5))
+                                    .background(isSelected ? Color.islandsBlue : Color(.systemGray5))
                                     .foregroundColor(isSelected ? .white : .primary)
                                     .clipShape(Circle())
                             }
@@ -667,11 +664,11 @@ struct AddEventSheet: View {
             }
             .navigationTitle("New Event")
             .navigationBarTitleDisplayMode(.inline)
-            .tint(islandsBlue)
+            .tint(Color.islandsBlue)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .foregroundColor(channelClay)
+                        .foregroundColor(Color.channelClay)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -680,7 +677,7 @@ struct AddEventSheet: View {
                         dismiss()
                     }
                     .disabled(title.isEmpty)
-                    .foregroundColor(title.isEmpty ? .gray : islandsBlue)
+                    .foregroundColor(title.isEmpty ? .gray : Color.islandsBlue)
                 }
             }
         }
@@ -762,11 +759,11 @@ struct EditEventSheet: View {
             }
             .navigationTitle("Edit Event")
             .navigationBarTitleDisplayMode(.inline)
-            .tint(islandsBlue)
+            .tint(Color.islandsBlue)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .foregroundColor(channelClay)
+                        .foregroundColor(Color.channelClay)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -780,7 +777,7 @@ struct EditEventSheet: View {
                         dismiss()
                     }
                     .disabled(title.isEmpty)
-                    .foregroundColor(title.isEmpty ? .gray : islandsBlue)
+                    .foregroundColor(title.isEmpty ? .gray : Color.islandsBlue)
                 }
             }
         }

@@ -78,12 +78,30 @@ class ChatViewModel: ObservableObject {
             self.isLoading = false
         }
     }
+
+    func deleteMessage(messageId: String) async {
+        do {
+            try await messageRepository.deleteMessage(threadId: self.messageThreadId, messageId: messageId)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func editMessage(messageId: String, content: String) async {
+        do {
+            try await messageRepository.updateMessage(threadId: self.messageThreadId, messageId: messageId, content: content)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
     
-    func updateMessageThreadWithPending(threadId: String, threadName: String, participants: [String], pendingParticipants: [String]) async {
+    func updateMessageThreadWithPending(threadId: String, threadName: String, participants: [String], pendingParticipants: [String], ownerId: String) async {
         isLoading = true
         
         do {
-            try await messageRepository.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants)
+            try await messageRepository.updateMessageThread(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants, ownerId: ownerId)
             isLoading = false
             errorMessage = nil
         }catch {

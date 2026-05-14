@@ -8,7 +8,7 @@ import SwiftUI
 struct EventsCardView: View {
     @Binding var selectedTab: Int
     var userEvents: [UserEvent] = []
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    @Environment(\.colorScheme) var colorScheme
 
     private struct EventRow: Identifiable {
         let id = UUID()
@@ -61,7 +61,7 @@ struct EventsCardView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: "calendar")
-                    .foregroundColor(IslandsBlue)
+                    .foregroundColor(Color.islandsBlue)
                 Text("Events")
                     .font(.headline)
                     .fontWeight(.bold)
@@ -71,7 +71,7 @@ struct EventsCardView: View {
                 } label: {
                     Text("Today")
                         .font(.subheadline)
-                        .foregroundColor(IslandsBlue)
+                        .foregroundColor(Color.islandsBlue)
                 }
             }
 
@@ -86,7 +86,7 @@ struct EventsCardView: View {
                 ForEach(todayRows) { row in
                     HStack(spacing: 12) {
                         Image(systemName: row.icon)
-                            .foregroundColor(IslandsBlue)
+                            .foregroundColor(Color.islandsBlue)
                             .frame(width: 24)
 
                         VStack(alignment: .leading, spacing: 1) {
@@ -108,8 +108,8 @@ struct EventsCardView: View {
             }
         }
         .padding(16)
-        .background(Color(uiColor: .systemBackground))
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.07), radius: 6, x: 0, y: 3)
+        .shadow(color: colorScheme == .dark ? .clear : .black.opacity(0.07), radius: 6, x: 0, y: 3)
     }
 }

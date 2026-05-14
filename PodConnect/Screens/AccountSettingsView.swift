@@ -22,8 +22,8 @@ struct AccountSettingsView: View {
     @FocusState private var newPasswordFocused: Bool
     @FocusState private var confirmNewPasswordFocused: Bool
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    
+    
 
     var body: some View {
         ZStack {
@@ -96,7 +96,7 @@ struct AccountSettingsView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "link")
-                                    .foregroundColor(ChannelClay)
+                                    .foregroundColor(Color.channelClay)
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("Connect Canvas")
@@ -119,6 +119,28 @@ struct AccountSettingsView: View {
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                         }
                         .buttonStyle(.plain)
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Debug Tools")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+
+                            Button("Migrate Threads to Have Owners") {
+                                Task {
+                                    await SeedRepository().migrateThreadsToHaveOwners()
+                                    successMessage = "Migration complete. Check console."
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .foregroundColor(.red)
+                            .cornerRadius(12)
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                     }
                     .padding()
                     .contentShape(Rectangle())
@@ -155,7 +177,7 @@ struct AccountSettingsView: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 18)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
     }
 
     private func dismissKeyboard() {
