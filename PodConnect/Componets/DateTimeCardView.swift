@@ -41,10 +41,12 @@ struct DateTimeCardView: View {
                 Image(systemName: "clock")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
+
                 Text(timeString)
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 110)

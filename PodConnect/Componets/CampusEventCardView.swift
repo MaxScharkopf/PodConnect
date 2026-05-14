@@ -10,15 +10,7 @@ struct CampusEventCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Spacer()
-                Image(systemName: "party.popper.fill")
-                    .font(.title3)
-                    .foregroundColor(.white.opacity(0.85))
-            }
-
-            Spacer()
-
+         
             Text("NATIONAL DAY")
                 .font(.caption2)
                 .fontWeight(.semibold)
@@ -31,6 +23,15 @@ struct CampusEventCardView: View {
                 .lineLimit(3)
                 .minimumScaleFactor(0.7)
                 .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer()
+            
+            HStack {
+                Spacer()
+                Image(systemName: "party.popper.fill")
+                    .font(.title3)
+                    .foregroundColor(.white.opacity(0.85))
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 110)

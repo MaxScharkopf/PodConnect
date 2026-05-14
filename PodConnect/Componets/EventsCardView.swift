@@ -25,12 +25,34 @@ struct EventsCardView: View {
         let now = Date()
 
         let school = schoolEvents
-            .filter { $0.date >= now && $0.date < tomorrow }
-            .map { EventRow(title: $0.title, startTime: $0.date, endTime: $0.date.addingTimeInterval($0.duration), icon: schoolIcon(for: $0.category)) }
+            .filter { event in
+                let end = event.date.addingTimeInterval(event.duration)
+                return end >= now && event.date < tomorrow
+            }
+            .map {
+                EventRow(
+                    title: $0.title,
+                    startTime: $0.date,
+                    endTime: $0.date.addingTimeInterval($0.duration),
+                    icon: schoolIcon(for: $0.category)
+                )
+            }
 
         let personal = userEvents
-            .filter { $0.startDate >= now && $0.startDate < tomorrow }
-            .map { EventRow(title: $0.title, startTime: $0.startDate, endTime: $0.endDate, icon: userIcon(for: $0.category)) }
+            .filter { event in
+                event.category != .academic &&
+                event.endDate >= now &&
+                event.startDate >= today &&
+                event.startDate < tomorrow
+            }
+            .map {
+                EventRow(
+                    title: $0.title,
+                    startTime: $0.startDate,
+                    endTime: $0.endDate,
+                    icon: userIcon(for: $0.category)
+                )
+            }
 
         return Array((personal + school).sorted { $0.startTime < $1.startTime }.prefix(3))
     }

@@ -12,47 +12,38 @@ import Combine
 final class ToDoViewModel: ObservableObject {
     @Published var tasks: [PodTask] = []
 
-    private let storageKey = "podconnect.todo.tasks"
+    private let repository: ToDoRepository
 
-    init() {
-        loadTasks()
+    init(uid: String) {
+        self.repository = ToDoRepository(uid: uid)
+        listenToTodos()
+    }
+
+    private func listenToTodos() {
+        repository.listenToTodos { [weak self] tasks in
+            Task { @MainActor in
+                self?.tasks = tasks
+            }
+        }
     }
 
     func addTask(title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        tasks.insert(PodTask(title: trimmed), at: 0)
-        saveTasks()
+        let task = PodTask(title: trimmed)
+        repository.saveTask(task)
     }
 
     func toggleTask(_ task: PodTask) {
-        guard let index = tasks.firstIndex(of: task) else { return }
-        tasks[index].isCompleted.toggle()
-        saveTasks()
+        var updatedTask = task
+        updatedTask.isCompleted.toggle()
+        updatedTask.updatedAt = Date()
+
+        repository.saveTask(updatedTask)
     }
 
     func deleteTask(_ task: PodTask) {
-        tasks.removeAll { $0.id == task.id }
-        saveTasks()
-    }
-
-    private func loadTasks() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
-
-        do {
-            tasks = try JSONDecoder().decode([PodTask].self, from: data)
-        } catch {
-            tasks = []
-        }
-    }
-
-    private func saveTasks() {
-        do {
-            let data = try JSONEncoder().encode(tasks)
-            UserDefaults.standard.set(data, forKey: storageKey)
-        } catch {
-            print("Failed to save tasks: \(error)")
-        }
+        repository.deleteTask(task)
     }
 }
