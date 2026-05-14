@@ -203,32 +203,4 @@ final class SeedRepository {
             print("Error seeding user visibility: \(error)")
         }
     }
-
-    func migrateThreadsToHaveOwners() async {
-        do {
-            let snapshot = try await db.collection("messages").getDocuments()
-            var count = 0
-            
-            for document in snapshot.documents {
-                let data = document.data()
-                // If ownerId is missing or empty
-                if data["ownerId"] == nil || (data["ownerId"] as? String)?.isEmpty == true {
-                    let participants = data["participants"] as? [String] ?? []
-                    let pending = data["pendingParticipants"] as? [String] ?? []
-                    
-                    // Pick the first active participant, or first pending if active is empty
-                    if let newOwner = participants.first ?? pending.first {
-                        try await db.collection("messages").document(document.documentID).updateData([
-                            "ownerId": newOwner
-                        ])
-                        count += 1
-                        print("Assigned owner \(newOwner) to thread \(document.documentID)")
-                    }
-                }
-            }
-            print("Successfully migrated \(count) threads.")
-        } catch {
-            print("Error migrating threads: \(error)")
-        }
-    }
 }

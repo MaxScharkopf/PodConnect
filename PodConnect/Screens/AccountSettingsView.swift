@@ -119,28 +119,6 @@ struct AccountSettingsView: View {
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                         }
                         .buttonStyle(.plain)
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Debug Tools")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-
-                            Button("Migrate Threads to Have Owners") {
-                                Task {
-                                    await SeedRepository().migrateThreadsToHaveOwners()
-                                    successMessage = "Migration complete. Check console."
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.red.opacity(0.1))
-                            .foregroundColor(.red)
-                            .cornerRadius(12)
-                        }
-                        .padding()
-                        .background(Color.white)
-                        .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                     }
                     .padding()
                     .contentShape(Rectangle())
