@@ -11,7 +11,7 @@ struct HomeView: View {
     @Binding var selectedTab: Int
     @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
-    @StateObject private var toDoViewModel = ToDoViewModel()
+    @StateObject private var toDoViewModel: ToDoViewModel
     @StateObject private var calendarViewModel: CalendarViewModel
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var showNotifications = false
@@ -26,6 +26,8 @@ struct HomeView: View {
         _selectedPinShareRequest = selectedPinShareRequest
         
         let firestoreService = FirestoreService()
+        let uid = Auth.auth().currentUser?.uid ?? ""
+        _toDoViewModel = StateObject(wrappedValue: ToDoViewModel(uid: uid))
 
         _viewModel = StateObject(
             wrappedValue: HomeViewModel(
@@ -76,6 +78,11 @@ struct HomeView: View {
                             WeatherCardView()
 
                             EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
+
+                            ClassesCardView(
+                                selectedTab: $selectedTab,
+                                userEvents: calendarViewModel.userEvents
+                            )
 
                             Button {
                                 showAddClass = true
