@@ -123,8 +123,12 @@ struct HomeView: View {
                 await calendarViewModel.fetchEvents()
             }
             .sheet(isPresented: $showAddClass) {
-                AddClassView { events in
-                    Task { await calendarViewModel.saveEvents(events) }
+                AddClassView { events, className in
+                    Task {
+                        await calendarViewModel.saveEvents(events)
+                        await calendarViewModel.fetchEvents()
+                        await addClassToProfile(className)
+                    }
                 }
             }
             .sheet(isPresented: $showNotifications) {
@@ -135,6 +139,40 @@ struct HomeView: View {
                     isPresented: $showNotifications
                 )
             }
+        }
+    }
+    
+    private func addClassToProfile(_ className: String) async {
+        let trimmed = className.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let userInfo = authService.userInfo else { return }
+
+        var updatedClasses = userInfo.classes
+
+        if !updatedClasses.contains(trimmed) {
+            updatedClasses.append(trimmed)
+        }
+
+        let updatedProfile = UserInfo(
+            id: userInfo.id,
+            username: userInfo.username,
+            username_lowercase: userInfo.username_lowercase,
+            name: userInfo.name,
+            classes: updatedClasses,
+            clubs: userInfo.clubs,
+            friends: userInfo.friends,
+            email: userInfo.email,
+            uid: userInfo.uid,
+            bio: userInfo.bio,
+            profileImageURL: userInfo.profileImageURL,
+            classesVisibility: userInfo.classesVisibility,
+            clubsVisibility: userInfo.clubsVisibility
+        )
+
+        do {
+            try await authService.updateUserProfile(updatedProfile)
+        } catch {
+            print("Failed to update profile classes: \(error)")
         }
     }
 

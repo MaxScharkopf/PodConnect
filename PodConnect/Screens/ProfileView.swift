@@ -24,6 +24,7 @@ struct ProfileView: View {
     @State private var profileImageData: Data?
     @State private var profileImageURL: String?
     @State private var isUploadingProfileImage = false
+    @State private var newClassName = ""
 
     @State private var email = ""
     @State private var username = ""
@@ -47,11 +48,6 @@ struct ProfileView: View {
     @State private var clubsVisibility: VisibilityLevel = .public
 
     
-
-    let classes = [
-        "COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350",
-        "COMP 362", "COMP 354", "COMP 429", "MATH 240", "MATH 300", "ENGL 101"
-    ]
 
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
@@ -269,33 +265,43 @@ struct ProfileView: View {
                     Text("Classes")
                         .font(.headline)
 
-                    Menu {
-                        ForEach(classes, id: \.self) { course in
-                            Button {
-                                toggleSelection(course, in: &selectedClasses)
-                            } label: {
+                    VStack(spacing: 10) {
+                        
+                        if selectedClasses.isEmpty {
+                            Text("No classes added")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(selectedClasses.indices, id: \.self) { index in
                                 HStack {
-                                    Text(course)
-                                    if selectedClasses.contains(course) {
-                                        Image(systemName: "checkmark")
+                                    TextField("Class", text: $selectedClasses[index])
+                                        .textFieldStyle(.roundedBorder)
+
+                                    Button {
+                                        selectedClasses.remove(at: index)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .foregroundColor(.red)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
-                    } label: {
+                        
                         HStack {
-                            Text(selectedClasses.isEmpty ? "Select classes" : selectedClasses.joined(separator: ", "))
-                                .foregroundColor(selectedClasses.isEmpty ? .gray : .primary)
-                                .lineLimit(2)
+                            TextField("Add class", text: $newClassName)
+                                .textFieldStyle(.roundedBorder)
 
-                            Spacer()
-
-                            Image(systemName: "chevron.down")
-                                .foregroundColor(.gray)
+                            Button {
+                                addTypedClass()
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(Color.islandsBlue)
+                                    .font(.title3)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .padding()
-                        .background(Color(.systemBackground))
-                        .cornerRadius(10)
+
                     }
 
                     Picker("Classes Visibility", selection: $classesVisibility) {
@@ -480,6 +486,17 @@ struct ProfileView: View {
             }
         }
     }
+    
+    func addTypedClass() {
+        let trimmed = newClassName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if !selectedClasses.contains(trimmed) {
+            selectedClasses.append(trimmed)
+        }
+
+        newClassName = ""
+    }
 
     func handleSelectedPhoto() async {
         guard let item = selectedPhotoItem else { return }
@@ -559,7 +576,7 @@ struct ProfileView: View {
             name: name,
             classes: selectedClasses,
             clubs: selectedClubs,
-            friends: [],
+            friends: authService.userInfo?.friends ?? [],
             email: email,
             uid: uid,
             bio: bio,

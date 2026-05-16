@@ -23,7 +23,6 @@ struct ClassesCardView: View {
         return userEvents
             .filter { event in
                 event.category == .academic &&
-                event.endDate >= Date() && //can remove event.endDate >= Date() form conditional if want home to show classes that already passed today
                 event.startDate >= today &&
                 event.startDate < tomorrow
             }
