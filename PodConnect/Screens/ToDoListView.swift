@@ -12,8 +12,8 @@ struct ToDoListView: View {
     @ObservedObject var viewModel: ToDoViewModel
     @State private var newTaskTitle = ""
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    
+    
 
     var body: some View {
         ZStack {
@@ -31,7 +31,7 @@ struct ToDoListView: View {
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 18)
-                .background(IslandsBlue)
+                .background(Color.islandsBlue)
 
                 HStack(spacing: 10) {
                     TextField("New task", text: $newTaskTitle)
@@ -47,7 +47,7 @@ struct ToDoListView: View {
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(width: 44, height: 44)
-                            .background(ChannelClay)
+                            .background(Color.channelClay)
                             .clipShape(Circle())
                     }
                 }
@@ -61,7 +61,7 @@ struct ToDoListView: View {
                             } label: {
                                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                                     .font(.title3)
-                                    .foregroundColor(task.isCompleted ? ChannelClay : IslandsBlue)
+                                    .foregroundColor(task.isCompleted ? Color.channelClay : Color.islandsBlue)
                             }
                             .buttonStyle(.plain)
 

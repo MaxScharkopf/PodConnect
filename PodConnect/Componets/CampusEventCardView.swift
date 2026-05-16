@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct CampusEventCardView: View {
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -35,8 +35,8 @@ struct CampusEventCardView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 110)
-        .background(ChannelClay)
+        .background(Color.channelClay)
         .clipShape(RoundedRectangle(cornerRadius: 22))
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .shadow(color: colorScheme == .dark ? .clear : .black.opacity(0.12), radius: 8, x: 0, y: 4)
     }
 }

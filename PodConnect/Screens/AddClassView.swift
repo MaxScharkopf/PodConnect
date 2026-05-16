@@ -16,8 +16,8 @@ struct AddClassView: View {
     @State private var endTime = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var semesterEnd = Calendar.current.date(byAdding: .month, value: 4, to: Date()) ?? Date()
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    
+    
     private let weekdayLabels = ["S", "M", "T", "W", "T", "F", "S"]
 
     private var canSave: Bool {
@@ -49,7 +49,7 @@ struct AddClassView: View {
                                 Text(weekdayLabels[i])
                                     .font(.caption.bold())
                                     .frame(width: 36, height: 36)
-                                    .background(isSelected ? IslandsBlue : Color(.systemGray5))
+                                    .background(isSelected ? Color.islandsBlue : Color(.systemGray5))
                                     .foregroundColor(isSelected ? .white : .primary)
                                     .clipShape(Circle())
                             }
@@ -66,11 +66,11 @@ struct AddClassView: View {
             }
             .navigationTitle("Add Class")
             .navigationBarTitleDisplayMode(.inline)
-            .tint(IslandsBlue)
+            .tint(Color.islandsBlue)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .foregroundColor(ChannelClay)
+                        .foregroundColor(Color.channelClay)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {

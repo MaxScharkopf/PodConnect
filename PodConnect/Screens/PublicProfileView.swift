@@ -14,6 +14,8 @@ struct PublicProfileView: View {
     let isRequested: Bool
     let currentUID: String
     let friendRepository: FriendRepository
+    let messageRepository: MessageRepository
+    let authService: AuthService
 
     @Environment(\.dismiss) private var dismiss
     @State private var showUnfriendAlert = false
@@ -22,7 +24,13 @@ struct PublicProfileView: View {
     @State private var isLoadingRelationship = true
     @State private var relationshipListenerTask: Task<Void, Never>?
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    @State private var navigatingToChat = false
+    @State private var chatThread: MessageThread?
+    @State private var isCreatingThread = false
+
+    private var isChatRequest: Bool {
+        chatThread?.pendingParticipants.contains(currentUID) ?? false
+    }
 
     private var isOwnProfile: Bool {
         user.uid == currentUID
@@ -92,7 +100,7 @@ struct PublicProfileView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                         }
@@ -124,117 +132,167 @@ struct PublicProfileView: View {
     }
 
     private var relationshipActionSection: some View {
-        Group {
+        VStack(spacing: 16) {
             if isLoadingRelationship {
                 ProgressView()
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.white)
+                    .background(Color(.secondarySystemGroupedBackground))
                     .cornerRadius(16)
                     .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
 
             } else {
-                switch relationshipStatus {
-                case .none:
-                    Button {
-                        Task {
-                            isSendingRequest = true
-                            do {
-                                try await friendRepository.sendFriendRequest(toUID: user.uid)
-                            } catch {
-                                print("Failed to send request: \(error)")
-                            }
-                            isSendingRequest = false
-                        }
-                    } label: {
-                        Text(isSendingRequest ? "Sending..." : "Send Request")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(IslandsBlue)
-                            .foregroundColor(.white)
-                            .cornerRadius(16)
-                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-                    }
-                    .disabled(isSendingRequest)
+                HStack(spacing: 16) {
+                    messageButton
 
-                case .requestSent:
-                    Button {
-                        Task {
-                            do {
-                                try await friendRepository.cancelFriendRequest(toUID: user.uid)
-                            } catch {
-                                print("Failed to cancel request: \(error)")
+                    switch relationshipStatus {
+                    case .none:
+                        Button {
+                            Task {
+                                isSendingRequest = true
+                                do {
+                                    try await friendRepository.sendFriendRequest(toUID: user.uid)
+                                } catch {
+                                    print("Failed to send request: \(error)")
+                                }
+                                isSendingRequest = false
                             }
+                        } label: {
+                            Text(isSendingRequest ? "Sending..." : "Send Request")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.islandsBlue)
+                                .foregroundColor(.white)
+                                .cornerRadius(16)
                         }
-                    } label: {
-                        Text("Pending")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(.systemGray5))
-                            .foregroundColor(.secondary)
-                            .cornerRadius(16)
-                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-                    }
+                        .disabled(isSendingRequest)
 
-                case .requestReceived:
-                    HStack(spacing: 16) {
+                    case .requestSent:
                         Button {
                             Task {
                                 do {
-                                    let requests = try await friendRepository.fetchIncomingRequests()
-                                    if let request = requests.first(where: { $0.senderUid == user.uid }) {
-                                        try await friendRepository.acceptRequest(request)
-                                    }
+                                    try await friendRepository.cancelFriendRequest(toUID: user.uid)
                                 } catch {
-                                    print("Failed to accept request: \(error)")
+                                    print("Failed to cancel request: \(error)")
                                 }
                             }
                         } label: {
-                            Text("Accept")
+                            Text("Pending")
                                 .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color(.systemGray5))
-                                .foregroundColor(IslandsBlue)
+                                .foregroundColor(.secondary)
                                 .cornerRadius(16)
                         }
 
-                        Button {
-                            Task {
-                                do {
-                                    let requests = try await friendRepository.fetchIncomingRequests()
-                                    if let request = requests.first(where: { $0.senderUid == user.uid }) {
-                                        try await friendRepository.declineRequest(request)
+                    case .requestReceived:
+                        HStack(spacing: 12) {
+                            Button {
+                                Task {
+                                    do {
+                                        let requests = try await friendRepository.fetchIncomingRequests()
+                                        if let request = requests.first(where: { $0.senderUid == user.uid }) {
+                                            try await friendRepository.acceptRequest(request)
+                                        }
+                                    } catch {
+                                        print("Failed to accept request: \(error)")
                                     }
-                                } catch {
-                                    print("Failed to decline request: \(error)")
                                 }
+                            } label: {
+                                Text("Accept")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color(.systemGray5))
+                                    .foregroundColor(Color.islandsBlue)
+                                    .cornerRadius(16)
                             }
+
+                            Button {
+                                Task {
+                                    do {
+                                        let requests = try await friendRepository.fetchIncomingRequests()
+                                        if let request = requests.first(where: { $0.senderUid == user.uid }) {
+                                            try await friendRepository.declineRequest(request)
+                                        }
+                                    } catch {
+                                        print("Failed to decline request: \(error)")
+                                    }
+                                }
+                            } label: {
+                                Text("Decline")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.red.opacity(0.12))
+                                    .foregroundColor(.red)
+                                    .cornerRadius(16)
+                            }
+                        }
+
+                    case .friends:
+                        Button {
+                            showUnfriendAlert = true
                         } label: {
-                            Text("Decline")
-                                .frame(maxWidth: .infinity)
+                            Image(systemName: "person.badge.minus")
                                 .padding()
-                                .background(Color.red.opacity(0.12))
+                                .background(Color(.secondarySystemGroupedBackground))
                                 .foregroundColor(.red)
                                 .cornerRadius(16)
                         }
                     }
-                    .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-
-                case .friends:
-                    Button {
-                        showUnfriendAlert = true
-                    } label: {
-                        Text("Unfriend")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.white)
-                            .foregroundColor(.red)
-                            .cornerRadius(16)
-                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                }
+                .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+            }
+        }
+        .background(
+            Group {
+                if let chatThread = chatThread {
+                    NavigationLink(
+                        destination: ChatView(
+                            messageRepository: messageRepository,
+                            friendRepository: friendRepository,
+                            messageThread: chatThread,
+                            authService: authService,
+                            isRequest: isChatRequest
+                        ),
+                        isActive: $navigatingToChat
+                    ) {
+                        EmptyView()
                     }
                 }
             }
+        )
+    }
+
+    private var messageButton: some View {
+        Button {
+            Task {
+                isCreatingThread = true
+                do {
+                    chatThread = try await messageRepository.findOrCreateDirectMessageThread(with: user.uid)
+                    navigatingToChat = true
+                } catch {
+                    print("Failed to start chat: \(error)")
+                }
+                isCreatingThread = false
+            }
+        } label: {
+            HStack {
+                if isCreatingThread {
+                    ProgressView()
+                        .tint(.white)
+                        .padding(.trailing, 4)
+                } else {
+                    Image(systemName: "message.fill")
+                }
+                Text("Message")
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.islandsBlue)
+            .foregroundColor(.white)
+            .cornerRadius(16)
         }
+        .disabled(isCreatingThread)
     }
 
     private var topHeader: some View {
@@ -269,7 +327,7 @@ struct PublicProfileView: View {
         }
         .padding(.horizontal)
         .frame(height: 66)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
     }
 
     private var profileImageSection: some View {
@@ -325,7 +383,7 @@ struct PublicProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(Color.white)
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
@@ -360,6 +418,9 @@ struct PublicProfileView: View {
 }
 
 #Preview {
+    let firestore = FirestoreService()
+    let auth = AuthService(firestoreService: firestore)
+    
     NavigationView {
         PublicProfileView(
             user: UserInfo(
@@ -380,7 +441,9 @@ struct PublicProfileView: View {
             isFriend: true,
             isRequested: false,
             currentUID: "2",
-            friendRepository: FriendRepository(firestoreService: FirestoreService())
+            friendRepository: FriendRepository(firestoreService: firestore),
+            messageRepository: MessageRepository(firestoreService: firestore, authService: auth),
+            authService: auth
         )
     }
 }

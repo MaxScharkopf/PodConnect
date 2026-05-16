@@ -46,7 +46,7 @@ struct ProfileView: View {
     @State private var classesVisibility: VisibilityLevel = .public
     @State private var clubsVisibility: VisibilityLevel = .public
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    
 
     let classes = [
         "COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350",
@@ -153,7 +153,7 @@ struct ProfileView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 23)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
     }
 
     private var profileHeaderSection: some View {
@@ -174,7 +174,7 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
         .padding(.vertical, 24)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
         .clipShape(RoundedRectangle(cornerRadius: 28))
         .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
     }
@@ -308,7 +308,7 @@ struct ProfileView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
-            .background(Color.white)
+            .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(16)
             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
         }
@@ -325,7 +325,7 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
             .padding()
         }
-        .background(Color.white)
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
@@ -359,7 +359,7 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(Color.white)
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
@@ -388,7 +388,7 @@ struct ProfileView: View {
                     .foregroundColor(.gray)
             }
             .padding()
-            .background(Color.white)
+            .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(16)
             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
         }
@@ -412,7 +412,7 @@ struct ProfileView: View {
             }
             .foregroundColor(.primary)
         }
-        .background(Color.white)
+        .background(Color(.secondarySystemGroupedBackground))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
@@ -468,7 +468,7 @@ struct ProfileView: View {
                         .frame(width: 30, height: 30)
                         .overlay(
                             Image(systemName: "camera.fill")
-                                .foregroundColor(IslandsBlue)
+                                .foregroundColor(Color.islandsBlue)
                                 .font(.system(size: 12, weight: .semibold))
                         )
                 }

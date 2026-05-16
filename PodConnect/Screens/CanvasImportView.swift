@@ -11,8 +11,8 @@ import SwiftUI
 struct CanvasImportView: View {
     @EnvironmentObject var viewModel: AssignmentsViewModel
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    
+    
 
     var body: some View {
         ZStack {
@@ -24,7 +24,7 @@ struct CanvasImportView: View {
                     Text("Connect Canvas")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(IslandsBlue)
+                        .foregroundColor(Color.islandsBlue)
 
                     Text("Paste your Canvas calendar feed link to import assignments into PodConnect.")
                         .font(.subheadline)
@@ -49,14 +49,14 @@ struct CanvasImportView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(ChannelClay)
+                        .background(Color.channelClay)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
 
                 if !viewModel.assignments.isEmpty {
                     Text("Imported \(viewModel.assignments.count) assignments")
                         .font(.subheadline)
-                        .foregroundColor(IslandsBlue)
+                        .foregroundColor(Color.islandsBlue)
                 }
 
                 Spacer()

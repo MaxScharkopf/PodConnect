@@ -22,16 +22,16 @@ struct ConnectionsView: View {
     @State private var friendUserIds: Set<String> = []
     @State private var currentUID = ""
     
+    private let messageRepository: MessageRepository
 
     @State private var isSearchMode = false
     @State private var isLoadingConnections = true
     @FocusState private var isSearchFieldFocused: Bool
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
         _viewModel = StateObject(wrappedValue: FriendViewModel(friendRepository: friendRepository))
+        self.messageRepository = MessageRepository(firestoreService: FirestoreService(), authService: authService)
     }
 
     var body: some View {
@@ -128,7 +128,7 @@ struct ConnectionsView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 9)
         .padding(.vertical, 18)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
     }
 
     private var requestsSection: some View {
@@ -142,7 +142,8 @@ struct ConnectionsView: View {
                     destination: RequestProfileLoaderView(
                         senderUid: request.senderUid,
                         friendRepository: viewModel.friendRepository,
-                        currentUID: currentUID
+                        currentUID: currentUID,
+                        authService: authService
                     )
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -159,8 +160,8 @@ struct ConnectionsView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .background(IslandsBlue.opacity(0.12))
-                            .foregroundColor(IslandsBlue)
+                            .background(Color.islandsBlue.opacity(0.12))
+                            .foregroundColor(Color.islandsBlue)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
 
                             Button("Decline") {
@@ -176,7 +177,7 @@ struct ConnectionsView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 24))
                     .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
                 }
@@ -202,7 +203,7 @@ struct ConnectionsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .background(Color.white)
+                .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 24))
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
             } else {
@@ -214,12 +215,14 @@ struct ConnectionsView: View {
                                 isFriend: true,
                                 isRequested: false,
                                 currentUID: currentUID,
-                                friendRepository: viewModel.friendRepository
+                                friendRepository: viewModel.friendRepository,
+                                messageRepository: messageRepository,
+                                authService: authService
                             )
                         ) {
                             UserRowView(user: friend)
                                 .padding()
-                                .background(Color.white)
+                                .background(Color(.secondarySystemGroupedBackground))
                                 .clipShape(Capsule())
                                 .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
                         }
@@ -279,7 +282,7 @@ struct ConnectionsView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white)
+                .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(14)
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
 
@@ -288,7 +291,7 @@ struct ConnectionsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(IslandsBlue)
+                .background(Color.islandsBlue)
                 .foregroundColor(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             }
@@ -327,7 +330,7 @@ struct ConnectionsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .background(Color.white)
+                .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 24))
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
             }
@@ -341,12 +344,14 @@ struct ConnectionsView: View {
                             isFriend: isLiveFriend(user),
                             isRequested: !isLiveFriend(user) && requestedUserIds.contains(user.uid),
                             currentUID: currentUID,
-                            friendRepository: viewModel.friendRepository
+                            friendRepository: viewModel.friendRepository,
+                            messageRepository: messageRepository,
+                            authService: authService
                         )
                     ) {
                         UserRowView(user: user)
                             .padding()
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 24))
                             .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
                     }
@@ -564,7 +569,7 @@ struct UserSearchResultCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
     }
@@ -633,6 +638,7 @@ struct RequestProfileLoaderView: View {
     let senderUid: String
     let friendRepository: FriendRepository
     let currentUID: String
+    let authService: AuthService
 
     @State private var user: UserInfo? = nil
 
@@ -644,7 +650,9 @@ struct RequestProfileLoaderView: View {
                     isFriend: false,
                     isRequested: false,
                     currentUID: currentUID,
-                    friendRepository: friendRepository
+                    friendRepository: friendRepository,
+                    messageRepository: MessageRepository(firestoreService: FirestoreService(), authService: authService),
+                    authService: authService
                 )
             } else {
                 ZStack {

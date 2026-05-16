@@ -7,10 +7,11 @@ import SwiftUI
 import Combine
 
 struct DateTimeCardView: View {
+    @Environment(\.colorScheme) var colorScheme
     @State private var now = Date()
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    
 
     private var dayOfWeek: String {
         now.formatted(.dateTime.weekday(.wide)).uppercased()
@@ -49,9 +50,9 @@ struct DateTimeCardView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 110)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
         .clipShape(RoundedRectangle(cornerRadius: 22))
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .shadow(color: colorScheme == .dark ? .clear : .black.opacity(0.12), radius: 8, x: 0, y: 4)
         .onReceive(timer) { t in now = t }
     }
 }

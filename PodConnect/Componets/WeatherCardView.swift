@@ -40,12 +40,15 @@ private struct HourSlot: Identifiable {
 }
 
 struct WeatherCardView: View {
+    @Environment(\.colorScheme) var colorScheme
     @State private var tempF: Double? = nil
     @State private var weatherCode: Int? = nil
     @State private var nextHours: [HourSlot] = []
     @State private var failed = false
 
-    private let skyBlue = Color(red: 100/255, green: 180/255, blue: 230/255)
+    private var skyBlue: Color {
+        colorScheme == .dark ? Color(red: 40/255, green: 80/255, blue: 120/255) : Color(red: 100/255, green: 180/255, blue: 230/255)
+    }
 
     private var tempString: String {
         guard let tempF else { return "--" }
@@ -105,7 +108,7 @@ struct WeatherCardView: View {
         .frame(height: 120)
         .background(skyBlue)
         .clipShape(RoundedRectangle(cornerRadius: 22))
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .shadow(color: colorScheme == .dark ? .clear : .black.opacity(0.12), radius: 8, x: 0, y: 4)
         .task { await fetchWeather() }
     }
 
