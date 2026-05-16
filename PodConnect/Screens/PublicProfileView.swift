@@ -7,6 +7,9 @@
 
 import Foundation
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
+import CoreLocation
 
 struct PublicProfileView: View {
     let user: UserInfo
@@ -14,13 +17,17 @@ struct PublicProfileView: View {
     let isRequested: Bool
     let currentUID: String
     let friendRepository: FriendRepository
+    let liveLocationRepository: LiveLocationRepository
 
+    @State private var isSharingLocation = false
+    @State private var locationShareError: String?
     @Environment(\.dismiss) private var dismiss
     @State private var showUnfriendAlert = false
     @State private var isSendingRequest = false
     @State private var relationshipStatus: RelationshipStatus = .none
     @State private var isLoadingRelationship = true
     @State private var relationshipListenerTask: Task<Void, Never>?
+    @ObservedObject var locationManager: LocationManager
 
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
@@ -70,6 +77,16 @@ struct PublicProfileView: View {
 
                         if !isOwnProfile {
                             relationshipActionSection
+
+                            if relationshipStatus == .friends || isFriend {
+                                shareLocationButton
+                            }
+
+                            if let locationShareError {
+                                Text(locationShareError)
+                                    .font(.footnote)
+                                    .foregroundColor(.red)
+                            }
                         }
 
                         if shouldShowBio {
@@ -314,6 +331,26 @@ struct PublicProfileView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
     }
+    
+    private var shareLocationButton: some View {
+        Button {
+            Task {
+                if isSharingLocation {
+                    await stopSharingLocation()
+                } else {
+                    await shareMyLocation()
+                }
+            }
+        } label: {
+            Text(isSharingLocation ? "Stop Sharing Location" : "Share My Location")
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(isSharingLocation ? Color.red.opacity(0.12) : IslandsBlue)
+                .foregroundColor(isSharingLocation ? .red : .white)
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+        }
+    }
 
     private func infoCard(title: String, content: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -357,6 +394,47 @@ struct PublicProfileView: View {
             }
         }
     }
+    
+    private func shareMyLocation() async {
+        guard relationshipStatus == .friends || isFriend else { return }
+
+        guard let coordinate = locationManager.userLocation else {
+            locationShareError = "Your location is not available yet."
+            return
+        }
+
+        let ownerUsername = Auth.auth().currentUser?.displayName ?? "Someone"
+
+        let share = LiveLocationShare(
+            id: "\(currentUID)_\(user.uid)",
+            ownerUid: currentUID,
+            ownerUsername: ownerUsername,
+            receiverUid: user.uid,
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            isActive: true,
+            updatedAt: Timestamp(date: Date())
+        )
+
+        do {
+            try await liveLocationRepository.startOrUpdateShare(share)
+            isSharingLocation = true
+        } catch {
+            locationShareError = "Failed to share location."
+        }
+    }
+    
+    private func stopSharingLocation() async {
+        do {
+            try await liveLocationRepository.stopShare(
+                ownerUid: currentUID,
+                receiverUid: user.uid
+            )
+            isSharingLocation = false
+        } catch {
+            locationShareError = "Failed to stop sharing location."
+        }
+    }
 }
 
 #Preview {
@@ -380,7 +458,9 @@ struct PublicProfileView: View {
             isFriend: true,
             isRequested: false,
             currentUID: "2",
-            friendRepository: FriendRepository(firestoreService: FirestoreService())
+            friendRepository: FriendRepository(firestoreService: FirestoreService()),
+            liveLocationRepository: LiveLocationRepository(firestoreService: FirestoreService()),
+            locationManager: LocationManager()
         )
     }
 }
