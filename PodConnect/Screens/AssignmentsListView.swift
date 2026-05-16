@@ -11,6 +11,7 @@ import SwiftUI
 struct AssignmentsListView: View {
     @EnvironmentObject var viewModel: AssignmentsViewModel
     @State private var selectedRange: AssignmentRange = .today
+    @State private var showCanvasHelp = false
 
     
     
@@ -86,6 +87,50 @@ struct AssignmentsListView: View {
         }
         .navigationTitle("Assignments")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showCanvasHelp = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+            }
+        }
+        
+        .sheet(isPresented: $showCanvasHelp) {
+            NavigationStack {
+                VStack(spacing: 16) {
+                    Image(systemName: "questionmark.circle.fill")
+                        .font(.system(size: 42))
+                        .foregroundColor(Color.islandsBlue)
+
+                    Text("How to import Canvas assignments")
+                        .font(.headline)
+
+                    Text("Paste your Canvas calendar link in Profile → Account Settings → Connect Canvas. Once connected, your Canvas assignments will appear here, on Home, and in Calendar.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    NavigationLink {
+                        AccountSettingsView()
+                    } label: {
+                        Text("Open Account Settings")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.islandsBlue)
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    Spacer()
+                }
+                .padding()
+                .navigationTitle("Canvas Help")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
     }
 
     private var emptyState: some View {
