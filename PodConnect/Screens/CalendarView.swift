@@ -187,7 +187,7 @@ struct CalendarTabView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                .tint(islandsBlue)
+                                .tint(Color.islandsBlue)
                             }
                     }
                 }

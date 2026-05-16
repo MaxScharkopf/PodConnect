@@ -56,7 +56,7 @@ struct AssignmentsCardView: View {
                         } label: {
                             Image(systemName: assignment.isCompleted ? "checkmark.circle.fill" : "circle")
                                 .font(.caption)
-                                .foregroundColor(ChannelClay)
+                                .foregroundColor(Color.channelClay)
                         }
                         .buttonStyle(.plain)
 
