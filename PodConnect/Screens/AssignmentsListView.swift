@@ -12,8 +12,8 @@ struct AssignmentsListView: View {
     @EnvironmentObject var viewModel: AssignmentsViewModel
     @State private var selectedRange: AssignmentRange = .today
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    
+    
 
     private var visibleAssignments: [CanvasAssignment] {
         switch selectedRange {
@@ -47,7 +47,7 @@ struct AssignmentsListView: View {
                                     Task { await viewModel.toggleCompleted(assignment) }
                                 } label: {
                                     Image(systemName: assignment.isCompleted ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(ChannelClay)
+                                        .foregroundColor(Color.channelClay)
                                 }
                                 .buttonStyle(.plain)
 
@@ -86,11 +86,11 @@ struct AssignmentsListView: View {
 
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 42))
-                .foregroundColor(IslandsBlue.opacity(0.7))
+                .foregroundColor(Color.islandsBlue.opacity(0.7))
 
             Text("No assignments")
                 .font(.headline)
-                .foregroundColor(IslandsBlue)
+                .foregroundColor(Color.islandsBlue)
 
             Text("Nothing due for this \(selectedRange.title.lowercased()).")
                 .font(.subheadline)

@@ -6,19 +6,11 @@
 import SwiftUI
 
 struct CampusEventCardView: View {
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Spacer()
-                Image(systemName: "party.popper.fill")
-                    .font(.title3)
-                    .foregroundColor(.white.opacity(0.85))
-            }
-
-            Spacer()
-
+         
             Text("NATIONAL DAY")
                 .font(.caption2)
                 .fontWeight(.semibold)
@@ -31,11 +23,20 @@ struct CampusEventCardView: View {
                 .lineLimit(3)
                 .minimumScaleFactor(0.7)
                 .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer()
+            
+            HStack {
+                Spacer()
+                Image(systemName: "party.popper.fill")
+                    .font(.title3)
+                    .foregroundColor(.white.opacity(0.85))
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 110)
-        .background(ChannelClay)
+        .background(Color.channelClay)
         .clipShape(RoundedRectangle(cornerRadius: 22))
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .shadow(color: colorScheme == .dark ? .clear : .black.opacity(0.12), radius: 8, x: 0, y: 4)
     }
 }

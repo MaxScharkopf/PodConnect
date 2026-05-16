@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct AuthView: View {
-    var ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-    var IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    
+    
 
     @State private var isSignUp = false
     @State private var identifier = ""
@@ -42,13 +42,13 @@ struct AuthView: View {
 
     private var appTitle2: AttributedString {
         var result = AttributedString("Connect")
-        result.foregroundColor = ChannelClay
+        result.foregroundColor = Color.channelClay
         return result
     }
 
     var body: some View {
         ZStack {
-            IslandsBlue
+            Color.islandsBlue
                 .ignoresSafeArea()
 
             ScrollView {

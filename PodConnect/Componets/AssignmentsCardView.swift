@@ -10,21 +10,22 @@ import SwiftUI
 
 struct AssignmentsCardView: View {
     @EnvironmentObject var viewModel: AssignmentsViewModel
+    @Environment(\.colorScheme) var colorScheme
     
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-    private let peachBackground = Color(red: 0.99, green: 0.91, blue: 0.85)
+    private var peachBackground: Color {
+        colorScheme == .dark ? Color.channelClay.opacity(0.25) : Color(red: 0.99, green: 0.91, blue: 0.85)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Image(systemName: "doc.text.fill")
-                    .foregroundColor(ChannelClay)
+                    .foregroundColor(Color.channelClay)
 
                 Text("Assignments")
                     .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundColor(ChannelClay)
+                    .foregroundColor(Color.channelClay)
 
                 Spacer()
 
@@ -34,31 +35,52 @@ struct AssignmentsCardView: View {
                     Image(systemName: "chevron.right")
                         .font(.caption)
                         .fontWeight(.bold)
-                        .foregroundColor(ChannelClay.opacity(0.6))
+                        .foregroundColor(Color.channelClay.opacity(0.6))
                 }
             }
 
             Divider()
-                .background(ChannelClay.opacity(0.2))
+                .background(Color.channelClay.opacity(0.2))
 
-            if viewModel.activeTodaysAssignments.isEmpty {
+            if viewModel.todaysAssignments.isEmpty {
                 Text("No assignments today")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                ForEach(viewModel.activeTodaysAssignments.prefix(3)) { assignment in
-                    Text(assignment.title)
-                        .font(.caption)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundColor(.primary)
+                ForEach(viewModel.todaysAssignments.prefix(3)) { assignment in
+                    HStack(spacing: 6) {
+                        Button {
+                            Task {
+                                await viewModel.toggleCompleted(assignment)
+                            }
+                        } label: {
+                            Image(systemName: assignment.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(.caption)
+                                .foregroundColor(Color.channelClay)
+                        }
+                        .buttonStyle(.plain)
+
+                        Text(assignment.title)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .strikethrough(assignment.isCompleted)
+                            .foregroundColor(assignment.isCompleted ? .secondary : .primary)
+                    }
                 }
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity)
-        .background(peachBackground)
+        .background(
+            ZStack {
+                if colorScheme == .dark {
+                    Color(.secondarySystemGroupedBackground)
+                }
+                peachBackground
+            }
+        )
         .clipShape(RoundedRectangle(cornerRadius: 22))
-        .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 4)
+        .shadow(color: colorScheme == .dark ? .clear : .black.opacity(0.07), radius: 8, x: 0, y: 4)
     }
 }

@@ -8,7 +8,7 @@ import SwiftUI
 struct EventsCardView: View {
     @Binding var selectedTab: Int
     var userEvents: [UserEvent] = []
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    @Environment(\.colorScheme) var colorScheme
 
     private struct EventRow: Identifiable {
         let id = UUID()
@@ -25,12 +25,34 @@ struct EventsCardView: View {
         let now = Date()
 
         let school = schoolEvents
-            .filter { $0.date >= now && $0.date < tomorrow }
-            .map { EventRow(title: $0.title, startTime: $0.date, endTime: $0.date.addingTimeInterval($0.duration), icon: schoolIcon(for: $0.category)) }
+            .filter { event in
+                let end = event.date.addingTimeInterval(event.duration)
+                return end >= now && event.date < tomorrow
+            }
+            .map {
+                EventRow(
+                    title: $0.title,
+                    startTime: $0.date,
+                    endTime: $0.date.addingTimeInterval($0.duration),
+                    icon: schoolIcon(for: $0.category)
+                )
+            }
 
         let personal = userEvents
-            .filter { $0.startDate >= now && $0.startDate < tomorrow }
-            .map { EventRow(title: $0.title, startTime: $0.startDate, endTime: $0.endDate, icon: userIcon(for: $0.category)) }
+            .filter { event in
+                event.category != .academic &&
+                event.endDate >= now &&
+                event.startDate >= today &&
+                event.startDate < tomorrow
+            }
+            .map {
+                EventRow(
+                    title: $0.title,
+                    startTime: $0.startDate,
+                    endTime: $0.endDate,
+                    icon: userIcon(for: $0.category)
+                )
+            }
 
         return Array((personal + school).sorted { $0.startTime < $1.startTime }.prefix(3))
     }
@@ -61,7 +83,7 @@ struct EventsCardView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: "calendar")
-                    .foregroundColor(IslandsBlue)
+                    .foregroundColor(Color.islandsBlue)
                 Text("Events")
                     .font(.headline)
                     .fontWeight(.bold)
@@ -71,7 +93,7 @@ struct EventsCardView: View {
                 } label: {
                     Text("Today")
                         .font(.subheadline)
-                        .foregroundColor(IslandsBlue)
+                        .foregroundColor(Color.islandsBlue)
                 }
             }
 
@@ -86,7 +108,7 @@ struct EventsCardView: View {
                 ForEach(todayRows) { row in
                     HStack(spacing: 12) {
                         Image(systemName: row.icon)
-                            .foregroundColor(IslandsBlue)
+                            .foregroundColor(Color.islandsBlue)
                             .frame(width: 24)
 
                         VStack(alignment: .leading, spacing: 1) {
@@ -108,8 +130,8 @@ struct EventsCardView: View {
             }
         }
         .padding(16)
-        .background(Color(uiColor: .systemBackground))
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.07), radius: 6, x: 0, y: 3)
+        .shadow(color: colorScheme == .dark ? .clear : .black.opacity(0.07), radius: 6, x: 0, y: 3)
     }
 }

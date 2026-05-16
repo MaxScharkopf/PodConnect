@@ -83,8 +83,11 @@ final class FirestoreService {
     }
     
     // Save document to firestore with auto generated ID after encoding them from the app usage data types
-    func saveDocument<T: Encodable>(path: String, data: T) async throws {
-        try db.collection(path).document().setData(from: data)
+    @discardableResult
+    func saveDocument<T: Encodable>(path: String, data: T) async throws -> String {
+        let docRef = db.collection(path).document()
+        try docRef.setData(from: data)
+        return docRef.documentID
     }
     
     // Save document with specific ID to firestore after encoding them from the app usage data types
@@ -95,6 +98,11 @@ final class FirestoreService {
     // Update document with specific ID after encoding them from the app usage data types
     func updateDocument<T: Encodable>(path: String, documentId: String, data: T) async throws {
         try db.collection(path).document(documentId).setData(from: data, merge: true)
+    }
+    
+    // Update specific fields in a document
+    func updateFields(path: String, documentId: String, fields: [String: Any]) async throws {
+        try await db.collection(path).document(documentId).updateData(fields)
     }
     
     // Remove a specific document from firestore

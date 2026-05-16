@@ -28,6 +28,12 @@ struct ConnectionsView: View {
     
     private let liveLocationRepository: LiveLocationRepository
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    
+    private let messageRepository: MessageRepository
+
+    @State private var isSearchMode = false
+    @State private var isLoadingConnections = true
+    @FocusState private var isSearchFieldFocused: Bool
 
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
@@ -35,6 +41,7 @@ struct ConnectionsView: View {
         self.liveLocationRepository = LiveLocationRepository(
             firestoreService: FirestoreService()
         )
+        self.messageRepository = MessageRepository(firestoreService: FirestoreService(), authService: authService)
     }
 
     var body: some View {
@@ -131,7 +138,7 @@ struct ConnectionsView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 9)
         .padding(.vertical, 18)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
     }
 
     private var requestsSection: some View {
@@ -149,6 +156,7 @@ struct ConnectionsView: View {
                         liveLocationRepository: liveLocationRepository,
                         currentUsername: authService.userInfo?.username ?? "Someone",
                         locationManager: locationManager
+                        authService: authService
                     )
                 ) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -165,8 +173,8 @@ struct ConnectionsView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .background(IslandsBlue.opacity(0.12))
-                            .foregroundColor(IslandsBlue)
+                            .background(Color.islandsBlue.opacity(0.12))
+                            .foregroundColor(Color.islandsBlue)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
 
                             Button("Decline") {
@@ -182,7 +190,7 @@ struct ConnectionsView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 24))
                     .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
                 }
@@ -208,7 +216,7 @@ struct ConnectionsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .background(Color.white)
+                .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 24))
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
             } else {
@@ -224,11 +232,13 @@ struct ConnectionsView: View {
                                 liveLocationRepository: liveLocationRepository,
                                 currentUsername: authService.userInfo?.username ?? "Someone",
                                 locationManager: locationManager
+                                messageRepository: messageRepository,
+                                authService: authService
                             )
                         ) {
                             UserRowView(user: friend)
                                 .padding()
-                                .background(Color.white)
+                                .background(Color(.secondarySystemGroupedBackground))
                                 .clipShape(Capsule())
                                 .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
                         }
@@ -288,7 +298,7 @@ struct ConnectionsView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.white)
+                .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(14)
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
 
@@ -297,7 +307,7 @@ struct ConnectionsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(IslandsBlue)
+                .background(Color.islandsBlue)
                 .foregroundColor(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             }
@@ -336,7 +346,7 @@ struct ConnectionsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .background(Color.white)
+                .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 24))
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
             }
@@ -354,11 +364,13 @@ struct ConnectionsView: View {
                             liveLocationRepository: liveLocationRepository,
                             currentUsername: authService.userInfo?.username ?? "Someone",
                             locationManager: locationManager
+                            messageRepository: messageRepository,
+                            authService: authService
                         )
                     ) {
                         UserRowView(user: user)
                             .padding()
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 24))
                             .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
                     }
@@ -576,7 +588,7 @@ struct UserSearchResultCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
     }
@@ -649,6 +661,8 @@ struct RequestProfileLoaderView: View {
     let currentUsername: String
     
     @ObservedObject var locationManager: LocationManager
+    let authService: AuthService
+
     @State private var user: UserInfo? = nil
 
     var body: some View {
@@ -663,6 +677,8 @@ struct RequestProfileLoaderView: View {
                     liveLocationRepository: liveLocationRepository,
                     currentUsername: currentUsername,
                     locationManager: locationManager
+                    messageRepository: MessageRepository(firestoreService: FirestoreService(), authService: authService),
+                    authService: authService
                 )
             } else {
                 ZStack {

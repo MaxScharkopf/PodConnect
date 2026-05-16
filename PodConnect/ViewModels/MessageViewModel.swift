@@ -125,16 +125,25 @@ class MessageViewModel: ObservableObject {
         }
     }
     
-    func createMessageThread(threadName: String, participants: [String]) async {
+    @Published var duplicateThread: MessageThread?
+
+    func createMessageThread(threadName: String, participants: [String]) async -> Bool {
         isLoading = true
+        duplicateThread = nil
         
         do {
             try await messageRepository.createMessageThread(threadName: threadName, participants: participants)
             await fetchData()
             errorMessage = nil
+            return true
         }catch {
+            let nsError = error as NSError
+            if nsError.code == 409 {
+                self.duplicateThread = nsError.userInfo["existingThread"] as? MessageThread
+            }
             errorMessage = error.localizedDescription
             isLoading = false
+            return false
         }
     }
 
