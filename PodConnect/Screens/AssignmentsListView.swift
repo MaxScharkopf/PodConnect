@@ -22,6 +22,14 @@ struct AssignmentsListView: View {
         case .thirtyDays: return viewModel.next30DaysAssignments
         }
     }
+    
+    private func dueDateText(for assignment: CanvasAssignment) -> String {
+        if selectedRange == .today {
+            return assignment.dueDate.formatted(.dateTime.hour().minute())
+        } else {
+            return assignment.dueDate.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -58,7 +66,7 @@ struct AssignmentsListView: View {
                                         .strikethrough(assignment.isCompleted)
                                         .foregroundColor(assignment.isCompleted ? .secondary : .primary)
 
-                                    Text(assignment.dueDate, style: .time)
+                                    Text(dueDateText(for: assignment))
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
