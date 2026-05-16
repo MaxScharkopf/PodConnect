@@ -31,10 +31,6 @@ struct ConnectionsView: View {
     
     private let messageRepository: MessageRepository
 
-    @State private var isSearchMode = false
-    @State private var isLoadingConnections = true
-    @FocusState private var isSearchFieldFocused: Bool
-
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
         _viewModel = StateObject(wrappedValue: FriendViewModel(friendRepository: friendRepository))
@@ -155,7 +151,7 @@ struct ConnectionsView: View {
                         currentUID: currentUID,
                         liveLocationRepository: liveLocationRepository,
                         currentUsername: authService.userInfo?.username ?? "Someone",
-                        locationManager: locationManager
+                        locationManager: locationManager,
                         authService: authService
                     )
                 ) {
@@ -231,9 +227,9 @@ struct ConnectionsView: View {
                                 friendRepository: viewModel.friendRepository,
                                 liveLocationRepository: liveLocationRepository,
                                 currentUsername: authService.userInfo?.username ?? "Someone",
-                                locationManager: locationManager
                                 messageRepository: messageRepository,
-                                authService: authService
+                                authService: authService,
+                                locationManager: locationManager
                             )
                         ) {
                             UserRowView(user: friend)
@@ -363,9 +359,9 @@ struct ConnectionsView: View {
                             friendRepository: viewModel.friendRepository,
                             liveLocationRepository: liveLocationRepository,
                             currentUsername: authService.userInfo?.username ?? "Someone",
-                            locationManager: locationManager
                             messageRepository: messageRepository,
-                            authService: authService
+                            authService: authService,
+                            locationManager: locationManager
                         )
                     ) {
                         UserRowView(user: user)
@@ -676,9 +672,9 @@ struct RequestProfileLoaderView: View {
                     friendRepository: friendRepository,
                     liveLocationRepository: liveLocationRepository,
                     currentUsername: currentUsername,
-                    locationManager: locationManager
                     messageRepository: MessageRepository(firestoreService: FirestoreService(), authService: authService),
-                    authService: authService
+                    authService: authService,
+                    locationManager: locationManager
                 )
             } else {
                 ZStack {

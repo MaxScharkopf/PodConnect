@@ -404,7 +404,7 @@ struct PublicProfileView: View {
             Text(isSharingLocation ? "Stop Sharing Location" : "Share My Location")
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isSharingLocation ? Color.red.opacity(0.12) : IslandsBlue)
+                .background(isSharingLocation ? Color.red.opacity(0.12) : Color.islandsBlue)
                 .foregroundColor(isSharingLocation ? .red : .white)
                 .cornerRadius(16)
                 .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
@@ -523,9 +523,9 @@ struct PublicProfileView: View {
             friendRepository: FriendRepository(firestoreService: FirestoreService()),
             liveLocationRepository: LiveLocationRepository(firestoreService: FirestoreService()),
             currentUsername: "someone",
-            locationManager: LocationManager()
             messageRepository: MessageRepository(firestoreService: firestore, authService: auth),
-            authService: auth
+            authService: auth,
+            locationManager: LocationManager()
         )
     }
 }
