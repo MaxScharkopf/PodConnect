@@ -18,6 +18,7 @@ struct PublicProfileView: View {
     let currentUID: String
     let friendRepository: FriendRepository
     let liveLocationRepository: LiveLocationRepository
+    let currentUsername: String
 
     @State private var isSharingLocation = false
     @State private var locationShareError: String?
@@ -403,7 +404,7 @@ struct PublicProfileView: View {
             return
         }
 
-        let ownerUsername = Auth.auth().currentUser?.displayName ?? "Someone"
+        let ownerUsername = currentUsername
 
         let share = LiveLocationShare(
             id: "\(currentUID)_\(user.uid)",
@@ -460,6 +461,7 @@ struct PublicProfileView: View {
             currentUID: "2",
             friendRepository: FriendRepository(firestoreService: FirestoreService()),
             liveLocationRepository: LiveLocationRepository(firestoreService: FirestoreService()),
+            currentUsername: "someone",
             locationManager: LocationManager()
         )
     }

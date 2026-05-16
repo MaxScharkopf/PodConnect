@@ -22,12 +22,10 @@ struct ConnectionsView: View {
     @State private var requestedUserIds: Set<String> = []
     @State private var friendUserIds: Set<String> = []
     @State private var currentUID = ""
-    
-
     @State private var isSearchMode = false
     @State private var isLoadingConnections = true
     @FocusState private var isSearchFieldFocused: Bool
-
+    
     private let liveLocationRepository: LiveLocationRepository
     private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
 
@@ -149,6 +147,7 @@ struct ConnectionsView: View {
                         friendRepository: viewModel.friendRepository,
                         currentUID: currentUID,
                         liveLocationRepository: liveLocationRepository,
+                        currentUsername: authService.userInfo?.username ?? "Someone",
                         locationManager: locationManager
                     )
                 ) {
@@ -223,6 +222,7 @@ struct ConnectionsView: View {
                                 currentUID: currentUID,
                                 friendRepository: viewModel.friendRepository,
                                 liveLocationRepository: liveLocationRepository,
+                                currentUsername: authService.userInfo?.username ?? "Someone",
                                 locationManager: locationManager
                             )
                         ) {
@@ -352,6 +352,7 @@ struct ConnectionsView: View {
                             currentUID: currentUID,
                             friendRepository: viewModel.friendRepository,
                             liveLocationRepository: liveLocationRepository,
+                            currentUsername: authService.userInfo?.username ?? "Someone",
                             locationManager: locationManager
                         )
                     ) {
@@ -645,6 +646,7 @@ struct RequestProfileLoaderView: View {
     let friendRepository: FriendRepository
     let currentUID: String
     let liveLocationRepository: LiveLocationRepository
+    let currentUsername: String
     
     @ObservedObject var locationManager: LocationManager
     @State private var user: UserInfo? = nil
@@ -659,6 +661,7 @@ struct RequestProfileLoaderView: View {
                     currentUID: currentUID,
                     friendRepository: friendRepository,
                     liveLocationRepository: liveLocationRepository,
+                    currentUsername: currentUsername,
                     locationManager: locationManager
                 )
             } else {
