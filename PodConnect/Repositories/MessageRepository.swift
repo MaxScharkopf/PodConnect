@@ -89,10 +89,9 @@ final class MessageRepository {
         
         let now = Date()
         let message = Message(content: messageContent, sender: userId, timestamp: now)
-        
-        try await firestoreService.saveDocument(path: "messages/\(threadId)/messages", data: message)
-        
-        // Update the thread's last message timestamp and the sender's last read timestamp
+
+        // Update thread metadata (including sender's lastReadAt) BEFORE saving the message
+        // so the real-time listener never sees the sender's own message as unread
         if let thread: MessageThread = try await firestoreService.fetchDocument(path: "messages", documentId: threadId) {
             var updatedThread = thread
             updatedThread.lastMessageAt = now
@@ -101,6 +100,8 @@ final class MessageRepository {
             updatedThread.lastReadAt = lastReadAt
             try await firestoreService.updateDocument(path: "messages", documentId: threadId, data: updatedThread)
         }
+
+        try await firestoreService.saveDocument(path: "messages/\(threadId)/messages", data: message)
     }
 
     func markThreadAsRead(threadId: String) async throws {
@@ -150,18 +151,71 @@ final class MessageRepository {
             collection.whereField("participants", arrayContains: userId)
         }
     }
+
+    func messageRequestsStream() -> AsyncThrowingStream<[MessageThread], Error> {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            return AsyncThrowingStream { continuation in
+                continuation.yield([])
+                continuation.finish()
+            }
+        }
+
+        return firestoreService.createCollectionListener(path: "messages") { collection in
+            collection.whereField("pendingParticipants", arrayContains: userId)
+        }
+    }
     
+    private func findExistingDirectMessageThread(with otherUserId: String) async throws -> MessageThread? {
+        guard let currentUserId = authService.userInfo?.id else { return nil }
+        
+        // Fetch threads where current user is a participant
+        let activeThreads: [MessageThread] = try await firestoreService.fetchCollection(path: "messages") { collection in
+            collection.whereField("participants", arrayContains: currentUserId)
+        }
+        
+        // Fetch threads where current user is a pending participant
+        let pendingThreads: [MessageThread] = try await firestoreService.fetchCollection(path: "messages") { collection in
+            collection.whereField("pendingParticipants", arrayContains: currentUserId)
+        }
+        
+        let allThreads = activeThreads + pendingThreads
+        
+        // Find a 1:1 thread with the target user
+        return allThreads.first(where: { thread in
+            let allParticipants = thread.participants + thread.pendingParticipants
+            return allParticipants.count == 2 && allParticipants.contains(otherUserId) && thread.threadName.isEmpty
+        })
+    }
+
     func createMessageThread(threadName: String, participants: [String]) async throws {
         // Check if the user is logged in
         guard let userId = authService.userInfo?.id else {
             return
         }
         
+        let otherParticipants = participants.filter { $0 != userId }
+        
+        // Prevent duplicate 1:1 threads
+        if threadName.isEmpty && otherParticipants.count == 1 {
+            if let existing = try await findExistingDirectMessageThread(with: otherParticipants[0]) {
+                var userInfo: [String: Any] = [NSLocalizedDescriptionKey: "A direct message thread with this user already exists."]
+                userInfo["existingThread"] = existing
+                throw NSError(domain: "Message", code: 409, userInfo: userInfo)
+            }
+        }
+        
         // The creator is an active participant, everyone else starts as pending
         let activeParticipants = [userId]
-        let pendingParticipants = participants.filter { $0 != userId }
+        let pendingParticipants = otherParticipants
         
-        let thread = MessageThread(participants: activeParticipants, pendingParticipants: pendingParticipants, threadName: threadName, lastMessageAt: Date())
+        let thread = MessageThread(
+            participants: activeParticipants,
+            pendingParticipants: pendingParticipants,
+            threadName: threadName,
+            lastMessageAt: Date(),
+            lastReadAt: nil,
+            ownerId: userId
+        )
         
         try await firestoreService.saveDocument(path: "messages", data: thread)
     }
@@ -196,23 +250,62 @@ final class MessageRepository {
         }
     }
     
-    func updateMessageThread(threadId: String, threadName: String, participants: [String], pendingParticipants: [String]) async throws {
-        // Check if the user is logged in
-        guard let userId = authService.userInfo?.id else {
-            return
-        }
-        
-        let thread = MessageThread(participants: participants, pendingParticipants: pendingParticipants, threadName: threadName)
+    func updateMessageThread(threadId: String, threadName: String, participants: [String], pendingParticipants: [String], ownerId: String) async throws {
+        let thread = MessageThread(
+            participants: participants,
+            pendingParticipants: pendingParticipants,
+            threadName: threadName,
+            lastMessageAt: nil,
+            lastReadAt: nil,
+            ownerId: ownerId
+        )
         
         try await firestoreService.updateDocument(path: "messages", documentId: threadId, data: thread)
     }
 
+    func deleteMessage(threadId: String, messageId: String) async throws {
+        try await firestoreService.removeDocument(path: "messages/\(threadId)/messages", documentId: messageId)
+    }
+
+    func updateMessage(threadId: String, messageId: String, content: String) async throws {
+        let updateData: [String: Any] = [
+            "content": content,
+            "isEdited": true
+        ]
+        try await firestoreService.updateFields(path: "messages/\(threadId)/messages", documentId: messageId, fields: updateData)
+    }
+
     func deleteMessageThread(threadId: String) async throws {
-        // Check if the user is logged in
-        guard let userId = authService.userInfo?.id else {
-            return
+        try await firestoreService.removeDocument(path: "messages", documentId: threadId)
+    }
+
+    func findOrCreateDirectMessageThread(with userId: String) async throws -> MessageThread {
+        guard let currentUserId = authService.userInfo?.id else {
+            throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
         }
         
-        try await firestoreService.removeDocument(path: "messages", documentId: threadId)
+        // Use helper to find existing DM
+        if let directThread = try await findExistingDirectMessageThread(with: userId) {
+            return directThread
+        }
+        
+        // If not found, create a new one
+        let now = Date()
+        let isFriend = authService.userInfo?.friends.contains(userId) ?? false
+        
+        let thread = MessageThread(
+            participants: isFriend ? [currentUserId, userId] : [currentUserId],
+            pendingParticipants: isFriend ? [] : [userId],
+            threadName: "",
+            lastMessageAt: now,
+            lastReadAt: [currentUserId: now],
+            ownerId: currentUserId
+        )
+        
+        let newId = try await firestoreService.saveDocument(path: "messages", data: thread)
+        
+        var createdThread = thread
+        createdThread.id = newId
+        return createdThread
     }
 }

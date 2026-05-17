@@ -8,8 +8,6 @@
 import SwiftUI
  
 struct MessageView: View {
-    var ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-    var IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     // Recieve necessary services
     @ObservedObject var authService: AuthService
     private var firestoreService: FirestoreService
@@ -18,6 +16,8 @@ struct MessageView: View {
     @StateObject private var viewModel: MessageViewModel
 
     @State private var showThreadPopup = false
+    @State private var navigatingToThread: MessageThread?
+    @State private var isNavigatingToThread = false
 
     init(authService: AuthService, firestoreService: FirestoreService) {
         self.authService = authService
@@ -32,7 +32,8 @@ struct MessageView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(.systemBackground).ignoresSafeArea()
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
                 
                 VStack {
                     HStack{
@@ -54,13 +55,13 @@ struct MessageView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(IslandsBlue)
+                    .background(Color.islandsBlue)
                     
                     Spacer()
                     
                     ScrollView {
                         if !viewModel.messageRequests.isEmpty {
-                            VStack(alignment: .leading) {
+                            VStack(alignment: .leading, spacing: 12) {
                                 Text("Message Requests")
                                     .font(.headline)
                                     .padding(.horizontal)
@@ -69,38 +70,26 @@ struct MessageView: View {
                                 ForEach(viewModel.messageRequests) { thread in
                                     NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService, isRequest: true)) {
                                         ZStack {
-                                            
-                                            Rectangle()
-                                                .fill(Color.white.opacity(0.8))
-                                                .frame(maxWidth: 400, maxHeight: 55)
-                                                .clipShape(Capsule())
-                                                .shadow(color: Color.black.opacity(0.1), radius: 5)
+                                            RoundedRectangle(cornerRadius: 18)
+                                                .fill(Color(.secondarySystemGroupedBackground))
+                                                .frame(maxWidth: 400, minHeight: 65)
+                                                .shadow(color: Color.black.opacity(0.07), radius: 6, y: 3)
                                                 .padding(.horizontal)
 
-                                            HStack {
-                                                if thread.threadName.isEmpty {
-                                                    Text(viewModel.getParticipantSummary(for: thread))
-                                                        .padding(20)
+                                            HStack(spacing: 12) {
+                                                ThreadAvatarView(participants: thread.participants + thread.pendingParticipants, users: viewModel.users, currentUserId: authService.userInfo?.uid ?? "")
+                                                    .padding(.leading, 25)
+
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(thread.threadName.isEmpty ? viewModel.getParticipantSummary(for: thread) : thread.threadName)
                                                         .font(.headline)
                                                         .foregroundStyle(.primary)
                                                         .lineLimit(1)
-                                                        .padding(.leading)
-                                                }else {
-                                                    VStack(alignment: .leading, spacing: 0) {
-                                                        Text(thread.threadName)
-                                                            .font(.headline)
-                                                            .foregroundStyle(.primary)
-                                                            .lineLimit(1)
-                                                            .padding(.leading)
-                                                        
-                                                        Text(viewModel.getParticipantSummary(for: thread))
-                                                            .font(.caption2)
-                                                            .foregroundStyle(.secondary)
-                                                            .lineLimit(1)
-                                                            .padding(.leading)
-                                                            .padding(.trailing, 32)
-                                                    }
-                                                    .padding(20)
+                                                    
+                                                    Text(thread.threadName.isEmpty ? ((thread.participants.count + thread.pendingParticipants.count) > 2 ? "Group Chat" : "Direct Message") : viewModel.getParticipantSummary(for: thread))
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
                                                 }
 
                                                 Spacer()
@@ -115,8 +104,9 @@ struct MessageView: View {
                                                 }
                                                 
                                                 Text("New")
-                                                    .font(.caption)
-                                                    .padding(6)
+                                                    .font(.caption2.bold())
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
                                                     .background(.blue)
                                                     .foregroundColor(.white)
                                                     .clipShape(Capsule())
@@ -130,7 +120,7 @@ struct MessageView: View {
                             Divider().padding()
                         }
 
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 12) {
                             if !viewModel.messageThreads.isEmpty {
                                 Text("Messages")
                                     .font(.headline)
@@ -141,37 +131,26 @@ struct MessageView: View {
                             ForEach(viewModel.messageThreads) { thread in
                                 NavigationLink(destination: ChatView(messageRepository: self.messageRepository, friendRepository: self.friendRepository, messageThread: thread, authService: self.authService)) {
                                     ZStack {
-                                        Rectangle()
-                                            .fill(.white)
-                                            .frame(maxWidth: 400, maxHeight: 55)
-                                            .clipShape(Capsule())
-                                            .shadow(color: Color.black.opacity(0.2), radius: 5)
+                                        RoundedRectangle(cornerRadius: 18)
+                                            .fill(Color(.secondarySystemGroupedBackground))
+                                            .frame(maxWidth: 400, minHeight: 65)
+                                            .shadow(color: Color.black.opacity(0.07), radius: 6, y: 3)
                                             .padding(.horizontal)
 
-                                        HStack {
-                                            if thread.threadName.isEmpty {
-                                                Text(viewModel.getParticipantSummary(for: thread))
-                                                    .padding(20)
+                                        HStack(spacing: 12) {
+                                            ThreadAvatarView(participants: thread.participants + thread.pendingParticipants, users: viewModel.users, currentUserId: authService.userInfo?.uid ?? "")
+                                                .padding(.leading, 25)
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(thread.threadName.isEmpty ? viewModel.getParticipantSummary(for: thread) : thread.threadName)
                                                     .font(.headline)
                                                     .foregroundStyle(.primary)
                                                     .lineLimit(1)
-                                                    .padding(.leading)
-                                            }else {
-                                                VStack(alignment: .leading, spacing: 0) {
-                                                    Text(thread.threadName)
-                                                        .font(.headline)
-                                                        .foregroundStyle(.primary)
-                                                        .lineLimit(1)
-                                                        .padding(.leading)
-                                                    
-                                                    Text(viewModel.getParticipantSummary(for: thread))
-                                                        .font(.caption2)
-                                                        .foregroundStyle(.secondary)
-                                                        .lineLimit(1)
-                                                        .padding(.leading)
-                                                        .padding(.trailing, 32)
-                                                }
-                                                .padding(20)
+                                                
+                                                Text(thread.threadName.isEmpty ? ((thread.participants.count + thread.pendingParticipants.count) > 2 ? "Group Chat" : "Direct Message") : viewModel.getParticipantSummary(for: thread))
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
                                             }
 
                                             Spacer()
@@ -191,6 +170,7 @@ struct MessageView: View {
                                 .buttonStyle(.plain)
                             }
                         }
+                        .padding(.bottom, 100) // Reduced padding to eliminate the gap
                     }
                     .onAppear() {
                         Task {
@@ -200,11 +180,29 @@ struct MessageView: View {
                     .refreshable {
                         await viewModel.fetchData()
                     }
-                    
-                    Spacer()
                 }
+                .background(
+                    Group {
+                        if let thread = navigatingToThread {
+                            NavigationLink(
+                                destination: ChatView(
+                                    messageRepository: messageRepository,
+                                    friendRepository: friendRepository,
+                                    messageThread: thread,
+                                    authService: authService
+                                ),
+                                isActive: $isNavigatingToThread
+                            ) {
+                                EmptyView()
+                            }
+                        }
+                    }
+                )
                 .popover(isPresented: $showThreadPopup) {
-                    ThreadCreationPopup(authService: self.authService, friendRepository: self.friendRepository, viewModel: viewModel)
+                    ThreadCreationPopup(authService: self.authService, friendRepository: self.friendRepository, viewModel: viewModel) { thread in
+                        navigatingToThread = thread
+                        isNavigatingToThread = true
+                    }
                 }
                 .alert("Error", isPresented: Binding(
                     get: { viewModel.errorMessage != nil },
@@ -217,7 +215,7 @@ struct MessageView: View {
                 VStack(){
                     Spacer()
                     Rectangle()
-                        .fill(IslandsBlue)
+                        .fill(Color.islandsBlue)
                         .frame(maxWidth: .infinity, maxHeight: 120)
                 }
                 .ignoresSafeArea()
@@ -225,17 +223,89 @@ struct MessageView: View {
         }
     }
 }
+
+struct AvatarView: View {
+    let urlString: String?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let urlString,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .empty:
+                        ProgressView()
+                    default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "person.fill")
+            .resizable()
+            .scaledToFit()
+            .padding(size * 0.25)
+            .foregroundColor(.white)
+            .background(Color.gray)
+    }
+}
+
+struct ThreadAvatarView: View {
+    let participants: [String]
+    let users: [String: UserInfo]
+    let currentUserId: String
+    
+    var otherParticipants: [String] {
+        participants.filter { $0 != currentUserId }
+    }
+    
+    var body: some View {
+        let others = otherParticipants
+        
+        if others.count >= 2 {
+            // Group Chat: Show 2 overlapping avatars
+            ZStack(alignment: .bottomTrailing) {
+                AvatarView(urlString: users[others[0]]?.profileImageURL, size: 30)
+                    .offset(x: -8, y: -8)
+                    .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2).offset(x: -8, y: -8))
+                
+                AvatarView(urlString: users[others[1]]?.profileImageURL, size: 30)
+                    .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2))
+            }
+            .frame(width: 44, height: 44)
+        } else if let firstOther = others.first {
+            // 1:1 DM: Show single large avatar
+            AvatarView(urlString: users[firstOther]?.profileImageURL, size: 44)
+        } else {
+            // No other participants (e.g., self-chat or loading): Show default
+            AvatarView(urlString: nil, size: 44)
+        }
+    }
+}
  
-// Popover for creating a new message thread with a name and participants
 struct ThreadCreationPopup: View {
     var authService: AuthService
     var friendRepository: FriendRepository
     var viewModel: MessageViewModel
+    var onNavigateToThread: (MessageThread) -> Void
 
     @State private var participants: [String] = []
     @State private var users: [String: UserInfo] = [:]
     @State private var newThreadName = ""
     @State private var showUserSearch = false
+    @State private var localErrorMessage: String?
     
     @Environment(\.dismiss) var dismiss
     
@@ -334,12 +404,19 @@ struct ThreadCreationPopup: View {
             
             Button(action: {
                 if let userInfo = authService.userInfo {
-                    // Include the current user as a participant before creating the thread
-                    participants.append(userInfo.uid)
+                    var finalParticipants = participants
+                    if !finalParticipants.contains(userInfo.uid) {
+                        finalParticipants.append(userInfo.uid)
+                    }
                     
                     Task {
-                        await viewModel.createMessageThread(threadName: newThreadName, participants: participants)
-                        reset()
+                        let success = await viewModel.createMessageThread(threadName: newThreadName, participants: finalParticipants)
+                        if success {
+                            reset()
+                        } else {
+                            localErrorMessage = viewModel.errorMessage
+                            viewModel.errorMessage = nil // Clear global to avoid double alert
+                        }
                     }
                 }
             }) {
@@ -366,12 +443,22 @@ struct ThreadCreationPopup: View {
             }
         }
         .alert("Error", isPresented: Binding(
-            get: { viewModel.errorMessage != nil },
-            set: { _ in viewModel.errorMessage = nil }
+            get: { localErrorMessage != nil },
+            set: { _ in localErrorMessage = nil }
         )) {
-            Button("OK", role: .cancel) {}
+            if let thread = viewModel.duplicateThread {
+                Button("Go to Thread") {
+                    dismiss()
+                    onNavigateToThread(thread)
+                }
+                Button("Cancel", role: .cancel) {
+                    dismiss()
+                }
+            } else {
+                Button("OK", role: .cancel) {}
+            }
         } message: {
-            Text(viewModel.errorMessage ?? "")
+            Text(localErrorMessage ?? "")
         }
         .dismissKeyboardOnTap()
     }
