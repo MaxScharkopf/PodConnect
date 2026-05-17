@@ -105,7 +105,6 @@ struct ConnectionsView: View {
                 if let user = friendToUnblock {
                     Task {
                         await viewModel.unblockUser(uid: user.uid)
-                        await viewModel.fetchBlockedUsers()
                     }
                 }
                 friendToUnblock = nil

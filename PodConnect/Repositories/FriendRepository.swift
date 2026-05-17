@@ -335,8 +335,12 @@ class FriendRepository {
                         }
                     }
                     
+                    let currentUser: UserInfo? = try? await self.firestoreService.fetchDocument(path: "users", documentId: currentUID)
+                    let blockedUIDs = currentUser?.blockedUsers ?? []
+                    
                     var results: [UserInfo] = []
                     for uid in friendUIDs {
+                        guard !blockedUIDs.contains(uid) else { continue }
                         if let user: UserInfo = try? await self.firestoreService.fetchDocument(path: "users", documentId: uid) {
                             results.append(user)
                         }
@@ -442,11 +446,11 @@ class FriendRepository {
     
     func fetchBlockedUsers() async throws -> [UserInfo] {
         guard let currentUID = Auth.auth().currentUser?.uid else { return [] }
-
+        
         guard let currentUser: UserInfo = try await firestoreService.fetchDocument(path: "users", documentId: currentUID) else { return [] }
-
+        
         let blockedUIDs = currentUser.blockedUsers ?? []
-
+        
         var results: [UserInfo] = []
         for uid in blockedUIDs {
             if let user: UserInfo = try await firestoreService.fetchDocument(path: "users", documentId: uid) {
@@ -454,6 +458,49 @@ class FriendRepository {
             }
         }
         return results
+    }
+    
+    func blockedUsersStream() -> AsyncThrowingStream<[UserInfo], Error> {
+        AsyncThrowingStream { continuation in
+            guard let currentUID = Auth.auth().currentUser?.uid else {
+                continuation.yield([])
+                continuation.finish()
+                return
+            }
+            
+            let db = Firestore.firestore()
+            
+            let listener = db.collection("users").document(currentUID)
+                .addSnapshotListener { snapshot, error in
+                    if let error = error {
+                        continuation.finish(throwing: error)
+                        return
+                    }
+                    
+                    guard let data = snapshot?.data() else {
+                        continuation.yield([])
+                        return
+                    }
+                    
+                    let blockedUIDs = data["blockedUsers"] as? [String] ?? []
+                    
+                    Task {
+                        var results: [UserInfo] = []
+                        for uid in blockedUIDs {
+                            if let user: UserInfo = try? await self.firestoreService.fetchDocument(path: "users", documentId: uid) {
+                                results.append(user)
+                            }
+                        }
+                        await MainActor.run {
+                            continuation.yield(results)
+                        }
+                    }
+                }
+            
+            continuation.onTermination = { _ in
+                listener.remove()
+            }
+        }
     }
     
     func cancelFriendRequest(toUID: String) async throws {
@@ -508,10 +555,13 @@ class FriendRepository {
             var hasFriend2 = false
             var hasSentRequest = false
             var hasReceivedRequest = false
+            var isBlocked = false
             
             func emitStatus() {
                 let status: RelationshipStatus
-                if hasFriend1 || hasFriend2 {
+                if isBlocked {
+                    status = .blocked
+                } else if hasFriend1 || hasFriend2 {
                     status = .friends
                 } else if hasSentRequest {
                     status = .requestSent
@@ -547,11 +597,20 @@ class FriendRepository {
                 emitStatus()
             }
             
+            let blockedListener = db.collection("users").document(currentUID)
+                .addSnapshotListener { snapshot, error in
+                    if let error = error { continuation.finish(throwing: error); return }
+                    let blockedUIDs = snapshot?.data()?["blockedUsers"] as? [String] ?? []
+                    isBlocked = blockedUIDs.contains(otherUID)
+                    emitStatus()
+                }
+            
             continuation.onTermination = { _ in
                 listener1.remove()
                 listener2.remove()
                 listener3.remove()
                 listener4.remove()
+                blockedListener.remove()
             }
         }
     }

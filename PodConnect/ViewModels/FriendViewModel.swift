@@ -27,6 +27,7 @@ class FriendViewModel: ObservableObject {
 
     private var incomingRequestsListenerTask: Task<Void, Never>?
     private var friendsListenerTask: Task<Void, Never>?
+    private var blockedUsersListenerTask: Task<Void, Never>?
 
     init(friendRepository: FriendRepository) {
         self.friendRepository = friendRepository
@@ -35,6 +36,7 @@ class FriendViewModel: ObservableObject {
     deinit {
         incomingRequestsListenerTask?.cancel()
         friendsListenerTask?.cancel()
+        blockedUsersListenerTask?.cancel()
     }
 
     // Search for a user by username
@@ -138,10 +140,17 @@ class FriendViewModel: ObservableObject {
     }
     
     func fetchBlockedUsers() async {
-        do {
-            blockedUsers = try await friendRepository.fetchBlockedUsers()
-        } catch {
-            print("Error fetching blocked users: \(error)")
+        guard blockedUsersListenerTask == nil else { return }
+
+        blockedUsersListenerTask = Task {
+            do {
+                let stream = friendRepository.blockedUsersStream()
+                for try await blockedList in stream {
+                    blockedUsers = blockedList
+                }
+            } catch {
+                print("Error listening for blocked users: \(error)")
+            }
         }
     }
     
