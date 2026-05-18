@@ -417,6 +417,19 @@ class FriendRepository {
         
         let db = Firestore.firestore()
         
+        // Cancel any pending requests in both directions
+        let sentRequests = try await db.collection("friendRequests")
+            .whereField("senderUid", isEqualTo: currentUID)
+            .whereField("receiverUid", isEqualTo: uid)
+            .getDocuments()
+        for doc in sentRequests.documents { try await doc.reference.delete() }
+        
+        let receivedRequests = try await db.collection("friendRequests")
+            .whereField("senderUid", isEqualTo: uid)
+            .whereField("receiverUid", isEqualTo: currentUID)
+            .getDocuments()
+        for doc in receivedRequests.documents { try await doc.reference.delete() }
+        
         // Add to current user's blockedUsers
         try await db.collection("users").document(currentUID).updateData([
             "blockedUsers": FieldValue.arrayUnion([uid])
