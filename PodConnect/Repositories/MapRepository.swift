@@ -31,7 +31,7 @@ final class MapRepository {
         guard let userId = Auth.auth().currentUser?.uid else {
             return []
         }
-
+        
         let ownedPins: [MapPin] = try await firestoreService.fetchCollection(path: pinsPath) { collection in
             collection
                 .whereField("pinType", isEqualTo: "user")
@@ -56,7 +56,7 @@ final class MapRepository {
                 return true
             }
         }
-
+        
         return uniquePins
     }
     
@@ -70,7 +70,7 @@ final class MapRepository {
         }
         
         let docRef = Firestore.firestore().collection(pinsPath).document()
-            
+        
         let pin = MapPin(
             id: docRef.documentID,
             name: name,
@@ -103,7 +103,7 @@ final class MapRepository {
             path: pinsPath,
             documentId: id,
             data: update
-            )
+        )
     }
     
     func deletePin(id: String) async throws {
@@ -117,7 +117,7 @@ final class MapRepository {
         guard let currentUid = Auth.auth().currentUser?.uid else {
             return nil
         }
-
+        
         return Firestore.firestore()
             .collection(pinsPath)
             .whereField("pinType", isEqualTo: "user")
@@ -127,17 +127,31 @@ final class MapRepository {
                     onChange([])
                     return
                 }
-
+                
                 let pins: [MapPin] = snapshot?.documents.compactMap { doc in
                     try? doc.data(as: MapPin.self)
                 } ?? []
-
+                
                 let visiblePins = pins.filter { pin in
                     pin.ownerUserId == currentUid ||
                     (pin.sharedWith ?? []).contains(currentUid)
                 }
-
-                onChange(visiblePins)
+                
+                // Filter out pins from blocked users
+                Task {
+                    let db = Firestore.firestore()
+                    let userDoc = try? await db.collection("users").document(currentUid).getDocument()
+                    let blockedUIDs = userDoc?.data()?["blockedUsers"] as? [String] ?? []
+                    let blockedBy = userDoc?.data()?["blockedBy"] as? [String] ?? []
+                    let allBlocked = Set(blockedUIDs + blockedBy)
+                    
+                    let filteredPins = visiblePins.filter { pin in
+                        guard let ownerUID = pin.ownerUserId else { return true }
+                        return ownerUID == currentUid || !allBlocked.contains(ownerUID)
+                    }
+                    
+                    onChange(filteredPins)
+                }
             }
     }
 }
