@@ -23,6 +23,7 @@ struct ClassesCardView: View {
         return userEvents
             .filter { event in
                 event.category == .academic &&
+                event.endDate >= Date() &&
                 event.startDate >= today &&
                 event.startDate < tomorrow
             }

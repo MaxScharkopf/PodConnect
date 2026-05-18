@@ -69,6 +69,7 @@ struct CalendarView: View {
                     } else {
                         EventsTabView(
                             userEvents: viewModel.userEvents,
+                            assignments: assignmentsViewModel.assignments,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
                             onDeleteEvent: { event in
@@ -260,11 +261,6 @@ struct CalendarTabView: View {
         schoolEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
     }
 
-   /*private var userEventsOnDate: [UserEvent] {
-        userEvents
-            .filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
-            .sorted { $0.startDate < $1.startDate }
-    }*/
     
     private var userEventsOnDate: [UserEvent] {
         return userEvents
@@ -453,6 +449,7 @@ struct CalendarTabView: View {
 // MARK: - Events Tab
 struct EventsTabView: View {
     var userEvents: [UserEvent]
+    var assignments: [CanvasAssignment]
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
@@ -470,6 +467,27 @@ struct EventsTabView: View {
 
     private let allCategories = ["Academic", "Arts", "Campus Life", "Wellness", "Personal", "Work", "Other"]
 
+    
+    private var filteredAssignments: [CanvasAssignment] {
+        let today = Calendar.current.startOfDay(for: Date())
+
+        let futureAssignments = assignments.filter {
+            $0.dueDate >= today
+        }
+
+        if searchText.isEmpty {
+            return futureAssignments.sorted { $0.dueDate < $1.dueDate }
+        }
+
+        return futureAssignments
+            .filter {
+                $0.title.localizedCaseInsensitiveContains(searchText)
+            }
+            .sorted { $0.dueDate < $1.dueDate }
+    }
+    
+    
+    
     private var filteredSchoolEvents: [SchoolEvent] {
         let categoryFiltered: [SchoolEvent]
 
@@ -573,6 +591,21 @@ struct EventsTabView: View {
             Divider()
 
             List {
+                
+                if !filteredAssignments.isEmpty {
+                    Section("Assignments") {
+                        ForEach(filteredAssignments) { assignment in
+                            Button {
+                                selectedDate = assignment.dueDate
+                                selectedTab = 0
+                            } label: {
+                                CanvasAssignmentRow(assignment: assignment)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                
                 if !filteredUserEvents.isEmpty {
                     Section("My Events") {
                         ForEach(filteredUserEvents) { event in
@@ -629,7 +662,7 @@ struct EventsTabView: View {
                     }
                 }
 
-                if filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
+                if filteredAssignments.isEmpty && filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
                     Text("No matching events")
                         .foregroundColor(.secondary)
                 }
