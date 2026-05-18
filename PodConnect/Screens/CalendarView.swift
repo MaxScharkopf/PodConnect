@@ -265,7 +265,12 @@ struct CalendarTabView: View {
     private var userEventsOnDate: [UserEvent] {
         return userEvents
             .filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
-            .sorted { $0.startDate < $1.startDate }
+            .sorted {
+                if $0.startDate == $1.startDate {
+                    return $0.endDate < $1.endDate
+                }
+                return $0.startDate < $1.startDate
+            }
     }
 
     private var classEventsOnDate: [UserEvent] {
@@ -456,6 +461,7 @@ struct EventsTabView: View {
     var onDeleteSeries: (String) -> Void
     var onEditEvent: (UserEvent) -> Void
     var onEditSeries: (UserEvent) -> Void
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var eventPendingDelete: UserEvent?
     @State private var eventToEdit: UserEvent?
     @State private var editScope: EditScope = .single
@@ -531,7 +537,12 @@ struct EventsTabView: View {
             }
         }
 
-        return searchFiltered.sorted { $0.startDate < $1.startDate }
+        return searchFiltered.sorted {
+            if $0.startDate == $1.startDate {
+                return $0.endDate < $1.endDate
+            }
+            return $0.startDate < $1.startDate
+        }
     }
     
     private var filteredClassEvents: [UserEvent] {
@@ -610,6 +621,28 @@ struct EventsTabView: View {
                                 CanvasAssignmentRow(assignment: assignment)
                             }
                             .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task {
+                                        await assignmentsViewModel.deleteAssignment(assignment)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    Task {
+                                        await assignmentsViewModel.toggleCompleted(assignment)
+                                    }
+                                } label: {
+                                    Label(
+                                        assignment.isCompleted ? "Undo" : "Complete",
+                                        systemImage: assignment.isCompleted ? "arrow.uturn.backward" : "checkmark"
+                                    )
+                                }
+                                .tint(Color.islandsBlue)
+                            }
                         }
                     }
                 }
@@ -812,55 +845,107 @@ struct SchoolEventRow: View {
 struct UserEventRow: View {
     let event: UserEvent
 
+    private var classLocation: String? {
+        let parts = event.title.components(separatedBy: "—")
+
+        if parts.count > 1 {
+            return parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return nil
+    }
+
+    private var cleanTitle: String {
+        event.title.components(separatedBy: "—").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? event.title
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+
             HStack(spacing: 6) {
-                Text(event.title)
+                Text(cleanTitle)
                     .font(.body)
+
                 if event.recurrenceGroupId != nil {
                     Image(systemName: "repeat")
                         .font(.caption)
                         .foregroundColor(Color.islandsBlue)
                 }
             }
+
             HStack {
-                Text(event.startDate, style: .date)
+                Text(event.startDate, style: .time)
+                    .font(.caption)
+                    .foregroundColor(Color.islandsBlue)
+
+                Text("·")
+                    .foregroundColor(.secondary)
+
+                Text(event.category.rawValue)
+                    .font(.caption)
+                    .foregroundColor(categoryColor(event.category.rawValue))
+            }
+
+            Text(
+                "\(event.startDate.formatted(.dateTime.month().day().year()))  \(event.startDate.formatted(.dateTime.hour().minute())) – \(event.endDate.formatted(.dateTime.hour().minute()))"
+            )
+            .font(.caption)
+            .foregroundColor(.secondary)
+
+            if event.category == .academic, let location = classLocation {
+                Label(location, systemImage: "mappin")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text(event.startDate, style: .time)
-                Text("–")
-                Text(event.endDate, style: .time)
-            }
-            .font(.caption)
-            .foregroundColor(.gray)
 
-            Text(event.category.rawValue)
-                .font(.caption)
-                .foregroundColor(Color.channelClay)
-
-            if !event.notes.isEmpty {
-                Text(event.notes)
+            } else if !event.notes.isEmpty {
+                Label(event.notes, systemImage: "note.text")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 4)
     }
+
+    func categoryColor(_ category: String) -> Color {
+        switch category {
+        case "Academic": return Color.islandsBlue
+        case "Arts": return Color.channelClay
+        case "Campus Life": return Color.islandsBlue
+        case "Wellness": return Color.channelClay
+        case "Personal": return Color.channelClay
+        default: return .gray
+        }
+    }
 }
+
 
 struct CanvasAssignmentRow: View {
     let assignment: CanvasAssignment
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(assignment.title)
-                .font(.body)
-                .strikethrough(assignment.isCompleted)
-                .foregroundColor(assignment.isCompleted ? .secondary : .primary)
 
-            Text(assignment.dueDate, style: .time)
+            HStack(spacing: 6) {
+                Text(assignment.title)
+                    .font(.body)
+                    .strikethrough(assignment.isCompleted)
+                    .foregroundColor(assignment.isCompleted ? .secondary : .primary)
+            }
+
+            HStack {
+                Text(assignment.dueDate, style: .date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text(assignment.dueDate, style: .time)
+            }
+            .font(.caption)
+            .foregroundColor(.gray)
+
+            Text("Assignment")
                 .font(.caption)
-                .foregroundColor(assignment.isCompleted ? .secondary : Color.channelClay)
+                .foregroundColor(Color.channelClay)
         }
         .padding(.vertical, 4)
     }

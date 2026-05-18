@@ -27,7 +27,12 @@ struct ClassesCardView: View {
                 event.startDate >= today &&
                 event.startDate < tomorrow
             }
-            .sorted { $0.startDate < $1.startDate }
+            .sorted {
+                if $0.startDate == $1.startDate {
+                    return $0.endDate < $1.endDate
+                }
+                return $0.startDate < $1.startDate
+            }
     }
 
     var body: some View {

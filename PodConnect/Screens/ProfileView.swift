@@ -24,7 +24,6 @@ struct ProfileView: View {
     @State private var profileImageData: Data?
     @State private var profileImageURL: String?
     @State private var isUploadingProfileImage = false
-    @State private var newClassName = ""
 
     @State private var email = ""
     @State private var username = ""
@@ -288,20 +287,6 @@ struct ProfileView: View {
                                 }
                             }
                         }
-                        
-                        HStack {
-                            TextField("Add class", text: $newClassName)
-                                .textFieldStyle(.roundedBorder)
-
-                            Button {
-                                addTypedClass()
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundColor(Color.islandsBlue)
-                                    .font(.title3)
-                            }
-                            .buttonStyle(.plain)
-                        }
 
                     }
 
@@ -488,16 +473,7 @@ struct ProfileView: View {
         }
     }
     
-    func addTypedClass() {
-        let trimmed = newClassName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
 
-        if !selectedClasses.contains(trimmed) {
-            selectedClasses.append(trimmed)
-        }
-
-        newClassName = ""
-    }
     
     func classTitle(_ title: String) -> String {
         title.components(separatedBy: "—").first?
