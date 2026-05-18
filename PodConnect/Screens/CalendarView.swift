@@ -7,12 +7,14 @@ import SwiftUI
 
 struct CalendarView: View {
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
+    @ObservedObject private var authService: AuthService
     @StateObject private var viewModel: CalendarViewModel
     @State private var selectedTab = 0
     @State private var showAddEvent = false
     @State private var selectedDate = Date()
 
-    init(eventRepository: EventRepository) {
+    init(eventRepository: EventRepository, authService: AuthService) {
+        self.authService = authService
         _viewModel = StateObject(wrappedValue: CalendarViewModel(eventRepository: eventRepository))
     }
 
@@ -39,12 +41,29 @@ struct CalendarView: View {
                             assignments: assignmentsViewModel.assignments,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
-                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
-                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } },
-                            onEditEvent: { event in Task { await viewModel.updateEvent(event: event) } },
-                            onEditSeries: { event in
-                                guard let groupId = event.recurrenceGroupId else { return }
-                                Task { await viewModel.updateEventSeries(groupId: groupId, template: event) }
+                            onDeleteEvent: { event in
+                                Task {
+                                    await removeClassFromProfileIfNeeded(event)
+                                    await viewModel.deleteEvent(event: event)
+                                }
+                            },
+                            onDeleteSeries: { groupId in
+                                Task {
+                                    await removeClassSeriesFromProfileIfNeeded(groupId)
+                                    await viewModel.deleteEventSeries(groupId: groupId)
+                                }
+                            },
+                            onEditEvent: { updatedEvent in
+                                Task {
+                                    await viewModel.updateEvent(event: updatedEvent)
+                                }
+                            },
+                            onEditSeries: { updatedEvent in
+                                guard let groupId = updatedEvent.recurrenceGroupId else { return }
+                                Task {
+                                    await syncProfileClassNameIfNeeded(updatedEvent)
+                                    await viewModel.updateEventSeries(groupId: groupId, template: updatedEvent)
+                                }
                             }
                         )
                     } else {
@@ -52,12 +71,29 @@ struct CalendarView: View {
                             userEvents: viewModel.userEvents,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
-                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
-                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } },
-                            onEditEvent: { event in Task { await viewModel.updateEvent(event: event) } },
-                            onEditSeries: { event in
-                                guard let groupId = event.recurrenceGroupId else { return }
-                                Task { await viewModel.updateEventSeries(groupId: groupId, template: event) }
+                            onDeleteEvent: { event in
+                                Task {
+                                    await removeClassFromProfileIfNeeded(event)
+                                    await viewModel.deleteEvent(event: event)
+                                }
+                            },
+                            onDeleteSeries: { groupId in
+                                Task {
+                                    await removeClassSeriesFromProfileIfNeeded(groupId)
+                                    await viewModel.deleteEventSeries(groupId: groupId)
+                                }
+                            },
+                            onEditEvent: { updatedEvent in
+                                Task {
+                                    await viewModel.updateEvent(event: updatedEvent)
+                                }
+                            },
+                            onEditSeries: { updatedEvent in
+                                guard let groupId = updatedEvent.recurrenceGroupId else { return }
+                                Task {
+                                    await syncProfileClassNameIfNeeded(updatedEvent)
+                                    await viewModel.updateEventSeries(groupId: groupId, template: updatedEvent)
+                                }
                             }
                         )
                     }
@@ -65,12 +101,118 @@ struct CalendarView: View {
             }
         }
         .navigationBarHidden(true)
+        .onAppear {
+            Task {
+                await viewModel.fetchEvents()
+            }
+        }
         .sheet(isPresented: $showAddEvent) {
             AddEventSheet(initialDate: selectedDate) { events in
-                Task { await viewModel.saveEvents(events) }
+                Task {
+                    await viewModel.saveEvents(events)
+                    await viewModel.fetchEvents()
+
+                    if let firstEventDate = events.first?.startDate {
+                        selectedDate = firstEventDate
+                    }
+
+                    selectedTab = 0
+                }
             }
         }
     }
+    
+    private func classTitle(_ title: String) -> String {
+        title.components(separatedBy: "—").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? title
+    }
+
+    private func updateProfileClasses(_ classes: [String]) async {
+        guard let userInfo = authService.userInfo else { return }
+
+        let updatedProfile = UserInfo(
+            id: userInfo.id,
+            username: userInfo.username,
+            username_lowercase: userInfo.username_lowercase,
+            name: userInfo.name,
+            classes: classes,
+            clubs: userInfo.clubs,
+            friends: userInfo.friends,
+            email: userInfo.email,
+            uid: userInfo.uid,
+            bio: userInfo.bio,
+            profileImageURL: userInfo.profileImageURL,
+            classesVisibility: userInfo.classesVisibility,
+            clubsVisibility: userInfo.clubsVisibility
+        )
+
+        do {
+            try await authService.updateUserProfile(updatedProfile)
+        } catch {
+            print("Failed to sync profile classes: \(error)")
+        }
+    }
+
+    private func syncProfileClassNameIfNeeded(_ updatedEvent: UserEvent) async {
+        guard updatedEvent.category == .academic else { return }
+        guard let oldEvent = viewModel.userEvents.first(where: { $0.id == updatedEvent.id }) else { return }
+        guard oldEvent.category == .academic else { return }
+
+        let oldName = classTitle(oldEvent.title)
+        let newName = classTitle(updatedEvent.title)
+
+        guard oldName != newName else { return }
+        guard var classes = authService.userInfo?.classes else { return }
+
+        if let index = classes.firstIndex(of: oldName) {
+            classes[index] = newName
+        } else if !classes.contains(newName) {
+            classes.append(newName)
+        }
+
+        await updateProfileClasses(classes)
+    }
+
+    private func removeClassFromProfileIfNeeded(_ event: UserEvent) async {
+        guard event.category == .academic else { return }
+        let name = classTitle(event.title)
+
+        let remainingMatchingEvents = viewModel.userEvents.filter {
+            $0.id != event.id &&
+            $0.category == .academic &&
+            classTitle($0.title) == name
+        }
+
+        guard remainingMatchingEvents.isEmpty else { return }
+        guard var classes = authService.userInfo?.classes else { return }
+
+        classes.removeAll { $0 == name }
+        await updateProfileClasses(classes)
+    }
+
+    private func removeClassSeriesFromProfileIfNeeded(_ groupId: String) async {
+        let seriesEvents = viewModel.userEvents.filter {
+            $0.recurrenceGroupId == groupId &&
+            $0.category == .academic
+        }
+
+        guard let first = seriesEvents.first else { return }
+
+        let name = classTitle(first.title)
+
+        let remainingMatchingEvents = viewModel.userEvents.filter {
+            $0.recurrenceGroupId != groupId &&
+            $0.category == .academic &&
+            classTitle($0.title) == name
+        }
+
+        guard remainingMatchingEvents.isEmpty else { return }
+        guard var classes = authService.userInfo?.classes else { return }
+
+        classes.removeAll { $0 == name }
+        await updateProfileClasses(classes)
+    }
+    
 
     private var topHeader: some View {
         HStack {
@@ -118,8 +260,14 @@ struct CalendarTabView: View {
         schoolEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
     }
 
-    private var userEventsOnDate: [UserEvent] {
+   /*private var userEventsOnDate: [UserEvent] {
         userEvents
+            .filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
+            .sorted { $0.startDate < $1.startDate }
+    }*/
+    
+    private var userEventsOnDate: [UserEvent] {
+        return userEvents
             .filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
             .sorted { $0.startDate < $1.startDate }
     }
@@ -341,7 +489,6 @@ struct EventsTabView: View {
     }
 
     private var filteredUserEvents: [UserEvent] {
-        let now = Date()
 
         let categoryFiltered: [UserEvent]
 
@@ -351,7 +498,8 @@ struct EventsTabView: View {
             categoryFiltered = userEvents.filter { activeCategories.contains($0.category.rawValue) }
         }
 
-        let futureFiltered = categoryFiltered.filter { $0.startDate >= now }
+        let today = Calendar.current.startOfDay(for: Date())
+        let futureFiltered = categoryFiltered.filter { $0.startDate >= today }
 
         let searchFiltered: [UserEvent]
 
@@ -838,12 +986,16 @@ struct EditEventSheet: View {
 }
 
 #Preview {
+    let firestoreService = FirestoreService()
+    let authService = AuthService(firestoreService: firestoreService)
+
     NavigationStack {
         CalendarView(
             eventRepository: EventRepository(
-                firestoreService: FirestoreService(),
-                authService: AuthService(firestoreService: FirestoreService())
-            )
+                firestoreService: firestoreService,
+                authService: authService
+            ),
+            authService: authService
         )
         .environmentObject(AssignmentsViewModel())
     }
