@@ -533,6 +533,14 @@ struct EventsTabView: View {
 
         return searchFiltered.sorted { $0.startDate < $1.startDate }
     }
+    
+    private var filteredClassEvents: [UserEvent] {
+        filteredUserEvents.filter { $0.category == .academic }
+    }
+
+    private var filteredPersonalEvents: [UserEvent] {
+        filteredUserEvents.filter { $0.category != .academic }
+    }
 
     private var groupedSchoolEvents: [(String, [SchoolEvent])] {
         let formatter = DateFormatter()
@@ -606,9 +614,9 @@ struct EventsTabView: View {
                     }
                 }
                 
-                if !filteredUserEvents.isEmpty {
-                    Section("My Events") {
-                        ForEach(filteredUserEvents) { event in
+                if !filteredClassEvents.isEmpty {
+                    Section("Classes") {
+                        ForEach(filteredClassEvents) { event in
                             Button {
                                 selectedDate = event.startDate
                                 selectedTab = 0
@@ -643,7 +651,45 @@ struct EventsTabView: View {
                             }
                         }
                     }
-                
+                }
+
+                if !filteredPersonalEvents.isEmpty {
+                    Section("My Events") {
+                        ForEach(filteredPersonalEvents) { event in
+                            Button {
+                                selectedDate = event.startDate
+                                selectedTab = 0
+                            } label: {
+                                UserEventRow(event: event)
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if event.recurrenceGroupId != nil {
+                                        eventPendingDelete = event
+                                    } else {
+                                        onDeleteEvent(event)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    eventToEdit = event
+                                    if event.recurrenceGroupId != nil {
+                                        showEditConfirmation = true
+                                    } else {
+                                        editScope = .single
+                                        showEditSheet = true
+                                    }
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(Color.islandsBlue)
+                            }
+                        }
+                    }
                 }
                 
             
