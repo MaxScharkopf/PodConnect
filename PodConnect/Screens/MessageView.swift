@@ -4,9 +4,9 @@
 //
 //  Created by Noah Hester on 3/29/26.
 //
- 
+
 import SwiftUI
- 
+
 struct MessageView: View {
     // Recieve necessary services
     @ObservedObject var authService: AuthService
@@ -14,15 +14,15 @@ struct MessageView: View {
     private var messageRepository: MessageRepository
     private var friendRepository: FriendRepository
     @StateObject private var viewModel: MessageViewModel
-
+    
     @State private var showThreadPopup = false
     @State private var navigatingToThread: MessageThread?
     @State private var isNavigatingToThread = false
-
+    
     init(authService: AuthService, firestoreService: FirestoreService) {
         self.authService = authService
         self.firestoreService = firestoreService
-
+        
         let messageRepository = MessageRepository(firestoreService: firestoreService, authService: authService)
         self.messageRepository = messageRepository
         self.friendRepository = FriendRepository(firestoreService: firestoreService)
@@ -75,11 +75,11 @@ struct MessageView: View {
                                                 .frame(maxWidth: 400, minHeight: 65)
                                                 .shadow(color: Color.black.opacity(0.07), radius: 6, y: 3)
                                                 .padding(.horizontal)
-
+                                            
                                             HStack(spacing: 12) {
                                                 ThreadAvatarView(participants: thread.participants + thread.pendingParticipants, users: viewModel.users, currentUserId: authService.userInfo?.uid ?? "")
                                                     .padding(.leading, 25)
-
+                                                
                                                 VStack(alignment: .leading, spacing: 4) {
                                                     Text(thread.threadName.isEmpty ? viewModel.getParticipantSummary(for: thread) : thread.threadName)
                                                         .font(.headline)
@@ -91,9 +91,9 @@ struct MessageView: View {
                                                         .foregroundStyle(.secondary)
                                                         .lineLimit(1)
                                                 }
-
+                                                
                                                 Spacer()
-
+                                                
                                                 if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
                                                     Text("\(count)")
                                                         .font(.caption2.bold())
@@ -119,7 +119,7 @@ struct MessageView: View {
                             }
                             Divider().padding()
                         }
-
+                        
                         VStack(alignment: .leading, spacing: 12) {
                             if !viewModel.messageThreads.isEmpty {
                                 Text("Messages")
@@ -136,11 +136,11 @@ struct MessageView: View {
                                             .frame(maxWidth: 400, minHeight: 65)
                                             .shadow(color: Color.black.opacity(0.07), radius: 6, y: 3)
                                             .padding(.horizontal)
-
+                                        
                                         HStack(spacing: 12) {
                                             ThreadAvatarView(participants: thread.participants + thread.pendingParticipants, users: viewModel.users, currentUserId: authService.userInfo?.uid ?? "")
                                                 .padding(.leading, 25)
-
+                                            
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(thread.threadName.isEmpty ? viewModel.getParticipantSummary(for: thread) : thread.threadName)
                                                     .font(.headline)
@@ -152,9 +152,9 @@ struct MessageView: View {
                                                     .foregroundStyle(.secondary)
                                                     .lineLimit(1)
                                             }
-
+                                            
                                             Spacer()
-
+                                            
                                             if let count = viewModel.unreadCounts[thread.id ?? ""], count > 0 {
                                                 Text("\(count)")
                                                     .font(.caption2.bold())
@@ -227,7 +227,7 @@ struct MessageView: View {
 struct AvatarView: View {
     let urlString: String?
     let size: CGFloat
-
+    
     var body: some View {
         Group {
             if let urlString,
@@ -251,7 +251,7 @@ struct AvatarView: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
     }
-
+    
     private var placeholder: some View {
         Image(systemName: "person.fill")
             .resizable()
@@ -294,13 +294,13 @@ struct ThreadAvatarView: View {
         }
     }
 }
- 
+
 struct ThreadCreationPopup: View {
     var authService: AuthService
     var friendRepository: FriendRepository
     var viewModel: MessageViewModel
     var onNavigateToThread: (MessageThread) -> Void
-
+    
     @State private var participants: [String] = []
     @State private var users: [String: UserInfo] = [:]
     @State private var newThreadName = ""
@@ -463,20 +463,21 @@ struct ThreadCreationPopup: View {
         .dismissKeyboardOnTap()
     }
 }
- 
+
 // Popover for browsing and selecting friends to add as participants
 struct UserSearchPopup: View {
     var friendRepository: FriendRepository
-
+    
     @State private var friends: [UserInfo] = []
     @State private var otherUsers: [UserInfo] = []
     @State private var searchResults: [UserInfo] = []
     @State private var searchText: String = ""
-
+    @State private var blockedUIDs: Set<String> = []
+    
     @Binding var participants: [String]
-
+    
     @Environment(\.dismiss) var dismiss
-
+    
     func reset() {
         friends = []
         otherUsers = []
@@ -484,30 +485,35 @@ struct UserSearchPopup: View {
         searchText = ""
         dismiss()
     }
-
+    
     // Fetches initial data for the popup
     func loadInitialData() async {
         async let fetchedFriends = try? friendRepository.fetchFriends()
         async let fetchedOthers = try? friendRepository.fetchOtherUsers(limit: 15)
+        async let fetchedBlocked = try? friendRepository.fetchBlockedUsers()
         
-        self.friends = (await fetchedFriends) ?? []
-        self.otherUsers = (await fetchedOthers) ?? []
+        let blocked = (await fetchedBlocked) ?? []
+        blockedUIDs = Set(blocked.map { $0.uid })
+        
+        self.friends = ((await fetchedFriends) ?? []).filter { !blockedUIDs.contains($0.uid) }
+        self.otherUsers = ((await fetchedOthers) ?? []).filter { !blockedUIDs.contains($0.uid) }
     }
-
+    
     func performSearch() async {
         guard !searchText.isEmpty else {
             searchResults = []
             return
         }
-        searchResults = (try? await friendRepository.searchUsers(by: searchText)) ?? []
+        let results = (try? await friendRepository.searchUsers(by: searchText)) ?? []
+        searchResults = results.filter { !blockedUIDs.contains($0.uid) }
     }
-
+    
     var body: some View {
         VStack {
             ZStack {
                 HStack {
                     Spacer()
-
+                    
                     Button {
                         reset()
                     } label: {
@@ -518,12 +524,12 @@ struct UserSearchPopup: View {
                     .padding()
                     .buttonStyle(.plain)
                 }
-
+                
                 Text("Add Participants")
                     .font(.headline)
                     .padding()
             }
-
+            
             TextField("Search all users by username...", text: $searchText)
                 .padding()
                 .background(
@@ -534,7 +540,7 @@ struct UserSearchPopup: View {
                 .onChange(of: searchText) { _, _ in
                     Task { await performSearch() }
                 }
-
+            
             List {
                 if !searchText.isEmpty {
                     Section(header: Text("All PodConnect Users")) {
@@ -558,7 +564,7 @@ struct UserSearchPopup: View {
                             }
                         }
                     }
-
+                    
                     Section(header: Text("Other Users")) {
                         if otherUsers.isEmpty {
                             ProgressView()
@@ -578,17 +584,17 @@ struct UserSearchPopup: View {
         }
         .dismissKeyboardOnTap()
     }
-
+    
     @ViewBuilder
     private func userRow(user: UserInfo) -> some View {
         HStack {
             Image(systemName: "person.crop.circle")
                 .foregroundStyle(.secondary)
-
+            
             Text(user.username)
-
+            
             Spacer()
-
+            
             // Show a checkmark if already added, otherwise show an add button
             if participants.contains(user.uid) {
                 Image(systemName: "checkmark.circle")
@@ -607,7 +613,7 @@ struct UserSearchPopup: View {
         }
     }
 }
- 
+
 #Preview {
     MessageView(authService: AuthService(firestoreService: FirestoreService()), firestoreService: FirestoreService())
 }
