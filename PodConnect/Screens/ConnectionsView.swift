@@ -14,6 +14,7 @@ struct ConnectionsView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var locationManager = LocationManager()
 
+    
     @State private var searchText = ""
     @State private var searchResults: [UserInfo] = []
     @State private var isLoadingSearch = false
@@ -22,6 +23,11 @@ struct ConnectionsView: View {
     @State private var requestedUserIds: Set<String> = []
     @State private var friendUserIds: Set<String> = []
     @State private var currentUID = ""
+    @State private var friendToBlock: UserInfo? = nil
+    @State private var friendToUnblock: UserInfo? = nil
+    
+    private let messageRepository: MessageRepository
+    
     @State private var isSearchMode = false
     @State private var isLoadingConnections = true
     @FocusState private var isSearchFieldFocused: Bool
@@ -39,14 +45,14 @@ struct ConnectionsView: View {
         )
         self.messageRepository = MessageRepository(firestoreService: FirestoreService(), authService: authService)
     }
-
+    
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
-
+            
             VStack(spacing: 0) {
                 topHeader
-
+                
                 ScrollView {
                     VStack(spacing: 20) {
                         if isLoadingConnections {
@@ -64,8 +70,12 @@ struct ConnectionsView: View {
                             if !viewModel.incomingRequests.isEmpty {
                                 requestsSection
                             }
-
+                            
                             friendsSection
+                            
+                            if !viewModel.blockedUsers.isEmpty {
+                                blockedSection
+                            }
                         }
                     }
                     .padding()
@@ -79,17 +89,53 @@ struct ConnectionsView: View {
         .navigationBarBackButtonHidden(false)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
+        
+        .alert("Block \(friendToBlock?.username ?? "")?", isPresented: Binding(
+            get: { friendToBlock != nil },
+            set: { if !$0 { friendToBlock = nil } }
+        )) {
+            Button("Block", role: .destructive) {
+                if let friend = friendToBlock {
+                    Task {
+                        await viewModel.blockUser(uid: friend.uid)
+                    }
+                }
+                friendToBlock = nil
+            }
+            Button("Cancel", role: .cancel) {
+                friendToBlock = nil
+            }
+        }
+        
+        .alert("Unblock \(friendToUnblock?.username ?? "")?", isPresented: Binding(
+            get: { friendToUnblock != nil },
+            set: { if !$0 { friendToUnblock = nil } }
+        )) {
+            Button("Unblock", role: .destructive) {
+                if let user = friendToUnblock {
+                    Task {
+                        await viewModel.unblockUser(uid: user.uid)
+                    }
+                }
+                friendToUnblock = nil
+            }
+            Button("Cancel", role: .cancel) {
+                friendToUnblock = nil
+            }
+        }
+        
         .task {
             isLoadingConnections = true
             currentUID = authService.userInfo?.uid ?? ""
-
+            
             await viewModel.fetchFriends()
             await viewModel.fetchIncomingRequests()
-
+            await viewModel.fetchBlockedUsers()
+            
             isLoadingConnections = false
         }
     }
-
+    
     private var topHeader: some View {
         HStack {
             Button {
@@ -100,19 +146,19 @@ struct ConnectionsView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .padding(8)
             }
-
+            
             Text("Connections")
                 .foregroundColor(.white)
                 .font(.title)
                 .fontWeight(.bold)
-
+            
             Spacer()
-
+            
             Button {
                 withAnimation {
                     isSearchMode.toggle()
                 }
-
+                
                 if !isSearchMode {
                     searchText = ""
                     searchResults = []
@@ -136,13 +182,13 @@ struct ConnectionsView: View {
         .padding(.vertical, 18)
         .background(Color.islandsBlue)
     }
-
+    
     private var requestsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Requests")
                 .font(.headline)
                 .foregroundColor(.primary)
-
+            
             ForEach(viewModel.incomingRequests) { request in
                 NavigationLink(
                     destination: RequestProfileLoaderView(
@@ -160,7 +206,7 @@ struct ConnectionsView: View {
                             senderUid: request.senderUid,
                             friendRepository: viewModel.friendRepository
                         )
-
+                        
                         HStack(spacing: 12) {
                             Button("Accept") {
                                 Task {
@@ -172,7 +218,7 @@ struct ConnectionsView: View {
                             .background(Color.islandsBlue.opacity(0.12))
                             .foregroundColor(Color.islandsBlue)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
-
+                            
                             Button("Decline") {
                                 Task {
                                     await viewModel.declineRequest(request)
@@ -194,19 +240,19 @@ struct ConnectionsView: View {
             }
         }
     }
-
+    
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Friends")
                 .font(.headline)
                 .foregroundColor(.primary)
-
+            
             if viewModel.friends.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "person.2")
                         .font(.system(size: 28))
                         .foregroundColor(.secondary)
-
+                    
                     Text("No friends yet")
                         .foregroundColor(.secondary)
                 }
@@ -237,14 +283,84 @@ struct ConnectionsView: View {
                                 .background(Color(.secondarySystemGroupedBackground))
                                 .clipShape(Capsule())
                                 .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+                        HStack(spacing: 12) {
+                            NavigationLink(
+                                destination: PublicProfileView(
+                                    user: friend,
+                                    isFriend: true,
+                                    isRequested: false,
+                                    currentUID: currentUID,
+                                    friendRepository: viewModel.friendRepository,
+                                    messageRepository: messageRepository,
+                                    authService: authService
+                                )
+                            ) {
+                                UserRowView(user: friend)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Menu {
+                                Button(role: .destructive) {
+                                    Task {
+                                        await viewModel.unfriend(uid: friend.uid)
+                                    }
+                                } label: {
+                                    Label("Unfriend", systemImage: "person.badge.minus")
+                                }
+                                
+                                Button(role: .destructive) {
+                                    friendToBlock = friend
+                                } label: {
+                                    Label("Block", systemImage: "hand.raised")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .foregroundColor(.secondary)
+                                    .padding(8)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        .padding()
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
                     }
                 }
             }
         }
     }
-
+    
+    private var blockedSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Blocked")
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            VStack(spacing: 16) {
+                ForEach(viewModel.blockedUsers) { user in
+                    HStack(spacing: 12) {
+                        UserRowView(user: user)
+                        
+                        Menu {
+                            Button(role: .destructive) {
+                                friendToUnblock = user
+                            } label: {
+                                Label("Unblock", systemImage: "hand.raised.slash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .foregroundColor(.secondary)
+                                .padding(8)
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
+                }
+            }
+        }
+    }
+    
     private var searchSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             
@@ -253,7 +369,7 @@ struct ConnectionsView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.gray)
-
+                    
                     TextField("Search users...", text: $searchText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -263,25 +379,25 @@ struct ConnectionsView: View {
                         }
                         .onChange(of: searchText) { _, newValue in
                             searchTask?.cancel()
-
+                            
                             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-
+                            
                             if trimmed.isEmpty {
                                 searchResults = []
                                 searchErrorMessage = ""
                                 isLoadingSearch = false
                                 return
                             }
-
+                            
                             searchTask = Task {
                                 try? await Task.sleep(nanoseconds: 300_000_000)
-
+                                
                                 if !Task.isCancelled {
                                     await performSearch()
                                 }
                             }
                         }
-
+                    
                     if !searchText.isEmpty {
                         Button {
                             searchText = ""
@@ -297,7 +413,7 @@ struct ConnectionsView: View {
                 .background(Color(.secondarySystemGroupedBackground))
                 .cornerRadius(14)
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
-
+                
                 Button("Go") {
                     Task { await performSearch() }
                 }
@@ -307,7 +423,7 @@ struct ConnectionsView: View {
                 .foregroundColor(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             }
-
+            
             // Loading
             if isLoadingSearch {
                 HStack {
@@ -317,7 +433,7 @@ struct ConnectionsView: View {
                 }
                 .padding()
             }
-
+            
             // Error
             if !searchErrorMessage.isEmpty {
                 Text(searchErrorMessage)
@@ -325,18 +441,18 @@ struct ConnectionsView: View {
                     .font(.footnote)
                     .padding(.horizontal, 4)
             }
-
+            
             // Empty state
             if !isLoadingSearch &&
                 searchResults.isEmpty &&
                 !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                 searchErrorMessage.isEmpty {
-
+                
                 VStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 28))
                         .foregroundColor(.secondary)
-
+                    
                     Text("No users found")
                         .foregroundColor(.secondary)
                 }
@@ -346,7 +462,7 @@ struct ConnectionsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 24))
                 .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
             }
-
+            
             // Results (clean + clickable only)
             ForEach(searchResults) { user in
                 if user.uid != currentUID {
@@ -375,7 +491,7 @@ struct ConnectionsView: View {
             }
         }
     }
-
+    
     func performSearch() async {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -383,18 +499,18 @@ struct ConnectionsView: View {
             searchErrorMessage = ""
             return
         }
-
+        
         isLoadingSearch = true
         searchErrorMessage = ""
         requestedUserIds.removeAll()
         friendUserIds.removeAll()
-
+        
         do {
             searchResults = try await viewModel.friendRepository.searchUsers(by: trimmed)
-
+            
             for user in searchResults {
                 let status = await viewModel.friendRepository.getRelationshipStatus(withUID: user.uid)
-
+                
                 if status == .requestSent {
                     requestedUserIds.insert(user.uid)
                 } else if status == .friends {
@@ -404,13 +520,13 @@ struct ConnectionsView: View {
         } catch {
             searchErrorMessage = "Failed to search users."
         }
-
+        
         isLoadingSearch = false
     }
-
+    
     func sendFriendRequest(to receiverUid: String) async {
         searchErrorMessage = ""
-
+        
         do {
             try await viewModel.friendRepository.sendFriendRequest(toUID: receiverUid)
             requestedUserIds.insert(receiverUid)
@@ -426,7 +542,7 @@ struct ConnectionsView: View {
     private func isLiveFriend(_ user: UserInfo) -> Bool {
         viewModel.friends.contains(where: { $0.uid == user.uid })
     }
-
+    
     private func isLiveIncomingRequest(_ user: UserInfo) -> Bool {
         viewModel.incomingRequests.contains(where: { $0.senderUid == user.uid })
     }
@@ -435,9 +551,9 @@ struct ConnectionsView: View {
 struct SenderUsernameView: View {
     let senderUid: String
     let friendRepository: FriendRepository
-
+    
     @State private var user: UserInfo? = nil
-
+    
     var body: some View {
         Group {
             if let user = user {
@@ -467,19 +583,19 @@ struct SenderUsernameView: View {
                     }
                     .frame(width: 44, height: 44)
                     .clipShape(Circle())
-
+                    
                     VStack(alignment: .leading, spacing: 4) {
                         Text(user.username)
                             .font(.body)
                             .fontWeight(.medium)
-
+                        
                         if !user.name.isEmpty {
                             Text(user.name)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
-
+                    
                     Spacer()
                 }
             } else {
@@ -495,7 +611,7 @@ struct SenderUsernameView: View {
 
 struct UserRowView: View {
     let user: UserInfo
-
+    
     var body: some View {
         HStack(spacing: 12) {
             Group {
@@ -523,19 +639,19 @@ struct UserRowView: View {
             }
             .frame(width: 44, height: 44)
             .clipShape(Circle())
-
+            
             VStack(alignment: .leading, spacing: 3) {
                 Text(user.username)
                     .font(.body)
                     .fontWeight(.medium)
-
+                
                 if !user.name.isEmpty {
                     Text(user.name)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-
+            
             Spacer()
         }
     }
@@ -548,25 +664,25 @@ struct UserSearchResultCard: View {
     let onSendRequest: () -> Void
     let accentColor: Color
     let friendRepository: FriendRepository
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 profileImageView
-
+                
                 VStack(alignment: .leading, spacing: 6) {
                     Text(user.username)
                         .font(.headline)
-
+                    
                     if !user.name.isEmpty {
                         Text(user.name)
                             .foregroundColor(.primary)
                     }
                 }
-
+                
                 Spacer()
             }
-
+            
             Button(buttonTitle) {
                 if isFriend {
                     Task {
@@ -588,27 +704,27 @@ struct UserSearchResultCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
     }
-
+    
     private var buttonTitle: String {
         if isFriend { return "Unfriend" }
         if isRequested { return "Pending" }
         return "Send Request"
     }
-
+    
     private var buttonBackground: Color {
         if isFriend || isRequested {
             return Color(.systemGray5)
         }
         return accentColor
     }
-
+    
     private var buttonTextColor: Color {
         if isFriend || isRequested {
             return .secondary
         }
         return .white
     }
-
+    
     private var profileImageView: some View {
         Group {
             if let profileImageURL = user.profileImageURL,
@@ -660,7 +776,7 @@ struct RequestProfileLoaderView: View {
     let authService: AuthService
 
     @State private var user: UserInfo? = nil
-
+    
     var body: some View {
         Group {
             if let user = user {
@@ -679,7 +795,7 @@ struct RequestProfileLoaderView: View {
             } else {
                 ZStack {
                     Color(.systemGroupedBackground).ignoresSafeArea()
-
+                    
                     VStack(spacing: 10) {
                         ProgressView()
                         Text("Loading profile...")

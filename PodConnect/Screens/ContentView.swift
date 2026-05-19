@@ -48,7 +48,8 @@ struct ContentView: View {
                             eventRepository: EventRepository(
                                 firestoreService: firestoreService,
                                 authService: authService
-                            )
+                            ),
+                            authService: authService
                         )
                     }
                     .tabItem {

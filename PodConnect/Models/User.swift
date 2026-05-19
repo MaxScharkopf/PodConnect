@@ -27,6 +27,8 @@ struct UserInfo: Codable, Identifiable {
     var uid: String
     var bio: String
     var profileImageURL: String?
+    var blockedUsers: [String]?
+    var blockedBy: [String]?
 
     var classesVisibility: VisibilityLevel
     var clubsVisibility: VisibilityLevel
@@ -43,6 +45,8 @@ struct UserInfo: Codable, Identifiable {
         uid: String,
         bio: String,
         profileImageURL: String? = nil,
+        blockedUsers: [String]? = nil,
+        blockedBy: [String]? = nil,
         classesVisibility: VisibilityLevel = .public,
         clubsVisibility: VisibilityLevel = .public
     ) {
@@ -57,6 +61,8 @@ struct UserInfo: Codable, Identifiable {
         self.bio = bio
         self.profileImageURL = profileImageURL
         self.friends = friends
+        self.blockedUsers = blockedUsers
+        self.blockedBy = blockedBy
         self.classesVisibility = classesVisibility
         self.clubsVisibility = clubsVisibility
     }

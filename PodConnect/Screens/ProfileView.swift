@@ -32,6 +32,7 @@ struct ProfileView: View {
 
     @State private var selectedClubs: [String] = []
     @State private var selectedClasses: [String] = []
+    @State private var originalClasses: [String] = []
     @State private var clubOptions: [String] = []
 
     @State private var isEditing = false
@@ -47,11 +48,6 @@ struct ProfileView: View {
     @State private var clubsVisibility: VisibilityLevel = .public
 
     
-
-    let classes = [
-        "COMP 150", "COMP 162", "COMP 232", "COMP 262", "COMP 350",
-        "COMP 362", "COMP 354", "COMP 429", "MATH 240", "MATH 300", "ENGL 101"
-    ]
 
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
@@ -269,33 +265,29 @@ struct ProfileView: View {
                     Text("Classes")
                         .font(.headline)
 
-                    Menu {
-                        ForEach(classes, id: \.self) { course in
-                            Button {
-                                toggleSelection(course, in: &selectedClasses)
-                            } label: {
+                    VStack(spacing: 10) {
+                        
+                        if selectedClasses.isEmpty {
+                            Text("No classes added")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(selectedClasses.indices, id: \.self) { index in
                                 HStack {
-                                    Text(course)
-                                    if selectedClasses.contains(course) {
-                                        Image(systemName: "checkmark")
+                                    TextField("Class", text: $selectedClasses[index])
+                                        .textFieldStyle(.roundedBorder)
+
+                                    Button {
+                                        selectedClasses.remove(at: index)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .foregroundColor(.red)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
-                    } label: {
-                        HStack {
-                            Text(selectedClasses.isEmpty ? "Select classes" : selectedClasses.joined(separator: ", "))
-                                .foregroundColor(selectedClasses.isEmpty ? .gray : .primary)
-                                .lineLimit(2)
 
-                            Spacer()
-
-                            Image(systemName: "chevron.down")
-                                .foregroundColor(.gray)
-                        }
-                        .padding()
-                        .background(Color(.systemBackground))
-                        .cornerRadius(10)
                     }
 
                     Picker("Classes Visibility", selection: $classesVisibility) {
@@ -480,6 +472,68 @@ struct ProfileView: View {
             }
         }
     }
+    
+
+    
+    func classTitle(_ title: String) -> String {
+        title.components(separatedBy: "—").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? title
+    }
+
+    func renamedEventTitle(oldTitle: String, newClassName: String) -> String {
+        let parts = oldTitle.components(separatedBy: "—")
+
+        if parts.count > 1 {
+            let location = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            return "\(newClassName) — \(location)"
+        }
+
+        return newClassName
+    }
+
+    func syncProfileClassChangesToCalendar() async {
+        let eventRepository = EventRepository(
+            firestoreService: FirestoreService(),
+            authService: authService
+        )
+
+        do {
+            let events = try await eventRepository.fetchEvents()
+            let academicEvents = events.filter { $0.category == .academic }
+
+            let trimmedOriginal = originalClasses.map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty }
+
+            let trimmedSelected = selectedClasses.map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty }
+
+            let deletedClasses = trimmedOriginal.filter { !trimmedSelected.contains($0) }
+            let addedClasses = trimmedSelected.filter { !trimmedOriginal.contains($0) }
+
+            if deletedClasses.count == 1 && addedClasses.count == 1 {
+                let oldName = deletedClasses[0]
+                let newName = addedClasses[0]
+
+                for event in academicEvents where classTitle(event.title) == oldName {
+                    var updatedEvent = event
+                    updatedEvent.title = renamedEventTitle(oldTitle: event.title, newClassName: newName)
+                    try await eventRepository.updateEvent(event: updatedEvent)
+                }
+            } else {
+                for deletedClass in deletedClasses {
+                    for event in academicEvents where classTitle(event.title) == deletedClass {
+                        try await eventRepository.deleteEvent(event: event)
+                    }
+                }
+            }
+
+            originalClasses = selectedClasses
+        } catch {
+            print("Failed to sync profile classes to calendar: \(error)")
+        }
+    }
 
     func handleSelectedPhoto() async {
         guard let item = selectedPhotoItem else { return }
@@ -541,6 +595,7 @@ struct ProfileView: View {
         currentUID = userInfo.uid
         selectedClubs = userInfo.clubs
         selectedClasses = userInfo.classes
+        originalClasses = userInfo.classes
         profileImageURL = userInfo.profileImageURL
         classesVisibility = userInfo.classesVisibility
         clubsVisibility = userInfo.clubsVisibility
@@ -552,6 +607,8 @@ struct ProfileView: View {
         guard !currentUID.isEmpty else { return }
         let uid = currentUID
 
+        await syncProfileClassChangesToCalendar()
+        
         let profile = UserInfo(
             id: uid,
             username: username,
@@ -559,7 +616,7 @@ struct ProfileView: View {
             name: name,
             classes: selectedClasses,
             clubs: selectedClubs,
-            friends: [],
+            friends: authService.userInfo?.friends ?? [],
             email: email,
             uid: uid,
             bio: bio,

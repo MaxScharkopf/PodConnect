@@ -7,12 +7,14 @@ import SwiftUI
 
 struct CalendarView: View {
     @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
+    @ObservedObject private var authService: AuthService
     @StateObject private var viewModel: CalendarViewModel
     @State private var selectedTab = 0
     @State private var showAddEvent = false
     @State private var selectedDate = Date()
 
-    init(eventRepository: EventRepository) {
+    init(eventRepository: EventRepository, authService: AuthService) {
+        self.authService = authService
         _viewModel = StateObject(wrappedValue: CalendarViewModel(eventRepository: eventRepository))
     }
 
@@ -39,25 +41,60 @@ struct CalendarView: View {
                             assignments: assignmentsViewModel.assignments,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
-                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
-                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } },
-                            onEditEvent: { event in Task { await viewModel.updateEvent(event: event) } },
-                            onEditSeries: { event in
-                                guard let groupId = event.recurrenceGroupId else { return }
-                                Task { await viewModel.updateEventSeries(groupId: groupId, template: event) }
+                            onDeleteEvent: { event in
+                                Task {
+                                    await removeClassFromProfileIfNeeded(event)
+                                    await viewModel.deleteEvent(event: event)
+                                }
+                            },
+                            onDeleteSeries: { groupId in
+                                Task {
+                                    await removeClassSeriesFromProfileIfNeeded(groupId)
+                                    await viewModel.deleteEventSeries(groupId: groupId)
+                                }
+                            },
+                            onEditEvent: { updatedEvent in
+                                Task {
+                                    await viewModel.updateEvent(event: updatedEvent)
+                                }
+                            },
+                            onEditSeries: { updatedEvent in
+                                guard let groupId = updatedEvent.recurrenceGroupId else { return }
+                                Task {
+                                    await syncProfileClassNameIfNeeded(updatedEvent)
+                                    await viewModel.updateEventSeries(groupId: groupId, template: updatedEvent)
+                                }
                             }
                         )
                     } else {
                         EventsTabView(
                             userEvents: viewModel.userEvents,
+                            assignments: assignmentsViewModel.assignments,
                             selectedDate: $selectedDate,
                             selectedTab: $selectedTab,
-                            onDeleteEvent: { event in Task { await viewModel.deleteEvent(event: event) } },
-                            onDeleteSeries: { groupId in Task { await viewModel.deleteEventSeries(groupId: groupId) } },
-                            onEditEvent: { event in Task { await viewModel.updateEvent(event: event) } },
-                            onEditSeries: { event in
-                                guard let groupId = event.recurrenceGroupId else { return }
-                                Task { await viewModel.updateEventSeries(groupId: groupId, template: event) }
+                            onDeleteEvent: { event in
+                                Task {
+                                    await removeClassFromProfileIfNeeded(event)
+                                    await viewModel.deleteEvent(event: event)
+                                }
+                            },
+                            onDeleteSeries: { groupId in
+                                Task {
+                                    await removeClassSeriesFromProfileIfNeeded(groupId)
+                                    await viewModel.deleteEventSeries(groupId: groupId)
+                                }
+                            },
+                            onEditEvent: { updatedEvent in
+                                Task {
+                                    await viewModel.updateEvent(event: updatedEvent)
+                                }
+                            },
+                            onEditSeries: { updatedEvent in
+                                guard let groupId = updatedEvent.recurrenceGroupId else { return }
+                                Task {
+                                    await syncProfileClassNameIfNeeded(updatedEvent)
+                                    await viewModel.updateEventSeries(groupId: groupId, template: updatedEvent)
+                                }
                             }
                         )
                     }
@@ -65,12 +102,118 @@ struct CalendarView: View {
             }
         }
         .navigationBarHidden(true)
+        .onAppear {
+            Task {
+                await viewModel.fetchEvents()
+            }
+        }
         .sheet(isPresented: $showAddEvent) {
             AddEventSheet(initialDate: selectedDate) { events in
-                Task { await viewModel.saveEvents(events) }
+                Task {
+                    await viewModel.saveEvents(events)
+                    await viewModel.fetchEvents()
+
+                    if let firstEventDate = events.first?.startDate {
+                        selectedDate = firstEventDate
+                    }
+
+                    selectedTab = 0
+                }
             }
         }
     }
+    
+    private func classTitle(_ title: String) -> String {
+        title.components(separatedBy: "—").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? title
+    }
+
+    private func updateProfileClasses(_ classes: [String]) async {
+        guard let userInfo = authService.userInfo else { return }
+
+        let updatedProfile = UserInfo(
+            id: userInfo.id,
+            username: userInfo.username,
+            username_lowercase: userInfo.username_lowercase,
+            name: userInfo.name,
+            classes: classes,
+            clubs: userInfo.clubs,
+            friends: userInfo.friends,
+            email: userInfo.email,
+            uid: userInfo.uid,
+            bio: userInfo.bio,
+            profileImageURL: userInfo.profileImageURL,
+            classesVisibility: userInfo.classesVisibility,
+            clubsVisibility: userInfo.clubsVisibility
+        )
+
+        do {
+            try await authService.updateUserProfile(updatedProfile)
+        } catch {
+            print("Failed to sync profile classes: \(error)")
+        }
+    }
+
+    private func syncProfileClassNameIfNeeded(_ updatedEvent: UserEvent) async {
+        guard updatedEvent.category == .academic else { return }
+        guard let oldEvent = viewModel.userEvents.first(where: { $0.id == updatedEvent.id }) else { return }
+        guard oldEvent.category == .academic else { return }
+
+        let oldName = classTitle(oldEvent.title)
+        let newName = classTitle(updatedEvent.title)
+
+        guard oldName != newName else { return }
+        guard var classes = authService.userInfo?.classes else { return }
+
+        if let index = classes.firstIndex(of: oldName) {
+            classes[index] = newName
+        } else if !classes.contains(newName) {
+            classes.append(newName)
+        }
+
+        await updateProfileClasses(classes)
+    }
+
+    private func removeClassFromProfileIfNeeded(_ event: UserEvent) async {
+        guard event.category == .academic else { return }
+        let name = classTitle(event.title)
+
+        let remainingMatchingEvents = viewModel.userEvents.filter {
+            $0.id != event.id &&
+            $0.category == .academic &&
+            classTitle($0.title) == name
+        }
+
+        guard remainingMatchingEvents.isEmpty else { return }
+        guard var classes = authService.userInfo?.classes else { return }
+
+        classes.removeAll { $0 == name }
+        await updateProfileClasses(classes)
+    }
+
+    private func removeClassSeriesFromProfileIfNeeded(_ groupId: String) async {
+        let seriesEvents = viewModel.userEvents.filter {
+            $0.recurrenceGroupId == groupId &&
+            $0.category == .academic
+        }
+
+        guard let first = seriesEvents.first else { return }
+
+        let name = classTitle(first.title)
+
+        let remainingMatchingEvents = viewModel.userEvents.filter {
+            $0.recurrenceGroupId != groupId &&
+            $0.category == .academic &&
+            classTitle($0.title) == name
+        }
+
+        guard remainingMatchingEvents.isEmpty else { return }
+        guard var classes = authService.userInfo?.classes else { return }
+
+        classes.removeAll { $0 == name }
+        await updateProfileClasses(classes)
+    }
+    
 
     private var topHeader: some View {
         HStack {
@@ -118,10 +261,16 @@ struct CalendarTabView: View {
         schoolEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
     }
 
+    
     private var userEventsOnDate: [UserEvent] {
-        userEvents
+        return userEvents
             .filter { Calendar.current.isDate($0.startDate, inSameDayAs: selectedDate) }
-            .sorted { $0.startDate < $1.startDate }
+            .sorted {
+                if $0.startDate == $1.startDate {
+                    return $0.endDate < $1.endDate
+                }
+                return $0.startDate < $1.startDate
+            }
     }
 
     private var classEventsOnDate: [UserEvent] {
@@ -305,12 +454,14 @@ struct CalendarTabView: View {
 // MARK: - Events Tab
 struct EventsTabView: View {
     var userEvents: [UserEvent]
+    var assignments: [CanvasAssignment]
     @Binding var selectedDate: Date
     @Binding var selectedTab: Int
     var onDeleteEvent: (UserEvent) -> Void
     var onDeleteSeries: (String) -> Void
     var onEditEvent: (UserEvent) -> Void
     var onEditSeries: (UserEvent) -> Void
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var eventPendingDelete: UserEvent?
     @State private var eventToEdit: UserEvent?
     @State private var editScope: EditScope = .single
@@ -322,6 +473,27 @@ struct EventsTabView: View {
 
     private let allCategories = ["Academic", "Arts", "Campus Life", "Wellness", "Personal", "Work", "Other"]
 
+    
+    private var filteredAssignments: [CanvasAssignment] {
+        let today = Calendar.current.startOfDay(for: Date())
+
+        let futureAssignments = assignments.filter {
+            $0.dueDate >= today
+        }
+
+        if searchText.isEmpty {
+            return futureAssignments.sorted { $0.dueDate < $1.dueDate }
+        }
+
+        return futureAssignments
+            .filter {
+                $0.title.localizedCaseInsensitiveContains(searchText)
+            }
+            .sorted { $0.dueDate < $1.dueDate }
+    }
+    
+    
+    
     private var filteredSchoolEvents: [SchoolEvent] {
         let categoryFiltered: [SchoolEvent]
 
@@ -341,7 +513,6 @@ struct EventsTabView: View {
     }
 
     private var filteredUserEvents: [UserEvent] {
-        let now = Date()
 
         let categoryFiltered: [UserEvent]
 
@@ -351,7 +522,8 @@ struct EventsTabView: View {
             categoryFiltered = userEvents.filter { activeCategories.contains($0.category.rawValue) }
         }
 
-        let futureFiltered = categoryFiltered.filter { $0.startDate >= now }
+        let today = Calendar.current.startOfDay(for: Date())
+        let futureFiltered = categoryFiltered.filter { $0.startDate >= today }
 
         let searchFiltered: [UserEvent]
 
@@ -365,7 +537,20 @@ struct EventsTabView: View {
             }
         }
 
-        return searchFiltered.sorted { $0.startDate < $1.startDate }
+        return searchFiltered.sorted {
+            if $0.startDate == $1.startDate {
+                return $0.endDate < $1.endDate
+            }
+            return $0.startDate < $1.startDate
+        }
+    }
+    
+    private var filteredClassEvents: [UserEvent] {
+        filteredUserEvents.filter { $0.category == .academic }
+    }
+
+    private var filteredPersonalEvents: [UserEvent] {
+        filteredUserEvents.filter { $0.category != .academic }
     }
 
     private var groupedSchoolEvents: [(String, [SchoolEvent])] {
@@ -425,9 +610,46 @@ struct EventsTabView: View {
             Divider()
 
             List {
-                if !filteredUserEvents.isEmpty {
-                    Section("My Events") {
-                        ForEach(filteredUserEvents) { event in
+                
+                if !filteredAssignments.isEmpty {
+                    Section("Assignments") {
+                        ForEach(filteredAssignments) { assignment in
+                            Button {
+                                selectedDate = assignment.dueDate
+                                selectedTab = 0
+                            } label: {
+                                CanvasAssignmentRow(assignment: assignment)
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task {
+                                        await assignmentsViewModel.deleteAssignment(assignment)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    Task {
+                                        await assignmentsViewModel.toggleCompleted(assignment)
+                                    }
+                                } label: {
+                                    Label(
+                                        assignment.isCompleted ? "Undo" : "Complete",
+                                        systemImage: assignment.isCompleted ? "arrow.uturn.backward" : "checkmark"
+                                    )
+                                }
+                                .tint(Color.islandsBlue)
+                            }
+                        }
+                    }
+                }
+                
+                if !filteredClassEvents.isEmpty {
+                    Section("Classes") {
+                        ForEach(filteredClassEvents) { event in
                             Button {
                                 selectedDate = event.startDate
                                 selectedTab = 0
@@ -462,7 +684,45 @@ struct EventsTabView: View {
                             }
                         }
                     }
-                
+                }
+
+                if !filteredPersonalEvents.isEmpty {
+                    Section("My Events") {
+                        ForEach(filteredPersonalEvents) { event in
+                            Button {
+                                selectedDate = event.startDate
+                                selectedTab = 0
+                            } label: {
+                                UserEventRow(event: event)
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if event.recurrenceGroupId != nil {
+                                        eventPendingDelete = event
+                                    } else {
+                                        onDeleteEvent(event)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                Button {
+                                    eventToEdit = event
+                                    if event.recurrenceGroupId != nil {
+                                        showEditConfirmation = true
+                                    } else {
+                                        editScope = .single
+                                        showEditSheet = true
+                                    }
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(Color.islandsBlue)
+                            }
+                        }
+                    }
                 }
                 
             
@@ -481,7 +741,7 @@ struct EventsTabView: View {
                     }
                 }
 
-                if filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
+                if filteredAssignments.isEmpty && filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
                     Text("No matching events")
                         .foregroundColor(.secondary)
                 }
@@ -585,55 +845,107 @@ struct SchoolEventRow: View {
 struct UserEventRow: View {
     let event: UserEvent
 
+    private var classLocation: String? {
+        let parts = event.title.components(separatedBy: "—")
+
+        if parts.count > 1 {
+            return parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return nil
+    }
+
+    private var cleanTitle: String {
+        event.title.components(separatedBy: "—").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? event.title
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+
             HStack(spacing: 6) {
-                Text(event.title)
+                Text(cleanTitle)
                     .font(.body)
+
                 if event.recurrenceGroupId != nil {
                     Image(systemName: "repeat")
                         .font(.caption)
                         .foregroundColor(Color.islandsBlue)
                 }
             }
+
             HStack {
-                Text(event.startDate, style: .date)
+                Text(event.startDate, style: .time)
+                    .font(.caption)
+                    .foregroundColor(Color.islandsBlue)
+
+                Text("·")
+                    .foregroundColor(.secondary)
+
+                Text(event.category.rawValue)
+                    .font(.caption)
+                    .foregroundColor(categoryColor(event.category.rawValue))
+            }
+
+            Text(
+                "\(event.startDate.formatted(.dateTime.month().day().year()))  \(event.startDate.formatted(.dateTime.hour().minute())) – \(event.endDate.formatted(.dateTime.hour().minute()))"
+            )
+            .font(.caption)
+            .foregroundColor(.secondary)
+
+            if event.category == .academic, let location = classLocation {
+                Label(location, systemImage: "mappin")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text(event.startDate, style: .time)
-                Text("–")
-                Text(event.endDate, style: .time)
-            }
-            .font(.caption)
-            .foregroundColor(.gray)
 
-            Text(event.category.rawValue)
-                .font(.caption)
-                .foregroundColor(Color.channelClay)
-
-            if !event.notes.isEmpty {
-                Text(event.notes)
+            } else if !event.notes.isEmpty {
+                Label(event.notes, systemImage: "note.text")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 4)
     }
+
+    func categoryColor(_ category: String) -> Color {
+        switch category {
+        case "Academic": return Color.islandsBlue
+        case "Arts": return Color.channelClay
+        case "Campus Life": return Color.islandsBlue
+        case "Wellness": return Color.channelClay
+        case "Personal": return Color.channelClay
+        default: return .gray
+        }
+    }
 }
+
 
 struct CanvasAssignmentRow: View {
     let assignment: CanvasAssignment
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(assignment.title)
-                .font(.body)
-                .strikethrough(assignment.isCompleted)
-                .foregroundColor(assignment.isCompleted ? .secondary : .primary)
 
-            Text(assignment.dueDate, style: .time)
+            HStack(spacing: 6) {
+                Text(assignment.title)
+                    .font(.body)
+                    .strikethrough(assignment.isCompleted)
+                    .foregroundColor(assignment.isCompleted ? .secondary : .primary)
+            }
+
+            HStack {
+                Text(assignment.dueDate, style: .date)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text(assignment.dueDate, style: .time)
+            }
+            .font(.caption)
+            .foregroundColor(.gray)
+
+            Text("Assignment")
                 .font(.caption)
-                .foregroundColor(assignment.isCompleted ? .secondary : Color.channelClay)
+                .foregroundColor(Color.channelClay)
         }
         .padding(.vertical, 4)
     }
@@ -838,12 +1150,16 @@ struct EditEventSheet: View {
 }
 
 #Preview {
+    let firestoreService = FirestoreService()
+    let authService = AuthService(firestoreService: firestoreService)
+
     NavigationStack {
         CalendarView(
             eventRepository: EventRepository(
-                firestoreService: FirestoreService(),
-                authService: AuthService(firestoreService: FirestoreService())
-            )
+                firestoreService: firestoreService,
+                authService: authService
+            ),
+            authService: authService
         )
         .environmentObject(AssignmentsViewModel())
     }

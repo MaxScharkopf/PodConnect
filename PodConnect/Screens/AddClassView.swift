@@ -7,7 +7,7 @@ import SwiftUI
 
 struct AddClassView: View {
     @Environment(\.dismiss) private var dismiss
-    let onSave: ([UserEvent]) -> Void
+    let onSave: ([UserEvent], String) -> Void
 
     @State private var className = ""
     @State private var room = ""
@@ -74,7 +74,16 @@ struct AddClassView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        onSave(buildEvents())
+                        let events = buildEvents()
+
+                        guard !events.isEmpty else {
+                            return
+                        }
+
+                        onSave(
+                            events,
+                            className.trimmingCharacters(in: .whitespacesAndNewlines)
+                        )
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -94,7 +103,7 @@ struct AddClassView: View {
         let endComponents = cal.dateComponents([.hour, .minute], from: endTime)
 
         var events: [UserEvent] = []
-        var cursor = Date()
+        var cursor = cal.startOfDay(for: Date())
 
         while cursor <= semesterEnd {
             let weekday = cal.component(.weekday, from: cursor)

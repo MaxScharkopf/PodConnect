@@ -12,6 +12,7 @@ enum RelationshipStatus {
     case requestSent
     case requestReceived
     case friends
+    case blocked
 }
 
 enum FriendRequestError: LocalizedError {

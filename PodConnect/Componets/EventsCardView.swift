@@ -54,7 +54,15 @@ struct EventsCardView: View {
                 )
             }
 
-        return Array((personal + school).sorted { $0.startTime < $1.startTime }.prefix(3))
+        return Array(
+            (personal + school).sorted {
+                if $0.startTime == $1.startTime {
+                    return ($0.endTime ?? $0.startTime) < ($1.endTime ?? $1.startTime)
+                }
+                return $0.startTime < $1.startTime
+            }
+            .prefix(3)
+        )
     }
 
     private func schoolIcon(for category: String) -> String {
