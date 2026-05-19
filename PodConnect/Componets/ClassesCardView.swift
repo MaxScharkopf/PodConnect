@@ -23,11 +23,16 @@ struct ClassesCardView: View {
         return userEvents
             .filter { event in
                 event.category == .academic &&
-                event.endDate >= Date() && //can remove event.endDate >= Date() form conditional if want home to show classes that already passed today
+                event.endDate >= Date() &&
                 event.startDate >= today &&
                 event.startDate < tomorrow
             }
-            .sorted { $0.startDate < $1.startDate }
+            .sorted {
+                if $0.startDate == $1.startDate {
+                    return $0.endDate < $1.endDate
+                }
+                return $0.startDate < $1.startDate
+            }
     }
 
     var body: some View {

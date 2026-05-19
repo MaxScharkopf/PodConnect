@@ -33,7 +33,8 @@ final class AssignmentsViewModel: ObservableObject {
 
     var todaysAssignments: [CanvasAssignment] {
         assignments.filter {
-            Calendar.current.isDateInToday($0.dueDate)
+            Calendar.current.isDateInToday($0.dueDate) &&
+            $0.dueDate >= Date()
         }
     }
 
