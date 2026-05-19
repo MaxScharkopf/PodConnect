@@ -280,10 +280,6 @@ struct ProfileView: View {
                         }
                     }
 
-                    Text("Edit class names and schedules from Calendar.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
                     Picker("Classes Visibility", selection: $classesVisibility) {
                         ForEach(VisibilityLevel.allCases, id: \.self) { level in
                             Text(level.rawValue).tag(level)
@@ -339,7 +335,7 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Classes")
                     .font(.headline)
-                Text(selectedClasses.isEmpty ? "None selected" : selectedClasses.joined(separator: ", "))
+                Text(selectedClasses.isEmpty ? "No classes added" : selectedClasses.joined(separator: ", "))
                     .foregroundColor(.primary)
             }
         }

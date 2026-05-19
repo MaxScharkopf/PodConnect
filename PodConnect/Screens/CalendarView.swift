@@ -315,7 +315,9 @@ struct CalendarTabView: View {
                         UserEventRow(event: event)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, let groupId = event.recurrenceGroupId {
+                                        onDeleteSeries(groupId)
+                                    } else if event.recurrenceGroupId != nil {
                                         eventPendingDelete = event
                                     } else {
                                         onDeleteEvent(event)
@@ -327,7 +329,10 @@ struct CalendarTabView: View {
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
                                     eventToEdit = event
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, event.recurrenceGroupId != nil {
+                                        editScope = .series
+                                        showEditSheet = true
+                                    } else if event.recurrenceGroupId != nil {
                                         showEditConfirmation = true
                                     } else {
                                         editScope = .single
@@ -348,7 +353,9 @@ struct CalendarTabView: View {
                         UserEventRow(event: event)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, let groupId = event.recurrenceGroupId {
+                                        onDeleteSeries(groupId)
+                                    } else if event.recurrenceGroupId != nil {
                                         eventPendingDelete = event
                                     } else {
                                         onDeleteEvent(event)
@@ -360,7 +367,10 @@ struct CalendarTabView: View {
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
                                     eventToEdit = event
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, event.recurrenceGroupId != nil {
+                                        editScope = .series
+                                        showEditSheet = true
+                                    } else if event.recurrenceGroupId != nil {
                                         showEditConfirmation = true
                                     } else {
                                         editScope = .single
@@ -583,7 +593,9 @@ struct EventsTabView: View {
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
-                            if event.recurrenceGroupId != nil {
+                            if event.category == .academic, let groupId = event.recurrenceGroupId {
+                                onDeleteSeries(groupId)
+                            } else if event.recurrenceGroupId != nil {
                                 eventPendingDelete = event
                             } else {
                                 onDeleteEvent(event)
@@ -595,7 +607,10 @@ struct EventsTabView: View {
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button {
                             eventToEdit = event
-                            if event.recurrenceGroupId != nil {
+                            if event.category == .academic, event.recurrenceGroupId != nil {
+                                editScope = .series
+                                showEditSheet = true
+                            } else if event.recurrenceGroupId != nil {
                                 showEditConfirmation = true
                             } else {
                                 editScope = .single
