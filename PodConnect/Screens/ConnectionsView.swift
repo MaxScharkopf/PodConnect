@@ -27,16 +27,12 @@ struct ConnectionsView: View {
     @State private var friendToUnblock: UserInfo? = nil
     
     private let messageRepository: MessageRepository
+    private let liveLocationRepository: LiveLocationRepository
     
     @State private var isSearchMode = false
     @State private var isLoadingConnections = true
     @FocusState private var isSearchFieldFocused: Bool
     
-    private let liveLocationRepository: LiveLocationRepository
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    
-    private let messageRepository: MessageRepository
-
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
         _viewModel = StateObject(wrappedValue: FriendViewModel(friendRepository: friendRepository))
@@ -264,25 +260,6 @@ struct ConnectionsView: View {
             } else {
                 VStack(spacing: 16) {
                     ForEach(viewModel.friends) { friend in
-                        NavigationLink(
-                            destination: PublicProfileView(
-                                user: friend,
-                                isFriend: true,
-                                isRequested: false,
-                                currentUID: currentUID,
-                                friendRepository: viewModel.friendRepository,
-                                liveLocationRepository: liveLocationRepository,
-                                currentUsername: authService.userInfo?.username ?? "Someone",
-                                messageRepository: messageRepository,
-                                authService: authService,
-                                locationManager: locationManager
-                            )
-                        ) {
-                            UserRowView(user: friend)
-                                .padding()
-                                .background(Color(.secondarySystemGroupedBackground))
-                                .clipShape(Capsule())
-                                .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
                         HStack(spacing: 12) {
                             NavigationLink(
                                 destination: PublicProfileView(
@@ -291,8 +268,11 @@ struct ConnectionsView: View {
                                     isRequested: false,
                                     currentUID: currentUID,
                                     friendRepository: viewModel.friendRepository,
+                                    liveLocationRepository: liveLocationRepository,
+                                    currentUsername: authService.userInfo?.username ?? "Someone",
                                     messageRepository: messageRepository,
-                                    authService: authService
+                                    authService: authService,
+                                    locationManager: locationManager
                                 )
                             ) {
                                 UserRowView(user: friend)
