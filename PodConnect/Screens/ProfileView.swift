@@ -32,7 +32,6 @@ struct ProfileView: View {
 
     @State private var selectedClubs: [String] = []
     @State private var selectedClasses: [String] = []
-    @State private var originalClasses: [String] = []
     @State private var clubOptions: [String] = []
 
     @State private var isEditing = false
@@ -265,30 +264,25 @@ struct ProfileView: View {
                     Text("Classes")
                         .font(.headline)
 
-                    VStack(spacing: 10) {
-                        
-                        if selectedClasses.isEmpty {
-                            Text("No classes added")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
-                            ForEach(selectedClasses.indices, id: \.self) { index in
-                                HStack {
-                                    TextField("Class", text: $selectedClasses[index])
-                                        .textFieldStyle(.roundedBorder)
-
-                                    Button {
-                                        selectedClasses.remove(at: index)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .foregroundColor(.red)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
+                    if selectedClasses.isEmpty {
+                        Text("No classes added")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(selectedClasses, id: \.self) { className in
+                                Text(className)
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 6)
                             }
                         }
-
                     }
+
+                    Text("Edit class names and schedules from Calendar.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
                     Picker("Classes Visibility", selection: $classesVisibility) {
                         ForEach(VisibilityLevel.allCases, id: \.self) { level in
@@ -473,67 +467,7 @@ struct ProfileView: View {
         }
     }
     
-
     
-    func classTitle(_ title: String) -> String {
-        title.components(separatedBy: "—").first?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? title
-    }
-
-    func renamedEventTitle(oldTitle: String, newClassName: String) -> String {
-        let parts = oldTitle.components(separatedBy: "—")
-
-        if parts.count > 1 {
-            let location = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            return "\(newClassName) — \(location)"
-        }
-
-        return newClassName
-    }
-
-    func syncProfileClassChangesToCalendar() async {
-        let eventRepository = EventRepository(
-            firestoreService: FirestoreService(),
-            authService: authService
-        )
-
-        do {
-            let events = try await eventRepository.fetchEvents()
-            let academicEvents = events.filter { $0.category == .academic }
-
-            let trimmedOriginal = originalClasses.map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }.filter { !$0.isEmpty }
-
-            let trimmedSelected = selectedClasses.map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }.filter { !$0.isEmpty }
-
-            let deletedClasses = trimmedOriginal.filter { !trimmedSelected.contains($0) }
-            let addedClasses = trimmedSelected.filter { !trimmedOriginal.contains($0) }
-
-            if deletedClasses.count == 1 && addedClasses.count == 1 {
-                let oldName = deletedClasses[0]
-                let newName = addedClasses[0]
-
-                for event in academicEvents where classTitle(event.title) == oldName {
-                    var updatedEvent = event
-                    updatedEvent.title = renamedEventTitle(oldTitle: event.title, newClassName: newName)
-                    try await eventRepository.updateEvent(event: updatedEvent)
-                }
-            } else {
-                for deletedClass in deletedClasses {
-                    for event in academicEvents where classTitle(event.title) == deletedClass {
-                        try await eventRepository.deleteEvent(event: event)
-                    }
-                }
-            }
-
-            originalClasses = selectedClasses
-        } catch {
-            print("Failed to sync profile classes to calendar: \(error)")
-        }
-    }
 
     func handleSelectedPhoto() async {
         guard let item = selectedPhotoItem else { return }
@@ -595,7 +529,6 @@ struct ProfileView: View {
         currentUID = userInfo.uid
         selectedClubs = userInfo.clubs
         selectedClasses = userInfo.classes
-        originalClasses = userInfo.classes
         profileImageURL = userInfo.profileImageURL
         classesVisibility = userInfo.classesVisibility
         clubsVisibility = userInfo.clubsVisibility
@@ -607,8 +540,6 @@ struct ProfileView: View {
         guard !currentUID.isEmpty else { return }
         let uid = currentUID
 
-        await syncProfileClassChangesToCalendar()
-        
         let profile = UserInfo(
             id: uid,
             username: username,
