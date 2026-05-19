@@ -328,14 +328,19 @@ struct CalendarTabView: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    eventToEdit = event
                                     if event.category == .academic, event.recurrenceGroupId != nil {
                                         editScope = .series
-                                        showEditSheet = true
+                                        eventToEdit = event
+
+                                        DispatchQueue.main.async {
+                                            showEditSheet = true
+                                        }
                                     } else if event.recurrenceGroupId != nil {
+                                        eventToEdit = event
                                         showEditConfirmation = true
                                     } else {
                                         editScope = .single
+                                        eventToEdit = event
                                         showEditSheet = true
                                     }
                                 } label: {
@@ -366,14 +371,19 @@ struct CalendarTabView: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    eventToEdit = event
                                     if event.category == .academic, event.recurrenceGroupId != nil {
                                         editScope = .series
-                                        showEditSheet = true
+                                        eventToEdit = event
+
+                                        DispatchQueue.main.async {
+                                            showEditSheet = true
+                                        }
                                     } else if event.recurrenceGroupId != nil {
+                                        eventToEdit = event
                                         showEditConfirmation = true
                                     } else {
                                         editScope = .single
+                                        eventToEdit = event
                                         showEditSheet = true
                                     }
                                 } label: {
@@ -449,13 +459,14 @@ struct CalendarTabView: View {
             }
             Button("Cancel", role: .cancel) { eventToEdit = nil }
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let event = eventToEdit {
-                EditEventSheet(event: event) { updated in
-                    if editScope == .single { onEditEvent(updated) }
-                    else { onEditSeries(updated) }
-                    eventToEdit = nil
+        .sheet(item: $eventToEdit) { event in
+            EditEventSheet(event: event) { updated in
+                if editScope == .single {
+                    onEditEvent(updated)
+                } else {
+                    onEditSeries(updated)
                 }
+                eventToEdit = nil
             }
         }
     }
@@ -606,14 +617,19 @@ struct EventsTabView: View {
                     }
                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button {
-                            eventToEdit = event
                             if event.category == .academic, event.recurrenceGroupId != nil {
                                 editScope = .series
-                                showEditSheet = true
+                                eventToEdit = event
+
+                                DispatchQueue.main.async {
+                                    showEditSheet = true
+                                }
                             } else if event.recurrenceGroupId != nil {
+                                eventToEdit = event
                                 showEditConfirmation = true
                             } else {
                                 editScope = .single
+                                eventToEdit = event
                                 showEditSheet = true
                             }
                         } label: {
@@ -783,13 +799,14 @@ struct EventsTabView: View {
             }
             Button("Cancel", role: .cancel) { eventToEdit = nil }
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let event = eventToEdit {
-                EditEventSheet(event: event) { updated in
-                    if editScope == .single { onEditEvent(updated) }
-                    else { onEditSeries(updated) }
-                    eventToEdit = nil
+        .sheet(item: $eventToEdit) { event in
+            EditEventSheet(event: event) { updated in
+                if editScope == .single {
+                    onEditEvent(updated)
+                } else {
+                    onEditSeries(updated)
                 }
+                eventToEdit = nil
             }
         }
     }
