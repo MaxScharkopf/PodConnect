@@ -9,6 +9,7 @@ import Combine
 import Foundation
 import CoreLocation
 import FirebaseFirestore
+import FirebaseAuth
 
 @MainActor
 class MapViewModel: ObservableObject {
@@ -20,10 +21,14 @@ class MapViewModel: ObservableObject {
     @Published var locationCategories: [Int: String] = [:]
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+    @Published var liveLocationShares: [LiveLocationShare] = []
+
+    private let liveLocationRepository: LiveLocationRepository
+    private var liveLocationListener: ListenerRegistration?
     private var mapRepository: MapRepository
     private var friendRepository: FriendRepository
     private var pinsListener: ListenerRegistration?
+    
 
     // Converting current pins into MapPin. Later these will be stored in firebase
     var campusPins: [MapPin] {
@@ -37,9 +42,10 @@ class MapViewModel: ObservableObject {
         campusPins + userPins
     }
 
-    init(mapRepository: MapRepository, friendRepository: FriendRepository) {
+    init(mapRepository: MapRepository, friendRepository: FriendRepository, liveLocationRepository: LiveLocationRepository) {
         self.mapRepository = mapRepository
         self.friendRepository = friendRepository
+        self.liveLocationRepository = liveLocationRepository
         // Start fetching the locations asyncronously
         Task {
             await fetchMapLocations()
@@ -164,5 +170,22 @@ class MapViewModel: ObservableObject {
     func stopListeningToPins() {
         pinsListener?.remove()
         pinsListener = nil
+    }
+    
+    func startLiveLocationListener() {
+        guard let currentUid = Auth.auth().currentUser?.uid else { return }
+
+        liveLocationListener?.remove()
+
+        liveLocationListener = liveLocationRepository.listenToIncomingShares(for: currentUid) { [weak self] shares in
+            Task { @MainActor in
+                self?.liveLocationShares = shares
+            }
+        }
+    }
+
+    func stopLiveLocationListener() {
+        liveLocationListener?.remove()
+        liveLocationListener = nil
     }
 }
