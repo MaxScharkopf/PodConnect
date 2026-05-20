@@ -315,7 +315,9 @@ struct CalendarTabView: View {
                         UserEventRow(event: event)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, let groupId = event.recurrenceGroupId {
+                                        onDeleteSeries(groupId)
+                                    } else if event.recurrenceGroupId != nil {
                                         eventPendingDelete = event
                                     } else {
                                         onDeleteEvent(event)
@@ -326,11 +328,19 @@ struct CalendarTabView: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    eventToEdit = event
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, event.recurrenceGroupId != nil {
+                                        editScope = .series
+                                        eventToEdit = event
+
+                                        DispatchQueue.main.async {
+                                            showEditSheet = true
+                                        }
+                                    } else if event.recurrenceGroupId != nil {
+                                        eventToEdit = event
                                         showEditConfirmation = true
                                     } else {
                                         editScope = .single
+                                        eventToEdit = event
                                         showEditSheet = true
                                     }
                                 } label: {
@@ -348,7 +358,9 @@ struct CalendarTabView: View {
                         UserEventRow(event: event)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, let groupId = event.recurrenceGroupId {
+                                        onDeleteSeries(groupId)
+                                    } else if event.recurrenceGroupId != nil {
                                         eventPendingDelete = event
                                     } else {
                                         onDeleteEvent(event)
@@ -359,11 +371,19 @@ struct CalendarTabView: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button {
-                                    eventToEdit = event
-                                    if event.recurrenceGroupId != nil {
+                                    if event.category == .academic, event.recurrenceGroupId != nil {
+                                        editScope = .series
+                                        eventToEdit = event
+
+                                        DispatchQueue.main.async {
+                                            showEditSheet = true
+                                        }
+                                    } else if event.recurrenceGroupId != nil {
+                                        eventToEdit = event
                                         showEditConfirmation = true
                                     } else {
                                         editScope = .single
+                                        eventToEdit = event
                                         showEditSheet = true
                                     }
                                 } label: {
@@ -439,13 +459,14 @@ struct CalendarTabView: View {
             }
             Button("Cancel", role: .cancel) { eventToEdit = nil }
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let event = eventToEdit {
-                EditEventSheet(event: event) { updated in
-                    if editScope == .single { onEditEvent(updated) }
-                    else { onEditSeries(updated) }
-                    eventToEdit = nil
+        .sheet(item: $eventToEdit) { event in
+            EditEventSheet(event: event) { updated in
+                if editScope == .single {
+                    onEditEvent(updated)
+                } else {
+                    onEditSeries(updated)
                 }
+                eventToEdit = nil
             }
         }
     }
@@ -472,7 +493,13 @@ struct EventsTabView: View {
     @State private var activeCategories: Set<String> = []
 
     private let allCategories = ["Academic", "Arts", "Campus Life", "Wellness", "Personal", "Work", "Other"]
-
+    
+    private struct EventFeedItem: Identifiable {
+        let id: String
+        let date: Date
+        let row: AnyView
+    }
+    
     
     private var filteredAssignments: [CanvasAssignment] {
         let today = Calendar.current.startOfDay(for: Date())
@@ -495,21 +522,159 @@ struct EventsTabView: View {
     
     
     private var filteredSchoolEvents: [SchoolEvent] {
+        let today = Calendar.current.startOfDay(for: Date())
+
+        let futureSchoolEvents = schoolEvents.filter {
+            $0.date >= today
+        }
+
         let categoryFiltered: [SchoolEvent]
 
         if activeCategories.isEmpty {
-            categoryFiltered = schoolEvents
+            categoryFiltered = futureSchoolEvents
         } else {
-            categoryFiltered = schoolEvents.filter { activeCategories.contains($0.category) }
+            categoryFiltered = futureSchoolEvents.filter {
+                activeCategories.contains($0.category)
+            }
         }
 
-        guard !searchText.isEmpty else { return categoryFiltered }
-
-        return categoryFiltered.filter { event in
-            event.title.localizedCaseInsensitiveContains(searchText) ||
-            event.notes.localizedCaseInsensitiveContains(searchText) ||
-            event.category.localizedCaseInsensitiveContains(searchText)
+        guard !searchText.isEmpty else {
+            return categoryFiltered.sorted { $0.date < $1.date }
         }
+
+        return categoryFiltered
+            .filter { event in
+                event.title.localizedCaseInsensitiveContains(searchText) ||
+                event.notes.localizedCaseInsensitiveContains(searchText) ||
+                event.category.localizedCaseInsensitiveContains(searchText)
+            }
+            .sorted { $0.date < $1.date }
+    }
+    
+    private var feedItems: [EventFeedItem] {
+        let assignmentItems = filteredAssignments.map { assignment in
+            EventFeedItem(
+                id: "assignment-\(assignment.id)",
+                date: assignment.dueDate,
+                row: AnyView(
+                    Button {
+                        selectedDate = assignment.dueDate
+                        selectedTab = 0
+                    } label: {
+                        CanvasAssignmentRow(assignment: assignment)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            Task {
+                                await assignmentsViewModel.deleteAssignment(assignment)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        Button {
+                            Task {
+                                await assignmentsViewModel.toggleCompleted(assignment)
+                            }
+                        } label: {
+                            Label(
+                                assignment.isCompleted ? "Undo" : "Complete",
+                                systemImage: assignment.isCompleted ? "arrow.uturn.backward" : "checkmark"
+                            )
+                        }
+                        .tint(Color.islandsBlue)
+                    }
+                )
+            )
+        }
+
+        let userEventItems = filteredUserEvents.map { event in
+            EventFeedItem(
+                id: "event-\(event.id)",
+                date: event.startDate,
+                row: AnyView(
+                    Button {
+                        selectedDate = event.startDate
+                        selectedTab = 0
+                    } label: {
+                        UserEventRow(event: event)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            if event.category == .academic, let groupId = event.recurrenceGroupId {
+                                onDeleteSeries(groupId)
+                            } else if event.recurrenceGroupId != nil {
+                                eventPendingDelete = event
+                            } else {
+                                onDeleteEvent(event)
+                            }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        Button {
+                            if event.category == .academic, event.recurrenceGroupId != nil {
+                                editScope = .series
+                                eventToEdit = event
+
+                                DispatchQueue.main.async {
+                                    showEditSheet = true
+                                }
+                            } else if event.recurrenceGroupId != nil {
+                                eventToEdit = event
+                                showEditConfirmation = true
+                            } else {
+                                editScope = .single
+                                eventToEdit = event
+                                showEditSheet = true
+                            }
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(Color.islandsBlue)
+                    }
+                )
+            )
+        }
+
+        let schoolEventItems = filteredSchoolEvents.map { event in
+            EventFeedItem(
+                id: "school-\(event.id)",
+                date: event.date,
+                row: AnyView(
+                    Button {
+                        selectedDate = event.date
+                        selectedTab = 0
+                    } label: {
+                        SchoolEventRow(event: event)
+                    }
+                    .buttonStyle(.plain)
+                )
+            )
+        }
+
+        return (assignmentItems + userEventItems + schoolEventItems)
+            .sorted { $0.date < $1.date }
+    }
+
+    private var groupedFeedItems: [(dateString: String, items: [EventFeedItem])] {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+
+        let grouped = Dictionary(grouping: feedItems) {
+            formatter.string(from: $0.date)
+        }
+
+        return grouped
+            .map { (dateString: $0.key, items: $0.value.sorted { $0.date < $1.date }) }
+            .sorted {
+                ($0.items.first?.date ?? Date()) < ($1.items.first?.date ?? Date())
+            }
     }
 
     private var filteredUserEvents: [UserEvent] {
@@ -545,28 +710,7 @@ struct EventsTabView: View {
         }
     }
     
-    private var filteredClassEvents: [UserEvent] {
-        filteredUserEvents.filter { $0.category == .academic }
-    }
 
-    private var filteredPersonalEvents: [UserEvent] {
-        filteredUserEvents.filter { $0.category != .academic }
-    }
-
-    private var groupedSchoolEvents: [(String, [SchoolEvent])] {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .full
-        formatter.timeStyle = .none
-
-        let grouped = Dictionary(grouping: filteredSchoolEvents) {
-            formatter.string(from: $0.date)
-        }
-        return grouped.sorted { a, b in
-            let dateA = filteredSchoolEvents.first { formatter.string(from: $0.date) == a.0 }?.date ?? Date()
-            let dateB = filteredSchoolEvents.first { formatter.string(from: $0.date) == b.0 }?.date ?? Date()
-            return dateA < dateB
-        }
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -610,138 +754,15 @@ struct EventsTabView: View {
             Divider()
 
             List {
-                
-                if !filteredAssignments.isEmpty {
-                    Section("Assignments") {
-                        ForEach(filteredAssignments) { assignment in
-                            Button {
-                                selectedDate = assignment.dueDate
-                                selectedTab = 0
-                            } label: {
-                                CanvasAssignmentRow(assignment: assignment)
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    Task {
-                                        await assignmentsViewModel.deleteAssignment(assignment)
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    Task {
-                                        await assignmentsViewModel.toggleCompleted(assignment)
-                                    }
-                                } label: {
-                                    Label(
-                                        assignment.isCompleted ? "Undo" : "Complete",
-                                        systemImage: assignment.isCompleted ? "arrow.uturn.backward" : "checkmark"
-                                    )
-                                }
-                                .tint(Color.islandsBlue)
-                            }
-                        }
-                    }
-                }
-                
-                if !filteredClassEvents.isEmpty {
-                    Section("Classes") {
-                        ForEach(filteredClassEvents) { event in
-                            Button {
-                                selectedDate = event.startDate
-                                selectedTab = 0
-                            } label: {
-                                UserEventRow(event: event)
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    if event.recurrenceGroupId != nil {
-                                        eventPendingDelete = event
-                                    } else {
-                                        onDeleteEvent(event)
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    eventToEdit = event
-                                    if event.recurrenceGroupId != nil {
-                                        showEditConfirmation = true
-                                    } else {
-                                        editScope = .single
-                                        showEditSheet = true
-                                    }
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(Color.islandsBlue)
-                            }
+                ForEach(groupedFeedItems, id: \.dateString) { group in
+                    Section(group.dateString) {
+                        ForEach(group.items) { item in
+                            item.row
                         }
                     }
                 }
 
-                if !filteredPersonalEvents.isEmpty {
-                    Section("My Events") {
-                        ForEach(filteredPersonalEvents) { event in
-                            Button {
-                                selectedDate = event.startDate
-                                selectedTab = 0
-                            } label: {
-                                UserEventRow(event: event)
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    if event.recurrenceGroupId != nil {
-                                        eventPendingDelete = event
-                                    } else {
-                                        onDeleteEvent(event)
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    eventToEdit = event
-                                    if event.recurrenceGroupId != nil {
-                                        showEditConfirmation = true
-                                    } else {
-                                        editScope = .single
-                                        showEditSheet = true
-                                    }
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(Color.islandsBlue)
-                            }
-                        }
-                    }
-                }
-                
-            
-
-                ForEach(groupedSchoolEvents, id: \.0) { dateString, events in
-                    Section(dateString) {
-                        ForEach(events) { event in
-                            Button {
-                                selectedDate = event.date
-                                selectedTab = 0
-                            } label: {
-                                SchoolEventRow(event: event)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                if filteredAssignments.isEmpty && filteredUserEvents.isEmpty && groupedSchoolEvents.isEmpty {
+                if groupedFeedItems.isEmpty {
                     Text("No matching events")
                         .foregroundColor(.secondary)
                 }
@@ -778,13 +799,14 @@ struct EventsTabView: View {
             }
             Button("Cancel", role: .cancel) { eventToEdit = nil }
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let event = eventToEdit {
-                EditEventSheet(event: event) { updated in
-                    if editScope == .single { onEditEvent(updated) }
-                    else { onEditSeries(updated) }
-                    eventToEdit = nil
+        .sheet(item: $eventToEdit) { event in
+            EditEventSheet(event: event) { updated in
+                if editScope == .single {
+                    onEditEvent(updated)
+                } else {
+                    onEditSeries(updated)
                 }
+                eventToEdit = nil
             }
         }
     }
@@ -798,6 +820,7 @@ struct EventsTabView: View {
         default: return .gray
         }
     }
+    
 }
 
 // MARK: - Row Views
@@ -1086,15 +1109,28 @@ struct EditEventSheet: View {
     let onSave: (UserEvent) -> Void
 
     @State private var title: String
+    @State private var location: String
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var notes: String
     @State private var category: EventCategory
 
+    private var isAcademic: Bool {
+        category == .academic
+    }
+
     init(event: UserEvent, onSave: @escaping (UserEvent) -> Void) {
         self.event = event
         self.onSave = onSave
-        _title = State(initialValue: event.title)
+
+        let parts = event.title.components(separatedBy: "—")
+        let cleanTitle = parts.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? event.title
+        let cleanLocation = parts.count > 1
+            ? parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+
+        _title = State(initialValue: cleanTitle)
+        _location = State(initialValue: cleanLocation)
         _startDate = State(initialValue: event.startDate)
         _endDate = State(initialValue: event.endDate)
         _notes = State(initialValue: event.notes)
@@ -1104,11 +1140,17 @@ struct EditEventSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Event Details") {
-                    TextField("Title", text: $title)
+                Section(isAcademic ? "Class Details" : "Event Details") {
+                    TextField(isAcademic ? "Class Name" : "Title", text: $title)
+
+                    if isAcademic {
+                        TextField("Location", text: $location)
+                    }
+
                     DatePicker("Start", selection: $startDate)
                     DatePicker("End", selection: $endDate)
                 }
+
                 Section("Category") {
                     Picker("Category", selection: $category) {
                         ForEach(EventCategory.allCases, id: \.self) { cat in
@@ -1117,12 +1159,13 @@ struct EditEventSheet: View {
                     }
                     .pickerStyle(.menu)
                 }
+
                 Section("Notes") {
                     TextField("Add notes...", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
                 }
             }
-            .navigationTitle("Edit Event")
+            .navigationTitle(isAcademic ? "Edit Class" : "Edit Event")
             .navigationBarTitleDisplayMode(.inline)
             .tint(Color.islandsBlue)
             .toolbar {
@@ -1130,19 +1173,29 @@ struct EditEventSheet: View {
                     Button("Cancel") { dismiss() }
                         .foregroundColor(Color.channelClay)
                 }
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         var updated = event
-                        updated.title = title
+                        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        if category == .academic && !trimmedLocation.isEmpty {
+                            updated.title = "\(trimmedTitle) — \(trimmedLocation)"
+                        } else {
+                            updated.title = trimmedTitle
+                        }
+
                         updated.startDate = startDate
                         updated.endDate = endDate
                         updated.notes = notes
                         updated.category = category
+
                         onSave(updated)
                         dismiss()
                     }
-                    .disabled(title.isEmpty)
-                    .foregroundColor(title.isEmpty ? .gray : Color.islandsBlue)
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .foregroundColor(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : Color.islandsBlue)
                 }
             }
         }
