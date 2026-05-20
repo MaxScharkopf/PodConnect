@@ -333,7 +333,7 @@ struct ConnectionsView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white)
+                    .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(Capsule())
                     .shadow(color: .black.opacity(0.12), radius: 5, y: 2)
                 }

@@ -587,7 +587,7 @@ func mapButton(icon: String, isActive: Bool = false) -> some View {
     Image(systemName: icon)
         .font(.system(size: 22))
         .frame(width: 44, height: 44)
-        .background(Color.white.opacity(0.6))
+        .background(.thinMaterial)
         .clipShape(Circle())
         .shadow(radius: 5)
 }
