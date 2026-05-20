@@ -71,7 +71,7 @@ struct AccountSettingsView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                             
@@ -86,7 +86,7 @@ struct AccountSettingsView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                             }
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                         }
@@ -114,7 +114,7 @@ struct AccountSettingsView: View {
                                     .foregroundColor(.secondary)
                             }
                             .padding()
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                         }
