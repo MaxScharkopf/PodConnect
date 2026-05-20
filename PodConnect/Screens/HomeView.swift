@@ -183,7 +183,7 @@ struct HomeView: View {
     }
 
     private var WelcomeMsg2: AttributedString {
-        let userName = authService.userInfo?.username ?? "User"
+        let userName = authService.userInfo?.name ?? "User"
         var username = AttributedString(userName)
         username.foregroundColor = .white
         return username
