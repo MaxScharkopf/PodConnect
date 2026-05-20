@@ -26,12 +26,20 @@ final class CanvasICalService {
     private func parseICS(_ text: String) -> [CanvasAssignment] {
         var assignments: [CanvasAssignment] = []
 
-        let events = text.components(separatedBy: "BEGIN:VEVENT")
+        // Unfold ICS lines (RFC 5545: CRLF + space/tab = continuation)
+        let unfolded = text
+            .replacingOccurrences(of: "\r\n ", with: "")
+            .replacingOccurrences(of: "\r\n\t", with: "")
+
+        let events = unfolded.components(separatedBy: "BEGIN:VEVENT")
 
         for event in events {
             guard event.contains("SUMMARY") else { continue }
 
-            let lines = event.components(separatedBy: "\n")
+            // Split on \r\n or \n
+            let lines = event.components(separatedBy: "\r\n").flatMap {
+                $0.components(separatedBy: "\n")
+            }
 
             var title: String = ""
             var date: Date?

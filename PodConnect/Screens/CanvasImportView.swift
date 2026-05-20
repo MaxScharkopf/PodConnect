@@ -53,6 +53,17 @@ struct CanvasImportView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
 
+                if viewModel.isLoading {
+                    ProgressView()
+                }
+
+                if !viewModel.errorMessage.isEmpty {
+                    Text(viewModel.errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                }
+
                 if !viewModel.assignments.isEmpty {
                     Text("Imported \(viewModel.assignments.count) assignments")
                         .font(.subheadline)
