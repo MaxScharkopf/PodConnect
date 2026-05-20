@@ -18,7 +18,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		E28AE8B52FAF199700950796 /* Exceptions for "PodConnect" folder in "PodConnect" target */ = {
+		E29634172F5FE33E00C2E02E /* Exceptions for "PodConnect" folder in "PodConnect" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -31,7 +31,7 @@
 		E201CAA12F5E4B76009E0E90 /* PodConnect */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				E28AE8B52FAF199700950796 /* Exceptions for "PodConnect" folder in "PodConnect" target */,
+				E29634172F5FE33E00C2E02E /* Exceptions for "PodConnect" folder in "PodConnect" target */,
 			);
 			path = PodConnect;
 			sourceTree = "<group>";
@@ -290,7 +290,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = PodConnect/PodConnect.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = NLM232548H;
@@ -326,7 +325,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = PodConnect/PodConnect.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = NLM232548H;
