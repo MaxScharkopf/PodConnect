@@ -22,7 +22,8 @@ struct AccountSettingsView: View {
     @FocusState private var newPasswordFocused: Bool
     @FocusState private var confirmNewPasswordFocused: Bool
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
+    
+    
 
     var body: some View {
         ZStack {
@@ -70,9 +71,10 @@ struct AccountSettingsView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                            
 
                             VStack(spacing: 0) {
                                 Button("Update Password") {
@@ -84,16 +86,46 @@ struct AccountSettingsView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                             }
-                            .background(Color.white)
+                            .background(Color(.secondarySystemGroupedBackground))
                             .cornerRadius(16)
                             .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
                         }
+                        
+                        NavigationLink {
+                            CanvasImportView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "link")
+                                    .foregroundColor(Color.channelClay)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Connect Canvas")
+                                        .foregroundColor(.primary)
+
+                                    Text("Import assignments from Canvas")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding()
                     .contentShape(Rectangle())
                     .onTapGesture {
                         dismissKeyboard()
                     }
+    
                 }
             }
         }
@@ -123,7 +155,7 @@ struct AccountSettingsView: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 18)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
     }
 
     private func dismissKeyboard() {
@@ -200,4 +232,5 @@ struct AccountSettingsView: View {
     NavigationView {
         AccountSettingsView()
     }
+    .environmentObject(AssignmentsViewModel())
 }

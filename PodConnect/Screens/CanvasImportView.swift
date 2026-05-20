@@ -1,0 +1,80 @@
+//
+//  CanvasImportView.swift
+//  PodConnect
+//
+//  Created by Kassidy Barbara-Rose Saffa on 5/9/26.
+//
+
+import Foundation
+import SwiftUI
+
+struct CanvasImportView: View {
+    @EnvironmentObject var viewModel: AssignmentsViewModel
+
+    
+    
+
+    var body: some View {
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Connect Canvas")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color.islandsBlue)
+
+                    Text("Paste your Canvas calendar feed link to import assignments into PodConnect.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                TextField("Canvas calendar feed link", text: $viewModel.canvasURL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                Button {
+                    Task {
+                        await viewModel.loadAssignments()
+                    }
+                } label: {
+                    Text("Import Assignments")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.channelClay)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+
+                if viewModel.isLoading {
+                    ProgressView()
+                }
+
+                if !viewModel.errorMessage.isEmpty {
+                    Text(viewModel.errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                }
+
+                if !viewModel.assignments.isEmpty {
+                    Text("Imported \(viewModel.assignments.count) assignments")
+                        .font(.subheadline)
+                        .foregroundColor(Color.islandsBlue)
+                }
+
+                Spacer()
+            }
+            .padding()
+        }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}

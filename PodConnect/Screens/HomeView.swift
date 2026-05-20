@@ -7,14 +7,15 @@ import SwiftUI
 import FirebaseAuth
 
 struct HomeView: View {
-    private var authService: AuthService
+    @ObservedObject private var authService: AuthService
     @Binding var selectedTab: Int
     @Binding var selectedPinShareRequest: PinShareRequest?
     @StateObject private var viewModel: HomeViewModel
+    @StateObject private var toDoViewModel: ToDoViewModel
+    @StateObject private var calendarViewModel: CalendarViewModel
+    @EnvironmentObject var assignmentsViewModel: AssignmentsViewModel
     @State private var showNotifications = false
-
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
+    @State private var showAddClass = false
 
     init(authService: AuthService, selectedTab: Binding<Int>, selectedPinShareRequest: Binding<PinShareRequest?>) {
         self.authService = authService
@@ -22,6 +23,8 @@ struct HomeView: View {
         _selectedPinShareRequest = selectedPinShareRequest
         
         let firestoreService = FirestoreService()
+        let uid = Auth.auth().currentUser?.uid ?? ""
+        _toDoViewModel = StateObject(wrappedValue: ToDoViewModel(uid: uid))
 
         _viewModel = StateObject(
             wrappedValue: HomeViewModel(
@@ -33,6 +36,16 @@ struct HomeView: View {
                 pinShareRepository: PinShareRepository(firestoreService: firestoreService)
             )
         )
+
+        _calendarViewModel = StateObject(
+            wrappedValue: CalendarViewModel(
+                eventRepository: EventRepository(
+                    firestoreService: firestoreService,
+                    authService: authService
+                )
+            )
+        )
+
     }
 
     var body: some View {
@@ -45,7 +58,7 @@ struct HomeView: View {
                     topHeader
 
                     ScrollView {
-                        VStack(spacing: 20) {
+                        VStack(spacing: 16) {
                             if !viewModel.errorMessage.isEmpty {
                                 Text(viewModel.errorMessage)
                                     .foregroundColor(.red)
@@ -54,9 +67,47 @@ struct HomeView: View {
                                     .padding(.horizontal)
                             }
 
-                            Spacer(minLength: 30)
+                            HStack(spacing: 14) {
+                                DateTimeCardView()
+                                CampusEventCardView()
+                            }
+
+                            WeatherCardView()
+
+                            EventsCardView(selectedTab: $selectedTab, userEvents: calendarViewModel.userEvents)
+
+                            ClassesCardView(
+                                selectedTab: $selectedTab,
+                                userEvents: calendarViewModel.userEvents
+                            )
+
+                            Button {
+                                showAddClass = true
+                            } label: {
+                                Label("Add Class to Schedule", systemImage: "plus.circle.fill")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(Color.islandsBlue)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.islandsBlue.opacity(UIScreen.main.traitCollection.userInterfaceStyle == .dark ? 0.25 : 0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+
+                            HStack {
+                                Text("My Tasks")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                Spacer()
+                            }
+                            .padding(.top, 4)
+
+                            ToDoCardView(viewModel: toDoViewModel)
+                            AssignmentsCardView()
                         }
                         .padding()
+                        .padding(.bottom, 16)
                     }
                 }
             }
@@ -64,6 +115,20 @@ struct HomeView: View {
             .onAppear {
                 Task {
                     await viewModel.loadNotifications()
+                    await calendarViewModel.fetchEvents()
+                }
+            }
+            .task(id: authService.userInfo?.id) {
+                guard authService.userInfo?.id != nil else { return }
+                await calendarViewModel.fetchEvents()
+            }
+            .sheet(isPresented: $showAddClass) {
+                AddClassView { events, className in
+                    Task {
+                        await calendarViewModel.saveEvents(events)
+                        await calendarViewModel.fetchEvents()
+                        await addClassToProfile(className)
+                    }
                 }
             }
             .sheet(isPresented: $showNotifications) {
@@ -76,15 +141,49 @@ struct HomeView: View {
             }
         }
     }
+    
+    private func addClassToProfile(_ className: String) async {
+        let trimmed = className.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let userInfo = authService.userInfo else { return }
+
+        var updatedClasses = userInfo.classes
+
+        if !updatedClasses.contains(trimmed) {
+            updatedClasses.append(trimmed)
+        }
+
+        let updatedProfile = UserInfo(
+            id: userInfo.id,
+            username: userInfo.username,
+            username_lowercase: userInfo.username_lowercase,
+            name: userInfo.name,
+            classes: updatedClasses,
+            clubs: userInfo.clubs,
+            friends: userInfo.friends,
+            email: userInfo.email,
+            uid: userInfo.uid,
+            bio: userInfo.bio,
+            profileImageURL: userInfo.profileImageURL,
+            classesVisibility: userInfo.classesVisibility,
+            clubsVisibility: userInfo.clubsVisibility
+        )
+
+        do {
+            try await authService.updateUserProfile(updatedProfile)
+        } catch {
+            print("Failed to update profile classes: \(error)")
+        }
+    }
 
     private var WelcomeMsg1: AttributedString {
         var welcome = AttributedString("Welcome, ")
-        welcome.foregroundColor = ChannelClay
+        welcome.foregroundColor = Color.channelClay
         return welcome
     }
 
     private var WelcomeMsg2: AttributedString {
-        let userName = authService.userInfo?.username ?? "User"
+        let userName = authService.userInfo?.name ?? "User"
         var username = AttributedString(userName)
         username.foregroundColor = .white
         return username
@@ -113,7 +212,7 @@ struct HomeView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
-                            .background(ChannelClay)
+                            .background(Color.channelClay)
                             .clipShape(Capsule())
                             .offset(x: 10, y: -8)
                     }
@@ -123,7 +222,7 @@ struct HomeView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 23)
-        .background(IslandsBlue)
+        .background(Color.islandsBlue)
     }
 }
 
@@ -134,9 +233,6 @@ private struct NotificationSheetView: View {
     @Binding var selectedTab: Int
     @Binding var selectedPinShareRequest: PinShareRequest?
     @Binding var isPresented: Bool
-
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
 
     var filteredRequests: [FriendRequest] {
         switch viewModel.activeFilter {
@@ -165,6 +261,15 @@ private struct NotificationSheetView: View {
         }
     }
 
+    var filteredMessageRequests: [MessageThread] {
+        switch viewModel.activeFilter {
+        case .all, .messages:
+            return viewModel.pendingMessageRequests
+        case .friendRequests, .pinRequests:
+            return []
+        }
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -187,7 +292,7 @@ private struct NotificationSheetView: View {
                     Button("Done") {
                         isPresented = false
                     }
-                    .foregroundColor(IslandsBlue)
+                    .foregroundColor(.blue) // Standard blue for better system visibility
                 }
             }
         }
@@ -205,10 +310,18 @@ private struct NotificationSheetView: View {
                         Text(filter.rawValue)
                             .font(.subheadline)
                             .fontWeight(isActive ? .semibold : .regular)
-                            .foregroundColor(isActive ? .white : IslandsBlue)
+                            .foregroundColor(isActive ? .white : .primary) // Use primary for inactive text
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
-                            .background(isActive ? IslandsBlue : IslandsBlue.opacity(0.1))
+                            .background(
+                                Group {
+                                    if isActive {
+                                        Color.islandsBlue
+                                    } else {
+                                        Color(.secondarySystemFill) // More visible background in dark mode
+                                    }
+                                }
+                            )
                             .clipShape(Capsule())
                     }
                 }
@@ -239,6 +352,46 @@ private struct NotificationSheetView: View {
                 }
             }
 
+            if !filteredMessageRequests.isEmpty {
+                Section("Message Requests") {
+                    ForEach(filteredMessageRequests) { thread in
+                        Button {
+                            if let threadId = thread.id {
+                                Task { await viewModel.markAsRead(threadId: threadId) }
+                            }
+                            isPresented = false
+                            selectedTab = 1
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "envelope.badge.fill")
+                                    .foregroundColor(Color.islandsBlue)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.islandsBlue.opacity(0.1))
+                                    .clipShape(Circle())
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(thread.threadName.isEmpty ? viewModel.getParticipantSummary(for: thread) : thread.threadName)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    
+                                    Text("New group invitation")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
             if !filteredPins.isEmpty {
                 Section("Pin Share Requests") {
                     ForEach(filteredPins) { request in
@@ -251,9 +404,9 @@ private struct NotificationSheetView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "mappin.and.ellipse")
-                                    .foregroundColor(IslandsBlue)
+                                    .foregroundColor(Color.islandsBlue)
                                     .frame(width: 36, height: 36)
-                                    .background(IslandsBlue.opacity(0.1))
+                                    .background(Color.islandsBlue.opacity(0.1))
                                     .clipShape(Circle())
 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -283,17 +436,20 @@ private struct NotificationSheetView: View {
                 Section("Messages") {
                     ForEach(filteredThreads) { thread in
                         Button {
+                            if let threadId = thread.id {
+                                Task { await viewModel.markAsRead(threadId: threadId) }
+                            }
                             isPresented = false
                             selectedTab = 1
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "message.fill")
-                                    .foregroundColor(IslandsBlue)
+                                    .foregroundColor(Color.islandsBlue)
                                     .frame(width: 36, height: 36)
-                                    .background(IslandsBlue.opacity(0.1))
+                                    .background(Color.islandsBlue.opacity(0.1))
                                     .clipShape(Circle())
 
-                                Text(thread.threadName)
+                                Text(thread.threadName.isEmpty ? viewModel.getParticipantSummary(for: thread) : thread.threadName)
                                     .font(.body)
                                     .foregroundColor(.primary)
 
@@ -338,15 +494,12 @@ private struct FriendRequestRow: View {
     let onAccept: () -> Void
     let onDecline: () -> Void
 
-    private let IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
-    private let ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 36))
-                    .foregroundColor(IslandsBlue.opacity(0.6))
+                    .foregroundColor(Color.islandsBlue.opacity(0.6))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sender?.username ?? "Unknown User")
@@ -368,7 +521,7 @@ private struct FriendRequestRow: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(IslandsBlue)
+                .background(Color.islandsBlue)
                 .clipShape(Capsule())
                 .buttonStyle(.borderless)
 
@@ -377,10 +530,10 @@ private struct FriendRequestRow: View {
                 }
                 .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundColor(ChannelClay)
+                .foregroundColor(Color.channelClay)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(ChannelClay.opacity(0.1))
+                .background(Color.channelClay.opacity(0.1))
                 .clipShape(Capsule())
                 .buttonStyle(.borderless)
             }
@@ -389,10 +542,12 @@ private struct FriendRequestRow: View {
     }
 }
 
+
 #Preview {
     HomeView(
         authService: AuthService(firestoreService: FirestoreService()),
         selectedTab: .constant(2),
         selectedPinShareRequest: .constant(nil)
     )
+    .environmentObject(AssignmentsViewModel())
 }

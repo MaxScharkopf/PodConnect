@@ -8,8 +8,6 @@
 import SwiftUI
 
 struct ChatView: View {
-    var ChannelClay = Color(red: 173/250.0, green: 68/250.0, blue: 33/250.0)
-    var IslandsBlue = Color(red: 21/250.0, green: 62/250.0, blue: 74/250.0)
     @State private var participants: [String]
     @State private var users: [String: UserInfo] = [:]
     // Database interaction structure
@@ -23,7 +21,38 @@ struct ChatView: View {
     @State private var showSettings = false
     @State private var isRequest: Bool
 
+    @State private var editingMessageId: String?
+    @State private var editingContent: String = ""
+    @State private var showDeleteConfirmation = false
+    @State private var messageToDelete: Message?
+
+    @State private var dragOffset: CGFloat = 0
+
     @Environment(\.dismiss) private var dismiss
+
+    private let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private var threadTitle: String {
+        if !messageThread.threadName.isEmpty {
+            return messageThread.threadName
+        }
+        
+        let currentUserId = authService.userInfo?.uid
+        let allIds = messageThread.participants + messageThread.pendingParticipants
+        let otherIds = allIds.filter { $0 != currentUserId }
+        
+        let names = otherIds.compactMap { users[$0]?.name ?? users[$0]?.username }
+        
+        if names.isEmpty {
+            return "New Chat"
+        }
+        
+        return names.joined(separator: ", ")
+    }
 
     init(messageRepository: MessageRepository, friendRepository: FriendRepository, messageThread: MessageThread, authService: AuthService, isRequest: Bool = false) {
         self.messageRepository = messageRepository
@@ -71,23 +100,25 @@ struct ChatView: View {
                     
                     Spacer()
                     
-                    Text(messageThread.threadName)
+                    Text(threadTitle)
                         .foregroundColor(.white)
                         .font(.title)
                         .fontWeight(.bold)
-                        .padding(.leading, 0)
+                        .lineLimit(1)
                     
                     Spacer()
                     
-                    Button(action: {
-                        showSettings = true
-                    }) {
-                        Image(systemName: "gearshape")
-                            .font(.title3)
+                    if !isRequest {
+                        Button(action: {
+                            showSettings = true
+                        }) {
+                            Image(systemName: "gearshape")
+                                .font(.title3)
+                        }
                     }
                 }
                 .padding()
-                .background(IslandsBlue)
+                .background(Color.islandsBlue)
                 .foregroundColor(.white)
                 
                 if viewModel.isLoading {
@@ -99,13 +130,13 @@ struct ChatView: View {
                         Spacer()
                         Image(systemName: "envelope.badge.shield.half.filled")
                             .font(.system(size: 80))
-                            .foregroundStyle(IslandsBlue)
+                            .foregroundStyle(Color.islandsBlue)
                             .padding()
                         
                         Text("Message Request")
                             .font(.title2.bold())
                         
-                        Text("You've been invited to join \"\(messageThread.threadName)\".\nAccept to see the message history and start chatting.")
+                        Text("You've been invited to join \"\(threadTitle)\".\nAccept to see the message history and start chatting.")
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
                             .foregroundStyle(.secondary)
@@ -114,60 +145,127 @@ struct ChatView: View {
                     }
                     .frame(maxWidth: .infinity)
                 } else {
-                    ScrollView {
-                        ForEach(viewModel.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
-                            let isMe = message.sender == self.authService.userInfo?.uid
-                            let senderUser = users[message.sender]
+                    GeometryReader { geometry in
+                        ScrollView {
+                            VStack(spacing: 6) {
+                                ForEach(viewModel.messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
+                                    let isMe = message.sender == self.authService.userInfo?.uid
+                                    let senderUser = users[message.sender]
 
-                            HStack(alignment: .center, spacing: 8) {
-                                if isMe {
-                                    Spacer()
+                                    HStack(spacing: 0) {
+                                        // Message Content
+                                        HStack(alignment: .center, spacing: 8) {
+                                            if isMe {
+                                                Spacer()
 
-                                    Text(message.content)
-                                        .font(.body)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 10)
-                                        .background(IslandsBlue)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 22))
-                                        .frame(maxWidth: 260, alignment: .trailing)
-                                } else {
-                                    AvatarView(urlString: senderUser?.profileImageURL, size: 42)
+                                                VStack(alignment: .trailing, spacing: 4) {
+                                                    Text(message.content)
+                                                        .font(.body)
+                                                        .padding(.horizontal, 16)
+                                                        .padding(.vertical, 10)
+                                                        .background(editingMessageId == message.id ? .orange : Color.islandsBlue)
+                                                        .foregroundStyle(.white)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 22))
 
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(senderUser?.name ?? "Unknown")
-                                            .font(.caption)
+                                                    if message.isEdited == true {
+                                                        HStack(spacing: 4) {
+                                                            Image(systemName: "pencil")
+                                                            Text("edited")
+                                                        }
+                                                        .font(.system(size: 10, weight: .medium))
+                                                        .foregroundColor(.secondary)
+                                                        .padding(.trailing, 8)
+                                                    }
+                                                }
+                                                .frame(maxWidth: 260, alignment: .trailing)
+                                                .contextMenu {
+                                                    Button {
+                                                        editingMessageId = message.id
+                                                        editingContent = message.content
+                                                        currentMessage = message.content
+                                                    } label: {
+                                                        Label("Edit", systemImage: "pencil")
+                                                    }
+
+                                                    Button(role: .destructive) {
+                                                        messageToDelete = message
+                                                        showDeleteConfirmation = true
+                                                    } label: {
+                                                        Label("Delete", systemImage: "trash")
+                                                    }
+                                                }
+                                            } else {
+                                                AvatarView(urlString: senderUser?.profileImageURL, size: 42)
+
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(senderUser?.name ?? "Unknown")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                        .padding(.leading, 10)
+
+                                                    VStack(alignment: .leading, spacing: 4) {
+                                                        Text(message.content)
+                                                            .font(.body)
+                                                            .padding(.horizontal, 16)
+                                                            .padding(.vertical, 10)
+                                                            .background(Color(.systemGray6))
+                                                            .foregroundStyle(.primary)
+                                                            .clipShape(RoundedRectangle(cornerRadius: 22))
+
+                                                        if message.isEdited == true {
+                                                            HStack(spacing: 4) {
+                                                                Image(systemName: "pencil")
+                                                                Text("edited")
+                                                            }
+                                                            .font(.system(size: 10, weight: .medium))
+                                                            .foregroundColor(.secondary)
+                                                            .padding(.leading, 8)
+                                                        }
+                                                    }
+                                                    .frame(maxWidth: 260, alignment: .leading)
+                                                }
+
+                                                Spacer()
+                                            }
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .frame(width: geometry.size.width)
+
+                                        // Timestamp
+                                        Text(timeFormatter.string(from: message.timestamp))
+                                            .font(.system(size: 11, weight: .medium))
                                             .foregroundColor(.secondary)
-                                            .padding(.leading, 10)
-
-                                        Text(message.content)
-                                            .font(.body)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 10)
-                                            .background(Color(.systemGray6))
-                                            .foregroundStyle(.primary)
-                                            .clipShape(RoundedRectangle(cornerRadius: 22))
-                                            .frame(maxWidth: 260, alignment: .leading)
+                                            .frame(width: 65, alignment: .leading)
                                     }
-
-                                    Spacer()
+                                    .offset(x: dragOffset)
                                 }
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
+                            .padding(.vertical, 8)
                         }
+                        .contentShape(Rectangle())
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                                .onChanged { value in
+                                    // Only respond if the drag is primarily horizontal to the left
+                                    if value.translation.width < 0 && abs(value.translation.width) > abs(value.translation.height) {
+                                        if dragOffset == 0 {
+                                            UISelectionFeedbackGenerator().selectionChanged()
+                                        }
+                                        withAnimation(.interactiveSpring()) {
+                                            dragOffset = max(value.translation.width, -65)
+                                        }
+                                    }
+                                }
+                                .onEnded { _ in
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        dragOffset = 0
+                                    }
+                                }
+                        )
+                        .defaultScrollAnchor(.bottom)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .defaultScrollAnchor(.bottom)
                 }
             }
-            VStack(){
-                Spacer()
-                Rectangle()
-                    .fill(IslandsBlue)
-                    .frame(maxWidth: .infinity, maxHeight: 110)
-            }
-            .ignoresSafeArea()
         }
         .onChange(of: viewModel.messages.count) { _, _ in
             if !isRequest {
@@ -197,6 +295,7 @@ struct ChatView: View {
                         Task {
                             if let threadId = messageThread.id {
                                 try? await messageRepository.joinMessageThread(threadId: threadId)
+                                try? await messageRepository.markThreadAsRead(threadId: threadId)
                                 isRequest = false
                             }
                         }
@@ -228,34 +327,62 @@ struct ChatView: View {
                     }
                 }
                 .padding()
-                .background(.ultraThinMaterial)
+                .background(Color.islandsBlue.ignoresSafeArea(edges: .bottom))
             } else {
-                HStack {
-                    TextField("Message...", text: $currentMessage)
-                        .padding()
-                        .background(.thinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 50))
-                        .glassEffect()
-                    
-                    Button(action: {
-                        Task {
-                            if !currentMessage.isEmpty {
-                                await viewModel.sendMessage(messageContent: currentMessage)
+                VStack(spacing: 0) {
+                    if let editingId = editingMessageId {
+                        HStack {
+                            Text("Editing message")
+                                .font(.caption.bold())
+                                .foregroundColor(.white.opacity(0.8))
+                            Spacer()
+                            Button(action: {
+                                editingMessageId = nil
                                 currentMessage = ""
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.white.opacity(0.6))
                             }
                         }
-                    }) {
-                        Image(systemName: "arrow.up")
-                            .padding()
-                            .background(.blue)
-                            .clipShape(Circle())
-                            .foregroundStyle(.white)
-                            .glassEffect()
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .background(Color.black.opacity(0.2))
                     }
+                    
+                    HStack(alignment: .bottom, spacing: 12) {
+                        TextField(editingMessageId == nil ? "Message..." : "Edit message...", text: $currentMessage, axis: .vertical)
+                            .lineLimit(1...5)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .background(.thinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 22))
+                        
+                        Button(action: {
+                            Task {
+                                if !currentMessage.isEmpty {
+                                    if let editingId = editingMessageId {
+                                        await viewModel.editMessage(messageId: editingId, content: currentMessage)
+                                        editingMessageId = nil
+                                    } else {
+                                        await viewModel.sendMessage(messageContent: currentMessage)
+                                    }
+                                    currentMessage = ""
+                                }
+                            }
+                        }) {
+                            Image(systemName: editingMessageId == nil ? "arrow.up" : "checkmark")
+                                .font(.system(size: 20, weight: .bold))
+                                .frame(width: 48, height: 48)
+                                .background(.blue)
+                                .clipShape(Circle())
+                                .foregroundStyle(.white)
+                                .glassEffect()
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 10)
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 8)
+                .background(Color.islandsBlue.ignoresSafeArea(edges: .bottom))
                 .dismissKeyboardOnTap()
             }
         }
@@ -264,6 +391,18 @@ struct ChatView: View {
                 showSettings = false
                 dismiss()
             }
+        }
+        .alert("Delete Message?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                if let message = messageToDelete, let id = message.id {
+                    Task {
+                        await viewModel.deleteMessage(messageId: id)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete this message? This action cannot be undone.")
         }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },
@@ -290,10 +429,22 @@ struct SettingsView: View {
     @State private var pendingParticipants: [String]
     @State private var users: [String: UserInfo] = [:]
     @State private var showUserSearch: Bool = false
+    @State private var showTransferOwnership: Bool = false
+    @State private var selectedNewOwnerId: String?
 
     var onThreadDeleted: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+
+    private var isGroup: Bool {
+        (participants.count + pendingParticipants.count) > 2 || !messageThread.threadName.isEmpty
+    }
+
+    private var isOwner: Bool {
+        // In a group, follow strict ownership. In a DM, both are "owners" of the interaction.
+        if !isGroup { return true }
+        return messageThread.ownerId == authService.userInfo?.uid
+    }
 
     init(authService: AuthService, friendRepository: FriendRepository, messageThread: Binding<MessageThread>, viewModel: ChatViewModel, onThreadDeleted: @escaping () -> Void) {
         self._messageThread = messageThread
@@ -343,6 +494,9 @@ struct SettingsView: View {
         .popover(isPresented: $showUserSearch) {
             UserSearchPopup(friendRepository: self.friendRepository, participants: $pendingParticipants)
         }
+        .popover(isPresented: $showTransferOwnership) {
+            transferOwnershipPicker
+        }
         .onChange(of: showUserSearch) { _, isShowing in
             if !isShowing { Task { await loadUsers() } }
         }
@@ -353,6 +507,81 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+    }
+
+    private var transferOwnershipPicker: some View {
+        VStack {
+            Text("Select New Owner")
+                .font(.headline)
+                .padding()
+            
+            Text("You must choose a new owner before leaving the thread.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
+            List {
+                let otherActive = participants.filter { $0 != authService.userInfo?.uid }
+                ForEach(otherActive, id: \.self) { userId in
+                    Button {
+                        selectedNewOwnerId = userId
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.crop.circle")
+                            Text(users[userId]?.username ?? "Loading...")
+                            Spacer()
+                            if selectedNewOwnerId == userId {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                    .foregroundColor(.primary)
+                }
+            }
+            
+            Button {
+                if let newOwnerId = selectedNewOwnerId {
+                    transferAndLeave(to: newOwnerId)
+                }
+            } label: {
+                Text("Transfer & Leave")
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .foregroundColor(.white)
+                    .background(selectedNewOwnerId == nil ? Color.gray : Color.blue)
+                    .clipShape(Capsule())
+                    .padding()
+            }
+            .disabled(selectedNewOwnerId == nil)
+            
+            Button("Cancel", role: .cancel) {
+                showTransferOwnership = false
+            }
+            .padding(.bottom)
+        }
+        .frame(minWidth: 300, minHeight: 400)
+    }
+
+    private func transferAndLeave(to newOwnerId: String) {
+        guard let info = authService.userInfo, let threadId = messageThread.id else { return }
+        Task {
+            var updatedParticipants = participants
+            updatedParticipants.removeAll { $0 == info.uid }
+            
+            try? await viewModel.updateMessageThreadWithPending(
+                threadId: threadId,
+                threadName: threadName,
+                participants: updatedParticipants,
+                pendingParticipants: pendingParticipants,
+                ownerId: newOwnerId
+            )
+            
+            showTransferOwnership = false
+            reset()
+            onThreadDeleted()
         }
     }
 
@@ -379,6 +608,7 @@ struct SettingsView: View {
             .padding()
             .background(RoundedRectangle(cornerRadius: 16).fill(Color(.secondarySystemBackground)))
             .padding()
+            .disabled(!isGroup || !isOwner) // Only owner of a GROUP can rename
     }
 
     private var participantsSection: some View {
@@ -389,23 +619,46 @@ struct SettingsView: View {
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer()
-                Button(action: { showUserSearch = true }) {
-                    Image(systemName: "plus")
-                        .padding()
-                        .glassEffect()
-                        .padding()
+                if isOwner { // Both "owners" in a DM can add people to make it a group
+                    Button(action: { showUserSearch = true }) {
+                        Image(systemName: "plus")
+                            .padding()
+                            .glassEffect()
+                            .padding()
+                    }
                 }
             }
             List {
                 Section(header: Text("Active")) {
-                    ForEach(participants.filter { $0 != authService.userInfo?.uid }, id: \.self) { userId in
+                    ForEach(participants, id: \.self) { userId in
                         HStack {
                             Image(systemName: "person.crop.circle")
                                 .foregroundStyle(.secondary)
                             Text(users[userId]?.username ?? "Loading...")
+                            
+                            if userId == messageThread.ownerId || !isGroup {
+                                Text("Owner")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.islandsBlue.opacity(0.15))
+                                    .foregroundColor(Color.islandsBlue)
+                                    .clipShape(Capsule())
+                                    .padding(.leading, 4)
+                            }
                         }
                     }
-                    .onDelete { indexSet in participants.remove(atOffsets: indexSet) }
+                    .onDelete { indexSet in
+                        if isOwner {
+                            // Don't allow deleting yourself if you are the owner and there are others
+                            // They must transfer ownership instead. 
+                            // But for simplicity of this UI, we just filter the indexSet
+                            let idsToDelete = indexSet.map { participants[$0] }
+                            if !idsToDelete.contains(authService.userInfo?.uid ?? "") {
+                                participants.remove(atOffsets: indexSet)
+                            }
+                        }
+                    }
                 }
 
                 if !pendingParticipants.isEmpty {
@@ -417,9 +670,24 @@ struct SettingsView: View {
                                     .opacity(0.5)
                                 Text(users[userId]?.username ?? "Loading...")
                                     .foregroundStyle(.secondary)
+                                
+                                if userId == messageThread.ownerId || !isGroup {
+                                    Text("Owner")
+                                        .font(.caption2.bold())
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.gray.opacity(0.15))
+                                        .foregroundColor(.secondary)
+                                        .clipShape(Capsule())
+                                        .padding(.leading, 4)
+                                }
                             }
                         }
-                        .onDelete { indexSet in pendingParticipants.remove(atOffsets: indexSet) }
+                        .onDelete { indexSet in
+                            if isOwner {
+                                pendingParticipants.remove(atOffsets: indexSet)
+                            }
+                        }
                     }
                 }
             }
@@ -427,49 +695,70 @@ struct SettingsView: View {
     }
 
     private var saveButton: some View {
-        Button(action: {
-            guard let threadId = messageThread.id else { return }
-            Task {
-                // Update the repository with both arrays
-                try? await viewModel.updateMessageThreadWithPending(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants)
-                messageThread.threadName = threadName
-                messageThread.participants = participants
-                messageThread.pendingParticipants = pendingParticipants
-                reset()
+        Group {
+            if isOwner && isGroup { // Only show save for group owners (DM updates happen auto on leave/add)
+                Button(action: {
+                    guard let threadId = messageThread.id else { return }
+                    Task {
+                        // Update the repository with both arrays
+                        try? await viewModel.updateMessageThreadWithPending(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants, ownerId: messageThread.ownerId)
+                        messageThread.threadName = threadName
+                        messageThread.participants = participants
+                        messageThread.pendingParticipants = pendingParticipants
+                        reset()
+                    }
+                }) {
+                    Text("Save Changes")
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .foregroundColor(.white)
+                        .background(.blue)
+                        .clipShape(Capsule())
+                        .glassEffect()
+                        .padding()
+                }
             }
-        }) {
-            Text("Save Changes")
-                .padding()
-                .frame(maxWidth: .infinity)
-                .foregroundColor(.white)
-                .background(.blue)
-                .clipShape(Capsule())
-                .glassEffect()
-                .padding()
         }
     }
 
     private var deleteButton: some View {
         Button(action: {
             guard let info = authService.userInfo else { return }
-            participants.removeAll { $0 == info.uid }
-            users[info.uid] = nil
             Task {
                 if let threadId = messageThread.id {
-                    if participants.isEmpty && pendingParticipants.isEmpty {
-                        await viewModel.deleteMessageThread(threadId: threadId)
+                    let otherActive = participants.filter { $0 != info.uid }
+                    let allOthers = otherActive + pendingParticipants
+                    
+                    if messageThread.ownerId == info.uid {
+                        // Current user is the DB owner
+                        if allOthers.isEmpty {
+                            // Last person, delete everything
+                            await viewModel.deleteMessageThread(threadId: threadId)
+                            reset()
+                            onThreadDeleted()
+                        } else if !isGroup {
+                            // It's a DM, auto-transfer to the other person and leave
+                            if let newOwner = allOthers.first {
+                                transferAndLeave(to: newOwner)
+                            }
+                        } else {
+                            // It's a group with others, must pick a new owner
+                            showTransferOwnership = true
+                        }
                     } else {
-                        await viewModel.updateMessageThreadWithPending(threadId: threadId, threadName: threadName, participants: participants, pendingParticipants: pendingParticipants)
-                        messageThread.threadName = threadName
-                        messageThread.participants = participants
-                        messageThread.pendingParticipants = pendingParticipants
+                        // User is a member or DM participant but not DB owner
+                        // Just leave. In a DM, since we treated them as "owner" for UI, 
+                        // they still just leave here.
+                        var updatedParticipants = participants
+                        updatedParticipants.removeAll { $0 == info.uid }
+                        try? await viewModel.updateMessageThreadWithPending(threadId: threadId, threadName: threadName, participants: updatedParticipants, pendingParticipants: pendingParticipants, ownerId: messageThread.ownerId)
+                        reset()
+                        onThreadDeleted()
                     }
                 }
-                reset()
-                onThreadDeleted()
             }
         }) {
-            Text("Leave Thread")
+            Text(isOwner ? (isGroup ? "Leave Thread" : "Delete Chat") : "Leave Thread")
                 .padding()
                 .frame(maxWidth: .infinity)
                 .foregroundColor(.red)
@@ -485,5 +774,5 @@ struct SettingsView: View {
     let firestore = FirestoreService()
     let auth = AuthService(firestoreService: firestore)
     
-    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), friendRepository: FriendRepository(firestoreService: firestore), messageThread: MessageThread(id: "messageThreadID", participants: [], pendingParticipants: [], threadName: "The Dev Team"), authService: auth)
+    ChatView(messageRepository: MessageRepository(firestoreService: firestore, authService: auth), friendRepository: FriendRepository(firestoreService: firestore), messageThread: MessageThread(id: "messageThreadID", participants: [], pendingParticipants: [], threadName: "The Dev Team", lastMessageAt: nil, lastReadAt: nil, ownerId: "1"), authService: auth)
 }

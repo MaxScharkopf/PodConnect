@@ -23,9 +23,11 @@ class FriendViewModel: ObservableObject {
     @Published var relationshipStatus: RelationshipStatus = .none
     @Published var incomingRequests: [FriendRequest] = []
     @Published var requestErrorMessage: String = ""
+    @Published var blockedUsers: [UserInfo] = []
 
     private var incomingRequestsListenerTask: Task<Void, Never>?
     private var friendsListenerTask: Task<Void, Never>?
+    private var blockedUsersListenerTask: Task<Void, Never>?
 
     init(friendRepository: FriendRepository) {
         self.friendRepository = friendRepository
@@ -34,6 +36,7 @@ class FriendViewModel: ObservableObject {
     deinit {
         incomingRequestsListenerTask?.cancel()
         friendsListenerTask?.cancel()
+        blockedUsersListenerTask?.cancel()
     }
 
     // Search for a user by username
@@ -114,6 +117,40 @@ class FriendViewModel: ObservableObject {
             friends.removeAll { $0.uid == uid }
         } catch {
             print("Error unfriending: \(error)")
+        }
+    }
+    
+    // Block a user
+    func blockUser(uid: String) async {
+        do {
+            try await friendRepository.blockUser(uid: uid)
+            friends.removeAll { $0.uid == uid }
+        } catch {
+            print("Error blocking user: \(error)")
+        }
+    }
+
+    // Unblock a user
+    func unblockUser(uid: String) async {
+        do {
+            try await friendRepository.unblockUser(uid: uid)
+        } catch {
+            print("Error unblocking user: \(error)")
+        }
+    }
+    
+    func fetchBlockedUsers() async {
+        guard blockedUsersListenerTask == nil else { return }
+
+        blockedUsersListenerTask = Task {
+            do {
+                let stream = friendRepository.blockedUsersStream()
+                for try await blockedList in stream {
+                    blockedUsers = blockedList
+                }
+            } catch {
+                print("Error listening for blocked users: \(error)")
+            }
         }
     }
     

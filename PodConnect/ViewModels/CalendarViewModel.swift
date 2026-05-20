@@ -49,7 +49,8 @@ class CalendarViewModel: ObservableObject {
             for event in events {
                 try await eventRepository.saveEvent(event: event)
             }
-            userEvents.append(contentsOf: events)
+
+            await fetchEvents()
         } catch {
             errorMessage = error.localizedDescription
         }

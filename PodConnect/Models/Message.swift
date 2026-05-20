@@ -26,6 +26,17 @@ struct MessageThread: Codable, Identifiable {
     var threadName: String
     var lastMessageAt: Date?
     var lastReadAt: [String: Date]?
+    var ownerId: String
+
+    init(id: String? = nil, participants: [String], pendingParticipants: [String], threadName: String, lastMessageAt: Date? = nil, lastReadAt: [String: Date]? = nil, ownerId: String) {
+        self.id = id
+        self.participants = participants
+        self.pendingParticipants = pendingParticipants
+        self.threadName = threadName
+        self.lastMessageAt = lastMessageAt
+        self.lastReadAt = lastReadAt
+        self.ownerId = ownerId
+    }
 }
 
 struct Message: Codable, Identifiable {
@@ -33,4 +44,5 @@ struct Message: Codable, Identifiable {
     var content: String
     var sender: String
     var timestamp: Date
+    var isEdited: Bool?
 }
