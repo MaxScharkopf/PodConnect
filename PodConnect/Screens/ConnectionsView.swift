@@ -12,6 +12,8 @@ struct ConnectionsView: View {
     @ObservedObject var authService: AuthService
     @StateObject private var viewModel: FriendViewModel
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var locationManager = LocationManager()
+
     
     @State private var searchText = ""
     @State private var searchResults: [UserInfo] = []
@@ -25,6 +27,7 @@ struct ConnectionsView: View {
     @State private var friendToUnblock: UserInfo? = nil
     
     private let messageRepository: MessageRepository
+    private let liveLocationRepository: LiveLocationRepository
     
     @State private var isSearchMode = false
     @State private var isLoadingConnections = true
@@ -33,6 +36,9 @@ struct ConnectionsView: View {
     init(authService: AuthService, friendRepository: FriendRepository) {
         _authService = ObservedObject(wrappedValue: authService)
         _viewModel = StateObject(wrappedValue: FriendViewModel(friendRepository: friendRepository))
+        self.liveLocationRepository = LiveLocationRepository(
+            firestoreService: FirestoreService()
+        )
         self.messageRepository = MessageRepository(firestoreService: FirestoreService(), authService: authService)
     }
     
@@ -185,6 +191,9 @@ struct ConnectionsView: View {
                         senderUid: request.senderUid,
                         friendRepository: viewModel.friendRepository,
                         currentUID: currentUID,
+                        liveLocationRepository: liveLocationRepository,
+                        currentUsername: authService.userInfo?.username ?? "Someone",
+                        locationManager: locationManager,
                         authService: authService
                     )
                 ) {
@@ -259,8 +268,11 @@ struct ConnectionsView: View {
                                     isRequested: false,
                                     currentUID: currentUID,
                                     friendRepository: viewModel.friendRepository,
+                                    liveLocationRepository: liveLocationRepository,
+                                    currentUsername: authService.userInfo?.username ?? "Someone",
                                     messageRepository: messageRepository,
-                                    authService: authService
+                                    authService: authService,
+                                    locationManager: locationManager
                                 )
                             ) {
                                 UserRowView(user: friend)
@@ -441,8 +453,11 @@ struct ConnectionsView: View {
                             isRequested: !isLiveFriend(user) && requestedUserIds.contains(user.uid),
                             currentUID: currentUID,
                             friendRepository: viewModel.friendRepository,
+                            liveLocationRepository: liveLocationRepository,
+                            currentUsername: authService.userInfo?.username ?? "Someone",
                             messageRepository: messageRepository,
-                            authService: authService
+                            authService: authService,
+                            locationManager: locationManager
                         )
                     ) {
                         UserRowView(user: user)
@@ -734,6 +749,10 @@ struct RequestProfileLoaderView: View {
     let senderUid: String
     let friendRepository: FriendRepository
     let currentUID: String
+    let liveLocationRepository: LiveLocationRepository
+    let currentUsername: String
+    
+    @ObservedObject var locationManager: LocationManager
     let authService: AuthService
 
     @State private var user: UserInfo? = nil
@@ -747,8 +766,11 @@ struct RequestProfileLoaderView: View {
                     isRequested: false,
                     currentUID: currentUID,
                     friendRepository: friendRepository,
+                    liveLocationRepository: liveLocationRepository,
+                    currentUsername: currentUsername,
                     messageRepository: MessageRepository(firestoreService: FirestoreService(), authService: authService),
-                    authService: authService
+                    authService: authService,
+                    locationManager: locationManager
                 )
             } else {
                 ZStack {

@@ -6,6 +6,7 @@
 //
 import SwiftUI
 import MapKit
+import FirebaseAuth
 
 struct MapView: View {
     @StateObject private var mapViewModel: MapViewModel
@@ -74,10 +75,15 @@ struct MapView: View {
             firestoreService: firestoreService
         )
         
+        let liveLocationRepository = LiveLocationRepository(
+            firestoreService: firestoreService
+        )
+        
         self.friendRepository = friendRepository
 
         _mapViewModel = StateObject(
-            wrappedValue: MapViewModel(mapRepository: mapRepository, friendRepository: friendRepository)
+            wrappedValue: MapViewModel(mapRepository: mapRepository, friendRepository: friendRepository,
+                liveLocationRepository: liveLocationRepository)
         )
         
         _pinShareViewModel = StateObject(
@@ -134,6 +140,18 @@ struct MapView: View {
                             .tint(pin.pinType == "user" ? .orange : style.color)
                             .tag(pin)
                         }
+                    }
+                    
+                    ForEach(mapViewModel.liveLocationShares) { share in
+                        Marker(
+                            share.ownerUsername,
+                            systemImage: "location.circle.fill",
+                            coordinate: CLLocationCoordinate2D(
+                                latitude: share.latitude,
+                                longitude: share.longitude
+                            )
+                        )
+                        .tint(.purple)
                     }
                     
                     if let route {
@@ -347,6 +365,7 @@ struct MapView: View {
             .task {
                 await loadFriends()
                 await pinShareViewModel.loadIncomingRequests()
+                mapViewModel.startLiveLocationListener()
             }
             .onChange(of: selectedPinShareRequest?.id) { _, _ in
                 guard selectedPinShareRequest != nil else { return }
@@ -365,7 +384,7 @@ struct MapView: View {
                         await getDirections(to: pin)
                     }
                 },
-                onDelete: pin.pinType == "user" ? {
+                onDelete: canEditPin(pin) ? {
                     Task {
                         if let id = pin.id {
                             await mapViewModel.deleteUserPin(id: id)
@@ -373,7 +392,7 @@ struct MapView: View {
                         }
                     }
                 } : nil,
-                onEdit: pin.pinType == "user" ? {
+                onEdit: canEditPin(pin) ? {
                     Task {
                         selectedPin = nil
                         
@@ -571,6 +590,14 @@ func mapButton(icon: String, isActive: Bool = false) -> some View {
         .background(.thinMaterial)
         .clipShape(Circle())
         .shadow(radius: 5)
+}
+
+private var currentUid: String? {
+    Auth.auth().currentUser?.uid
+}
+
+private func canEditPin(_ pin: MapPin) -> Bool {
+    pin.pinType == "user" && pin.ownerUserId == currentUid
 }
 
 struct sBar: View {
